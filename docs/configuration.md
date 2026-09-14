@@ -140,7 +140,9 @@ Serika 示例使用根样例中的 `examples.serika`，不与 Rails 两家的搜
 
 支持范围由**引擎契约**决定，而不是由这份清单决定：Danbooru 引擎看
 [danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)。
-按需增删站点键是正常用法，把清单当成“只支持这些站”会误判。
+契约基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`），
+所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
+本库实现的是那份契约而不是某个站点的私有行为。按需增删站点键是正常用法，把清单当成“只支持这些站”会误判。
 
 Danbooru 系站点（Danbooru 引擎）：
 
