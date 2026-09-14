@@ -5,6 +5,11 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### 需求范围纠正
+
+- 移除由个人猴子补丁展示延伸出的专用工作流示例、文档章节与三个示例配置键；画师查询只保留上游通用契约说明。
+- 库 API 实现和根配置结构不变；此前真实执行的验证输入与结果仍按历史记录保留，不作为产品能力承诺。
+
 ### 配置与认证
 
 - 站点、凭据、代理、超时、User-Agent、示例参数集中到根配置文件 `pybooru.json`；
@@ -54,9 +59,9 @@
 
 - 删除 Sphinx 文档树（`docs/source/`、`docs/Makefile`、`docs/make.bat`）、预览脚本与 `setup.cfg`
   的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、根配置、认证、分页、错误、
-  各 Danbooru API 面、画师与 pixiv、Moebooru 现状、迁移）。
+  各 Danbooru API 面、Moebooru 现状、迁移）。
 - README、CONTRIBUTING 更新为中文并与 5.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
-- 示例重写为从根配置 `examples` 段取参数，不再硬编码站点、代理、分页与作者 ID；
+- 示例重写为从根配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
 
 ### 工程整理

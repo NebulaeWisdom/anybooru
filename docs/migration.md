@@ -146,7 +146,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `artist_commentary_revert(id_, version_id)` | `artist_commentary_revert(post_id, version_id)` | 路径里的 `:id` 实为 **post_id**，4.x 文档描述有误导 |
 | `artist_commentary_versions(post_id, updater_id)` | `artist_commentary_versions_list(search=None, **params)` | 另有 `artist_commentary_version_show` |
 
-按 URL 查画师、pixiv id → tag 的推荐写法见 [danbooru-artists.md](danbooru-artists.md)。
+画师查询的参数与匹配语义见 [API 契约的 artists 节](danbooru-api.md#artists)。
 
 ### 评论与笔记
 

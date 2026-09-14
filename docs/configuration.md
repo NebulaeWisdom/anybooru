@@ -76,9 +76,6 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
       "tag_search": {"order": "count"},
       "preview_chars": 200,
       "post_id": 1,
-      "artist_url": "https://www.pixiv.net/users/27517",
-      "pixiv_id": 27517,
-      "pixiv_url_template": "https://www.pixiv.net/users/{pixiv_id}",
       "wiki_query": "help:api",
       "wiki_title": "help:api",
       "related_query": "touhou",
@@ -138,8 +135,8 @@ Moebooru 系站点（Moebooru 引擎）：
 
 ## `examples` 段
 
-`examples` 段只服务于 `examples/` 目录下的可运行示例与文档片段：把**关键词、数量、ID、URL 模板**这类
-调用参数放回配置文件，示例脚本本身不硬编码站点、代理、分页和作者 ID。
+`examples` 段只服务于 `examples/` 目录下的可运行示例与文档片段：把**关键词、数量、ID**这类
+调用参数放回配置文件，示例脚本本身不硬编码站点、代理和分页。
 
 | 键 | 所属 | 说明 |
 | :--- | :--- | :--- |
@@ -149,9 +146,6 @@ Moebooru 系站点（Moebooru 引擎）：
 | `pages` / `tag_search` / `preview_chars` | Danbooru | 编号分页示例的页码数组、标签查询字典、wiki 正文显示长度 |
 | `post_id` | 两者 | 帖子 ID（示例优先改用列表返回的首个 ID，见 [danbooru.md](danbooru.md)） |
 | `comment_body` | 两者 | 评论正文示例 |
-| `artist_url` | Danbooru | 画师主页 URL，用于按 URL 查画师 |
-| `pixiv_id` | Danbooru | pixiv 作者 ID |
-| `pixiv_url_template` | Danbooru | 由 `pixiv_id` 拼出 `artist_url` 的模板 |
 | `wiki_query` / `wiki_title` | Danbooru | wiki 页面查询词与标题 |
 | `related_query` / `related_category` / `related_order` | Danbooru | 相关标签查询参数 |
 | `search_sample_size` / `tag_sample_size` | Danbooru | 相关标签查询的样本规模 |

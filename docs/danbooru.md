@@ -98,8 +98,9 @@ requests 不会为 multipart 字段展开括号，所以这类字段名要按服
 搜索字典（`search`）也是嵌套结构，由原生方法负责放进对应的层：
 
 ```python
-client.artist_list(search={'url_matches': 'https://www.pixiv.net/users/27517'})
-client.related_tag(search={'query': 'touhou', 'order': 'frequency'})
+client.tag_list(search=example['tag_search'], limit=example['limit'])
+client.related_tag(search={'query': example['related_query'], 'order': example['related_order']},
+                   limit=example['limit'])
 ```
 
 有一个例外要记住：**帖子列表不读 `search` 字典**，它的过滤条件全部写在 `tags` 查询串里作为元标签
@@ -153,12 +154,10 @@ def xxx_create / xxx_update / xxx_delete    # 写操作（需要登录）
 ```python
 posts = client.post_list(tags=example['tags'], limit=example['limit'])
 tags = client.tag_list(search=example['tag_search'], limit=example['limit'])
-artists = client.artist_list(search={'url_matches': example['artist_url']}, limit=example['limit'])
-artist = client.artist_show(artists[0]['id'])
+post = client.post_show(posts[0]['id'])
 ```
 
-完整端点清单（含认证要求与路由来源）见 [danbooru-api.md](danbooru-api.md)。按 URL 找画师、
-pixiv 作者 ID 转 tag 见 [danbooru-artists.md](danbooru-artists.md)。
+完整端点清单（含认证要求、画师查询语义与路由来源）见 [danbooru-api.md](danbooru-api.md)。
 
 ## 关闭与上下文管理
 

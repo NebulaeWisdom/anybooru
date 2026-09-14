@@ -2,6 +2,8 @@
 
 本文记录对真实线上站点的验证执行情况，区分**已实测**与**仅源码对齐**。
 
+这里保留的是当时真实执行的历史记录，不是产品能力清单。下文使用特定主页 URL 的请求与输出不变；当时执行过的个人工作流示例现已删除，其历史命令仅供追溯，不能作为当前仓库的可运行入口。该个人补丁不再被包装为库特性，通用 Artist 查询契约仍见 [API 文档](danbooru-api.md#artists)。
+
 ## 已执行：匿名只读验证
 
 | 项目 | 内容 |
@@ -58,6 +60,16 @@ JSON 响应。因此对重定向类端点只能说“跟随重定向，最终格
 第一条输出 `artist: 8704 fuzichoco`，并检索到帖子 `12090564`、`12070768`、`12064514`；第二条输出查询 `touhou`、`post_count=1096790`，相关标签依次为 `1girl`、`solo`、`hat`。数量与排名会随线上数据变化。
 
 最初共享传输调用 `temp/verify_transport.py` 也已执行：匿名 `/posts.json?limit=2` 返回 `200`，同时仅在本地构造了 Konachan / yande.re 客户端并观察到配置中的 API 版本与鉴权模板得到保留；这不代表 Moebooru 线上接口经过验证。
+
+### 移除个人示例后的执行记录
+
+删除个人工作流示例及其三个根配置输入后，再次执行：
+
+```bash
+.venv/Scripts/python.exe examples/danbooru/related_tag.py --config pybooru.json
+```
+
+该保留示例通过根配置中的 `http://proxy-host:port` 代理匿名请求，正常输出 `query: touhou posts: 1096795`，以及 `1girl`、`solo`、`hat`。这次输出是独立的新记录；上文历史 URL、响应与命令未替换。
 
 ### 预期失败（验证错误处理）
 

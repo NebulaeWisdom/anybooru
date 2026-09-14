@@ -91,8 +91,8 @@ example = client.config['examples']['danbooru']
 client.comment_create(post_id=example['post_id'], body=example['comment_body'])
 ```
 
-按 URL 查画师、pixiv 作者 ID 转 tag 的完整流程见
-[docs/danbooru-artists.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-artists.md)。
+画师查询的参数与上游匹配语义见
+[Danbooru API 契约](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md#artists)。
 
 ### 3. Moebooru 系站点（如 yande.re / konachan）
 
@@ -124,18 +124,17 @@ Moebooru 面的 API 文件本轮未重写，只同步了共享配置用法；其
 | [docs/errors.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/errors.md) | 异常与状态码 |
 | [docs/danbooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru.md) | Danbooru 客户端与 `request()` 通用入口 |
 | [docs/danbooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md) | Danbooru 各 API 面与端点清单 |
-| [docs/danbooru-artists.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-artists.md) | 按 URL 查画师、pixiv id → tag |
 | [docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md) | Moebooru 面现状与用法 |
 | [docs/migration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
 | [docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
 可运行示例见 [examples/](https://github.com/LuqueDaniel/pybooru/tree/master/examples)：
 
-- `examples/danbooru/`：Danbooru 系站点的列表、详情、画师、相关标签、评论等示例；
+- `examples/danbooru/`：Danbooru 系站点的列表、详情、分页、相关标签、评论等示例；
 - `examples/moebooru/`：Moebooru 系站点的对应示例。
 
 示例中的关键词、ID 等参数一律从根配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
-分页或作者 ID。
+分页。
 
 ## 贡献
 

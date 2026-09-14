@@ -15,7 +15,6 @@ Danbooru 与 Moebooru 是被大量图站采用的引擎模板，所以本库对�
 | [errors.md](errors.md) | 异常层次、`PybooruHTTPError` 字段、引擎状态码 |
 | [danbooru.md](danbooru.md) | Danbooru 客户端构造、`request()` 通用入口、参数编码 |
 | [danbooru-api.md](danbooru-api.md) | Danbooru 各 API 面：端点、参数、认证要求、路由来源 |
-| [danbooru-artists.md](danbooru-artists.md) | 按 URL 查画师、pixiv 作者 ID → tag |
 | [moebooru.md](moebooru.md) | Moebooru 面现状、构造与用法、未验证说明 |
 | [migration.md](migration.md) | 从 Pybooru 4.x 迁移到 5.x 的逐项对照 |
 | [verification.md](verification.md) | 线上验证状态：已实测与未实测清单 |

@@ -210,8 +210,25 @@ def xxx_list(self, search=None, **params)
 | `artist_commentary_versions_list(search=None, **params)` | `GET artist_commentary_versions.json` | 匿名 | `search[post_id, updater_id, updater_name, text_matches, original_title, ...]` |
 | `artist_commentary_version_show(version_id)` | `GET artist_commentary_versions/<id>.json` | 匿名 | — |
 
-`url_matches` 支持四种形态：完整 `http(s)://` 地址（会走来源归一化）、`/正则/`、含 `*` 的通配、
-普通子串。按 URL 查画师与 pixiv id → tag 的完整用法见 [danbooru-artists.md](danbooru-artists.md)。
+`Artist.name` 是与帖子上的画师标签对应的名称，不是外部站点的作者 ID。`Artist` 通过同名字段关联
+`Tag`，默认标签类别为 artist；`urls` 则关联画师的地址记录。来源：`app/models/artist.rb:30-36`。
+
+`search[url_matches]` 的匹配与归一化由上游完成，客户端只传递搜索值：
+
+* `/artists.json`：完整 `http(s)://` 地址进入 `Source::Extractor.find(query).artists`，按来源解析得到
+  规范主页地址，再通过 `Artist.has_normalized_url` 与 `ArtistURL.normalized_url_equals_any` 匹配；
+  未识别来源进入 `ArtistFinder`，由 `ArtistURL.normalize_url` 归一化后查询。
+  来源：`app/models/artist.rb:262-282,310-311`、`app/logical/source/extractor.rb:294-301`、
+  `app/logical/artist_finder.rb:15-35`、`app/models/artist_url.rb:64-67,95-97`。
+* `/artist_urls.json`：`ArtistURL.url_matches` 接受完整地址、`/正则/`、含 `*` 的通配与普通子串。
+  完整地址经 `Source::URL` / `Source::Extractor` 解析主页，或进行 URL 归一化后再匹配；普通子串走
+  大小写不敏感的包含匹配。`/artists.json` 的非完整 URL 查询也进入这一方法。
+  来源：`app/models/artist_url.rb:19-21,43-67`、`app/models/artist.rb:271-278`。
+* `any_name_or_url_matches` 根据输入是否为完整 `http(s)://` 地址，在 URL 与名称匹配之间选择；
+  `any_name_matches` 查询当前名称、其他名称与团体名，并支持通配和正则。
+  来源：`app/models/artist.rb:250-259,285-307`。
+
+这些是 Danbooru 引擎的通用搜索契约，不包含客户端对特定外部平台的 ID 转换逻辑。
 
 > **关于重定向类端点**：`artist_delete`、`artist_ban`、`artist_unban`、`wiki_page_show_or_new`、
 > `forum_topics_mark_all_as_read` 等动作在服务端是 `redirect_to`。客户端会跟随重定向，
