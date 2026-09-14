@@ -296,4 +296,4 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 * 所有需要登录的写接口都只做了源码对齐，**未做线上实测**；
 * Moebooru 面的写接口与账号动作未做线上实测；匿名只读记录见
   [verification.md](verification.md)；
-* 已完成的匿名只读验证记录（如有）见 [danbooru-api.md](danbooru-api.md) 的“验证状态”一节。
+* 已完成的匿名只读执行与逐请求结果见 [验证记录](verification.md)，源码依据见 [Danbooru 契约审计附注](danbooru-contract-notes.md)。

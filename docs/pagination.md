@@ -7,7 +7,7 @@
 * `page` / `limit` 原样传给服务端，不设本地上限、不裁剪、不补默认值；
 * 不自动翻页，也不隐式抓取下一页（没有生成器、没有内部循环）；
 * 请求失败不自动重试，包括被限流的情况；
-* 返回的就是服务端给的那一页数据，原样是 JSON 数组。
+* 返回服务端给的那一页；数组或带分页信息的对象取决于方法，见各家族方法参考。
 
 也就是说，分页策略完全由调用者决定，客户端只负责把参数发对。
 
@@ -71,7 +71,7 @@ Moebooru 面同样不做本地分页：`page` 就是页码（服务端把它夹�
 | `post_list` | `limit` 默认 40，超过 1000 一律夹到 1000；`tags` 里的 `limit:` 元标签可以覆盖 |
 | `pool_list` | 20；`query` 里的 `limit:N` 被夹到 ≤100 |
 | `pool_show` | `page × 24`（账号开启合集浏览模式时 ×1000） |
-| `note_list` | 100（带 `post_id`）/ 16 |
+| `note_list` | 先按帖子分页：100（带 `post_id`）/ 16 个帖子，再返回这些帖子的全部笔记；不是笔记条数上限 |
 | `note_history` | 25（按 `post_id`、`user_id` 时 50），**`limit` 被忽略** |
 | `comment_list` | 25，**`limit` 被忽略** |
 | `comment_search` / `forum_search` | 30 |
@@ -80,7 +80,7 @@ Moebooru 面同样不做本地分页：`page` 就是页码（服务端把它夹�
 | `artist_list` | 50（带 `name` / `url`）/ 25，**`limit` 被忽略** |
 | `tag_list` | 默认 50；`limit=0` 返回全部 |
 
-逐条来源见 [moebooru-api.md 的分页与上限表](moebooru-api.md#分页与实际上限)。Moebooru **没有** Danbooru
+逐条来源见 [Moebooru 契约审计附注](moebooru-contract-notes.md)。Moebooru **没有** Danbooru
 那样的 `page=a1000` / `b1000` 游标形式，`page` 只接受编号。
 
 ```python
@@ -96,5 +96,5 @@ with Moebooru('yandere', config_file='pybooru.json') as client:
 
 ## 相关文档
 
-* [danbooru-api.md](danbooru-api.md)：各端点的参数清单
+* [方法参考导航](index.md#按家族选文档)：各家族参数与返回形状
 * [errors.md](errors.md)：限流、参数错误等失败情形

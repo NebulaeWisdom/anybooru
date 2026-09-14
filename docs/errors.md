@@ -66,8 +66,8 @@ Danbooru 引擎的 JSON 错误体形如：
 2. 调用了服务端会 `redirect_to` 的端点：客户端跟随重定向，**最终格式以目标端点为准**。
    因为客户端始终发送 `Accept: application/json`，重定向目标通常仍返回 JSON
    （`artist_show_or_new` 已实测如此）；只有当最终响应不是 JSON 时才抛本异常。
-   写类重定向端点未实测，请用 `last_call['status_code']` / `last_call['url']` 判断结果，
-   详见 [danbooru-api.md](danbooru-api.md)。
+   通过 `last_call['status_code']` / `last_call['url']` 可以观察最终响应；状态码本身不确认写入生效。
+   重定向分支与权限依据见 [Danbooru 审计](danbooru-contract-notes.md)、[Moebooru 审计](moebooru-contract-notes.md)。
 
 | 属性 | 类型 | 说明 |
 | :--- | :--- | :--- |
@@ -76,8 +76,8 @@ Danbooru 引擎的 JSON 错误体形如：
 
 ## 状态码
 
-本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面是两个引擎实际会返回的状态码，
-可用作排查参考。
+本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留两个 Rails 引擎的速查；
+Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，不重复列出。
 
 ### Danbooru 引擎
 
@@ -94,7 +94,7 @@ Danbooru 引擎的 JSON 错误体形如：
 | `429` | 触发限流（`You're doing that too fast`） |
 | `451` | 内容因下架请求被移除 |
 | `500` | 服务端异常、数据库查询超时 |
-| `501` | 功能不可用：例如站点未配置 archive 服务时的 `post_versions` / `pool_versions`，未配置 IQDB 时的以图搜图 |
+| `501` | 功能不可用：例如站点未配置 archive 服务时的 `post_versions` / `pool_versions`；IQDB 未配置走空数组分支，区别见 [Danbooru 审计](danbooru-contract-notes.md#失败与能力依赖) |
 | `503` | 数据库不可用 |
 
 ### Moebooru 引擎
@@ -116,6 +116,11 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 * `429` 与 `5xx` 由调用者自己决定等待多久、重试几次；
 * Danbooru 在被限流的请求上会返回 `X-Rate-Limit` 响应头（JSON，含 `action`、`rate`、`burst`、`limits`
   等字段），通过 `PybooruHTTPError.response.headers` 读取。
+
+## 边界与未实测
+
+已执行的 JSON、HTML、空正文和网络异常场景见[验证记录](verification.md)。写类重定向只有源码依据，
+没有线上实测；最终 2xx 或 JSON 不等于资源已修改，也不要因最终解析失败而盲目重试写操作。
 
 ## 相关文档
 
