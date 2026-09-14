@@ -43,6 +43,7 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
+    "serika": { "url": "https://serika.art", "api_key": "" },
     "danbooru": { "url": "https://danbooru.donmai.us", "username": "", "api_key": "" },
     "safebooru": { "url": "https://safebooru.donmai.us", "username": "", "api_key": "" },
     "konachan": {
@@ -108,6 +109,21 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
 }
 ```
 
+Serika 示例使用根样例中的 `examples.serika`，不与 Rails 两家的搜索语法混用：
+
+| 键 | 用途 |
+| :--- | :--- |
+| `site` | 对应 `sites.serika`，也可改为自托管实例的站点键 |
+| `image_query` | 站内图片列表查询，含 `page` / `limit` / CSV `ratings` / `sort` |
+| `user_query` | 官方 v1 匿名用户目录查询，含 `page` / `limit` / `sort` |
+| `tag_query` / `artist_query` | 站内标签、画师列表查询 |
+| `random_size` | 匿名二进制图片路径的 `width` / `height` |
+| `random_query` | 二进制图片的 `ratings` / `format` / `fit` 等查询值 |
+
+站内详情示例从实际列表响应取得 `post_id`，不硬编码图片 ID。三个匿名示例的命令见
+[serika.md](serika.md#可运行示例)。`verification.serika` 的 `scripts`、`pause_seconds`、
+`evidence_file` 指定本轮逐一运行哪些示例、调用间隔与临时证据位置；请求输入仍来自 `examples.serika`。
+
 ## `request` 段
 
 | 键 | 类型 | 说明 |
@@ -143,7 +159,19 @@ Moebooru 系站点（Moebooru 引擎）：
 
 > 凭据留空即可用于**只读**接口。请把填好的 `pybooru.json` 留在本地，不要提交真实账号与 key。
 
-同一个站点名在 Danbooru 与 Moebooru 两个客户端里含义一致：都是 `sites` 段的键。
+Serika 系站点（独立第三类引擎）：
+
+| 键 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `url` | string | `serika.art` 或相同引擎的自托管根地址；无内置站点后备 |
+| `api_key` | string | 非空时发送 `Authorization: Bearer <key>`；根样例为空，仅匿名访问 |
+
+Serika 不使用 `username`、`password`、`hash_string` 或客户端路径版本开关。
+`Serika('serika', config_file='pybooru.json')` 读取上述两项；自托管实例在 `sites` 中新增同结构条目。
+官方 v1 的多数只读路由也需 key，空 key 不会被替换成占位符；本轮不申请凭据、不实测这些路由。
+站内 cookie 登录不实现，详见 [authentication.md](authentication.md#serika-系站点)。
+
+同一个站点名在 Danbooru、Moebooru、Serika 客户端中都表示 `sites` 段的键，选择哪个类由调用者决定。
 
 ## `examples` 段
 
@@ -152,7 +180,7 @@ Moebooru 系站点（Moebooru 引擎）：
 
 | 键 | 所属 | 说明 |
 | :--- | :--- | :--- |
-| `site` | 两者 | 传给客户端构造函数的站点名，对应 `sites` 段的键 |
+| `site` | 三家 | 传给客户端构造函数的站点名，对应 `sites` 段的键 |
 | `tags` | 两者 | 搜索关键词（Moebooru 面作为顶层 `tags` 参数发送） |
 | `limit` | 两者 | 单页数量（服务端可能按端点自行限制或忽略，见 [moebooru-api.md](moebooru-api.md#分页与实际上限)） |
 | `pages` | 两者 | 编号分页示例的页码数组 |
@@ -167,6 +195,8 @@ Moebooru 系站点（Moebooru 引擎）：
 | `related_query` / `related_category` / `related_order` | Danbooru | 相关标签查询参数 |
 | `related_tags` / `related_type` | Moebooru | 相关标签查询的 `tags` 与 `type` 参数 |
 | `search_sample_size` / `tag_sample_size` | Danbooru | 相关标签查询的样本规模 |
+
+表中其余“两个/两者”项仅指 Danbooru 与 Moebooru；Serika 使用上面的查询字典配置。
 
 Moebooru 示例读 `comment_query`（评论流查询词，空串表示不做全文过滤）与 `preview_chars`（正文截断长度）；
 Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
