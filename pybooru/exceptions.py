@@ -1,48 +1,29 @@
-# -*- coding: utf-8 -*-
-
-"""pybooru.exceptions
-
-This module contains Pybooru exceptions.
-
-Classes:
-    * PybooruError -- Main Pybooru exception class.
-    * PybooruHTTPError -- Manages HTTP status errors.
-    * PybooruAPIError -- Manages all API errors.
-"""
-
-# __furute__ imports
-from __future__ import absolute_import
-
-# pybooru imports
-from .resources import HTTP_STATUS_CODE
+"""Errors returned by the HTTP and JSON API layers."""
 
 
 class PybooruError(Exception):
-    """Class to catch Pybooru error message."""
-    pass
+    """Base exception for Pybooru errors."""
 
 
 class PybooruHTTPError(PybooruError):
-    """Class to catch HTTP error message."""
+    """An unsuccessful HTTP response, including its original body."""
 
-    def __init__(self, msg, http_code, url):
-        """Initialize PybooruHTTPError.
-
-        Keyword arguments:
-            msg (str): The error message.
-            http_code (int): The HTTP status code.
-            url (str): The URL.
-        """
-        super(PybooruHTTPError, self).__init__(msg, http_code, url)
-        self._msg = "{0}: {1} - {2}, {3} - URL: {4}".format(
-            msg, http_code, HTTP_STATUS_CODE[http_code][0],
-            HTTP_STATUS_CODE[http_code][1], url)
-
-    def __str__(self):
-        """Print exception."""
-        return self._msg
+    def __init__(self, response):
+        self.response = response
+        self.http_code = response.status_code
+        self.url = response.url
+        self.body = response.text
+        try:
+            self.data = response.json()
+        except ValueError:
+            self.data = None
+        super().__init__("{} {}: {} - URL: {}".format(
+            self.http_code, response.reason, self.body, self.url))
 
 
 class PybooruAPIError(PybooruError):
-    """Class to catch all API errors."""
-    pass
+    """A successful HTTP response that cannot be decoded as JSON."""
+
+    def __init__(self, message, response=None):
+        self.response = response
+        super().__init__(message)

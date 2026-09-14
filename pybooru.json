@@ -1,0 +1,91 @@
+{
+  "request": {
+    "timeout": 30,
+    "proxies": {
+      "http": "http://proxy-host:port",
+      "https": "http://proxy-host:port"
+    },
+    "user_agent": "Pybooru/5.0.0.dev1"
+  },
+  "sites": {
+    "danbooru": {
+      "url": "https://danbooru.donmai.us",
+      "username": "",
+      "api_key": ""
+    },
+    "safebooru": {
+      "url": "https://safebooru.donmai.us",
+      "username": "",
+      "api_key": ""
+    },
+    "konachan": {
+      "url": "https://konachan.com",
+      "username": "",
+      "password": "",
+      "api_version": "1.13.0+update.3",
+      "hash_string": "So-I-Heard-You-Like-Mupkids-?--{0}--"
+    },
+    "yandere": {
+      "url": "https://yande.re",
+      "username": "",
+      "password": "",
+      "api_version": "1.13.0+update.3",
+      "hash_string": "choujin-steiner--{0}--"
+    },
+    "lolibooru": {
+      "url": "https://lolibooru.moe",
+      "username": "",
+      "api_key": ""
+    }
+  },
+  "examples": {
+    "danbooru": {
+      "site": "danbooru",
+      "tags": "rating:g",
+      "limit": 3,
+      "post_id": 1,
+      "artist_url": "https://www.pixiv.net/users/27517",
+      "pixiv_id": 27517,
+      "pixiv_url_template": "https://www.pixiv.net/users/{pixiv_id}",
+      "wiki_query": "help:api",
+      "wiki_title": "help:api",
+      "related_query": "touhou",
+      "related_category": 0,
+      "related_order": "frequency",
+      "search_sample_size": 1000,
+      "tag_sample_size": 100,
+      "comment_body": "示例评论"
+    },
+    "moebooru": {
+      "site": "konachan",
+      "tags": "rating:s",
+      "limit": 3,
+      "post_id": 1,
+      "comment_body": "示例评论"
+    }
+  },
+  "verification": {
+    "site": "danbooru",
+    "limit": 2,
+    "pause_seconds": 1,
+    "post_tags": "rating:g",
+    "tag_search": {"name_matches": "touhou"},
+    "artist_search": {
+      "url_matches": "https://www.pixiv.net/users/27517",
+      "is_deleted": false,
+      "is_banned": false,
+      "has_tag": true,
+      "order": "id"
+    },
+    "related_search": {
+      "query": "touhou",
+      "category": 0,
+      "order": "frequency",
+      "search_sample_size": 1000,
+      "tag_sample_size": 100
+    },
+    "wiki_search": {"title": "help:api"},
+    "missing_post_id": 0,
+    "invalid_page": "invalid"
+  }
+}

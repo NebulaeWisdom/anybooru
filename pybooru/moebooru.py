@@ -19,7 +19,6 @@ import hashlib
 from .pybooru import _Pybooru
 from .api_moebooru import MoebooruApi_Mixin
 from .exceptions import PybooruError
-from .resources import SITE_LIST
 
 
 class Moebooru(_Pybooru, MoebooruApi_Mixin):
@@ -47,8 +46,9 @@ class Moebooru(_Pybooru, MoebooruApi_Mixin):
         last_call (dict) last call.
     """
 
-    def __init__(self, site_name='', site_url='', username='', password='',
-                 hash_string='', api_version='1.13.0+update.3', proxies=None):
+    def __init__(self, site_name=None, site_url=None, username=None, password=None,
+                 hash_string=None, api_version=None, proxies=None, *,
+                 config_file="pybooru.json", timeout=None, user_agent=None):
         """Initialize Moebooru.
 
         Keyword arguments:
@@ -65,29 +65,18 @@ class Moebooru(_Pybooru, MoebooruApi_Mixin):
             proxies (dict): Your proxies to connect to the danbooru site
                             (Required only when your network is blocked).
         """
-        super(Moebooru, self).__init__(site_name, site_url, username, proxies)
+        super(Moebooru, self).__init__(
+            site_name, site_url, username, proxies, config_file=config_file,
+            timeout=timeout, user_agent=user_agent)
 
-        self.api_version = api_version.lower()
-        self.hash_string = hash_string
-        self.password = password
+        self.api_version = (self.site_settings['api_version']
+                            if api_version is None else api_version).lower()
+        self.hash_string = (self.site_settings['hash_string']
+                            if hash_string is None and site_name else hash_string)
+        self.password = (self.site_settings['password']
+                         if password is None and site_name else password)
         self.password_hash = None
 
-    @_Pybooru.site_name.setter
-    def site_name(self, site_name):
-        """Sets api_version and hash_string.
-
-        Parameters:
-            site_name (str): The site name in 'SITE_LIST', default sites.
-
-        Raises:
-            PybooruError: When 'site_name' isn't valid.
-        """
-        # Set base class property site_name
-        _Pybooru.site_name.fset(self, site_name)
-
-        if ('api_version' and 'hashed_string') in SITE_LIST[site_name]:
-            self.api_version = SITE_LIST[site_name]['api_version']
-            self.hash_string = SITE_LIST[site_name]['hashed_string']
 
     def _build_url(self, api_call):
         """Build request url.
@@ -113,7 +102,7 @@ class Moebooru(_Pybooru, MoebooruApi_Mixin):
         """
         # Build AUTENTICATION hash_string
         # Check if hash_string exists
-        if self.site_name in SITE_LIST or self.hash_string:
+        if self.hash_string:
             if self.username and self.password:
                 try:
                     hash_string = self.hash_string.format(self.password)

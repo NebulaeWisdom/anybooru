@@ -1,189 +1,68 @@
-# -*- coding: utf-8 -*-
+"""Shared configured HTTP transport for Danbooru and Moebooru."""
 
-"""pybooru.pybooru
-
-This module contains pybooru main class for access to API calls,
-authentication and return JSON response.
-
-Classes:
-   _Pybooru -- Main pybooru classs, define Pybooru object and do requests.
-"""
-
-# __furute__ imports
-from __future__ import absolute_import
-
-# External imports
-import re
 import requests
 
-# pybooru imports
-from . import __version__
-from .exceptions import (PybooruError, PybooruHTTPError)
-from .resources import (SITE_LIST, HTTP_STATUS_CODE)
+from .exceptions import PybooruAPIError, PybooruHTTPError
+from .resources import encode_params, load_config
 
 
-class _Pybooru(object):
-    """Pybooru main class.
+class _Pybooru:
+    """Load one explicit parameter file and own one requests session."""
 
-    Attributes:
-        site_name (str): Get or set site name set.
-        site_url (str): Get or set the URL of Moebooru/Danbooru based site.
-        username (str): Return user name.
-        last_call (dict): Return last call.
-    """
-
-    def __init__(self, site_name='', site_url='', username='', proxies=None):
-        """Initialize Pybooru.
-
-        Keyword arguments:
-            site_name (str): The site name in 'SITE_LIST', default sites.
-            site_url (str): URL of on Moebooru/Danbooru based sites.
-            username (str): Your username of the site (Required only for
-                            functions that modify the content).
-
-        Raises:
-            PybooruError: When 'site_name' and 'site_url' are empty.
-        """
-        # Attributes
-        self.__site_name = ''  # for site_name property
-        self.__site_url = ''  # for site_url property
-        self.username = username
-        self.proxies = proxies
+    def __init__(self, site_name=None, site_url=None, username=None, proxies=None,
+                 *, config_file="pybooru.json", timeout=None, user_agent=None):
+        self.config = load_config(config_file)
+        self.site_settings = self.config["sites"][site_name] if site_name else {}
+        settings = self.config["request"]
+        self.site_name = site_name
+        self.site_url = (self.site_settings["url"] if site_url is None
+                         else site_url).rstrip("/")
+        self.username = (self.site_settings["username"]
+                         if username is None and site_name else username)
+        self.proxies = settings["proxies"] if proxies is None else proxies
+        self.timeout = settings["timeout"] if timeout is None else timeout
+        if isinstance(self.timeout, list):
+            self.timeout = tuple(self.timeout)
+        self.client = requests.Session()
+        self.client.trust_env = False
+        self.client.headers.update({
+            "User-Agent": settings["user_agent"] if user_agent is None else user_agent,
+            "Accept": "application/json",
+        })
         self.last_call = {}
 
-        # Set HTTP Client
-        self.client = requests.Session()
-        headers = {'user-agent': 'Pybooru/{0}'.format(__version__),
-                   'content-type': 'application/json; charset=utf-8'}
-        self.client.headers = headers
+    def close(self):
+        """Release the connection pool."""
+        self.client.close()
 
-        # Validate site_name or site_url
-        if site_name:
-            self.site_name = site_name
-        elif site_url:
-            self.site_url = site_url
-        else:
-            raise PybooruError("Unexpected empty arguments, specify parameter "
-                               "'site_name' or 'site_url'.")
+    def __enter__(self):
+        return self
 
-    @property
-    def site_name(self):
-        """Get or set site name.
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
-        :getter: Return site name.
-        :setter: Validate and set site name.
-        :type: string
-        """
-        return self.__site_name
-
-    @site_name.setter
-    def site_name(self, site_name):
-        """Function that sets and checks the site name and set url.
-
-        Parameters:
-            site_name (str): The site name in 'SITE_LIST', default sites.
-
-        Raises:
-            PybooruError: When 'site_name' isn't valid.
-        """
-        if site_name in SITE_LIST:
-            self.__site_name = site_name
-            self.__site_url = SITE_LIST[site_name]['url']
-        else:
-            raise PybooruError(
-                "The 'site_name' is not valid, specify a valid 'site_name'.")
-
-    @property
-    def site_url(self):
-        """Get or set site url.
-
-        :getter: Return site url.
-        :setter: Validate and set site url.
-        :type: string
-        """
-        return self.__site_url
-
-    @site_url.setter
-    def site_url(self, url):
-        """URL setter and validator for site_url property.
-
-        Parameters:
-            url (str): URL of on Moebooru/Danbooru based sites.
-
-        Raises:
-            PybooruError: When URL scheme or URL are invalid.
-        """
-        # Regular expression to URL validate
-        regex = re.compile(
-            r'^(?:http|https)://'  # Scheme only HTTP/HTTPS
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?| \
-            [A-Z0-9-]{2,}(?<!-)\.?)|'  # Domain
-            r'localhost|'  # localhost...
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|'  # or ipv4
-            r'\[?[A-F0-9]*:[A-F0-9:]+\]?)'  # or ipv6
-            r'(?::\d+)?'  # Port
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-
-        # Validate URL
-        if re.match('^(?:http|https)://', url):
-            if re.search(regex, url):
-                self.__site_url = url
-            else:
-                raise PybooruError("Invalid URL: {0}".format(url))
-        else:
-            raise PybooruError(
-                "Invalid URL scheme, use HTTP or HTTPS: {0}".format(url))
-
-    @staticmethod
-    def _get_status(status_code):
-        """Get status message for status code.
-
-        Parameters:
-            status_code (int): HTTP status code.
-
-        Returns:
-            status message (str).
-        """
-        return "{0}, {1}".format(*HTTP_STATUS_CODE.get(
-            status_code, ('Undefined', 'undefined')))
-
-    def _request(self, url, api_call, request_args, method='GET'):
-        """Function to request and returning JSON data.
-
-        Parameters:
-            url (str): Base url call.
-            api_call (str): API function to be called.
-            request_args (dict): All requests parameters.
-            method (str): (Defauld: GET) HTTP method 'GET' or 'POST'
-
-        Raises:
-            PybooruHTTPError: HTTP Error.
-            requests.exceptions.Timeout: When HTTP Timeout.
-            ValueError: When can't decode JSON response.
-        """
+    def _request(self, url, api_call, request_args, method="GET"):
+        """Send an HTTP request and return JSON, or None for an empty success."""
+        for key in ("params", "data"):
+            if key in request_args:
+                request_args[key] = encode_params(request_args[key])
+        self.last_call = {}
+        response = self.client.request(
+            method, url, proxies=self.proxies, timeout=self.timeout, **request_args)
+        self.last_call = {
+            "API": api_call,
+            "url": response.url,
+            "status_code": response.status_code,
+            "status": response.reason,
+            "headers": response.headers,
+        }
+        if not 200 <= response.status_code < 300:
+            raise PybooruHTTPError(response)
+        if not response.content:
+            return None
         try:
-            if method != 'GET':
-                # Reset content-type for data encoded as a multipart form
-                self.client.headers.update({'content-type': None})
-
-            response = self.client.request(method, url, proxies=self.proxies, **request_args)
-
-            self.last_call.update({
-                'API': api_call,
-                'url': response.url,
-                'status_code': response.status_code,
-                'status': self._get_status(response.status_code),
-                'headers': response.headers
-                })
-
-            if response.status_code in (200, 201, 202):
-                return response.json()
-            elif response.status_code == 204:
-                return True
-            raise PybooruHTTPError("In _request", response.status_code,
-                                   response.url)
-        except requests.exceptions.Timeout:
-            raise PybooruError("Timeout! url: {0}".format(response.url))
-        except ValueError as e:
-            raise PybooruError("JSON Error: {0} in line {1} column {2}".format(
-                e.msg, e.lineno, e.colno))
+            return response.json()
+        except ValueError as error:
+            raise PybooruAPIError(
+                "Invalid JSON response from {}: {}".format(response.url, error),
+                response=response) from error

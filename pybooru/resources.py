@@ -1,55 +1,26 @@
-# -*- coding: utf-8 -*-
+"""Explicit project configuration and Rails parameter encoding."""
 
-"""pybooru.resources
-
-This module contains all resources for Pybooru.
-
-SITE_LIST (dict):
-    Contains various Moebooru and Danbooru-based default sites.
-HTTP_STATUS_CODE (dict):
-    Contains http status codes for Moebooru and Danbooru API.
-"""
+import json
 
 
-# Default SITE_LIST
-SITE_LIST = {
-    'konachan': {
-        'url': "https://konachan.com",
-        'api_version': "1.13.0+update.3",
-        'hashed_string': "So-I-Heard-You-Like-Mupkids-?--{0}--"},
-    'yandere': {
-        'url': "https://yande.re",
-        'api_version': "1.13.0+update.3",
-        'hashed_string': "choujin-steiner--{0}--"},
-    'danbooru': {
-        'url': "https://danbooru.donmai.us"},
-    'safebooru': {
-        'url': "https://safebooru.donmai.us"},
-    'lolibooru': {
-        'url': "https://lolibooru.moe"},
-    }
+def load_config(path):
+    """Read a JSON parameter file; paths are relative to the working directory."""
+    with open(path, encoding="utf-8") as config_file:
+        return json.load(config_file)
 
 
-# HTTP_STATUS_CODE
-HTTP_STATUS_CODE = {
-    200: ("OK", "Request was successful"),
-    201: ("Created", "The request has been fulfilled, resulting in the creation"
-          " of a new resource"),
-    202: ("Accepted", "The request has been accepted for processing, but the "
-          "processing has not been completed."),
-    204: ("No Content", "The server successfully processed the request and is "
-          "not returning any content."),
-    400: ("Bad request", "The server cannot or will not process the request"),
-    401: ("Unauthorized", "Authentication is required and has failed or has "
-          "not yet been provided."),
-    403: ("Forbidden", "Access denied"),
-    404: ("Not Found", "Not found"),
-    420: ("Invalid Record", "Record could not be saved"),
-    421: ("User Throttled", "User is throttled, try again later"),
-    422: ("Locked", "The resource is locked and cannot be modified"),
-    423: ("Already Exists", "Resource already exists"),
-    424: ("Invalid Parameters", "The given parameters were invalid"),
-    500: ("Internal Server Error", "Some unknown error occurred on the server"),
-    503: ("Service Unavailable", "Server cannot currently handle the request"),
-    504: ("Gateway Timeout", "The server timed out while waiting for a response")
-    }
+def encode_params(params):
+    """Encode nested mappings and sequences as Rails form/query parameters."""
+    def items(key, value):
+        if isinstance(value, dict):
+            for child, item in value.items():
+                yield from items("{}[{}]".format(key, child), item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from items(key + "[]", item)
+        elif value is not None:
+            yield key, str(value).lower() if isinstance(value, bool) else value
+
+    if params is None:
+        return None
+    return [pair for key, value in params.items() for pair in items(key, value)]
