@@ -33,7 +33,7 @@ class MoebooruApi_Mixin(object):
                          of 100:param  posts per request.
             page (int): The page number.
         """
-        return self._get('post', params)
+        return self.request('GET', 'post', params=params)
 
     def post_create(self, tags, file_=None, rating=None, source=None,
                     rating_locked=None, note_locked=None, parent_id=None,
@@ -72,7 +72,7 @@ class MoebooruApi_Mixin(object):
                 'post[parent_id]': parent_id,
                 'md5': md5}
             file_ = {'post[file]': open(file_, 'rb')}
-            return self._get('post/create', params, 'POST', file_)
+            return self.request('POST', 'post/create', data=params, files=file_)
         else:
             raise PybooruAPIError("'file_' or 'source' is required.")
 
@@ -108,9 +108,9 @@ class MoebooruApi_Mixin(object):
             }
         if file_ is not None:
             file_ = {'post[file]': open(file_, 'rb')}
-            return self._get('post/update', params, 'PUT', file_)
+            return self.request('PUT', 'post/update', data=params, files=file_)
         else:
-            return self._get('post/update', params, 'PUT')
+            return self.request('PUT', 'post/update', data=params)
 
     def post_destroy(self, post_id):
         """Function to destroy a specific post.
@@ -121,7 +121,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             post_id (int): The id number of the post to delete.
         """
-        return self._get('post/destroy', {'id': post_id}, method='DELETE')
+        return self.request('DELETE', 'post/destroy', data={'id': post_id})
 
     def post_revert_tags(self, post_id, history_id):
         """Function to reverts a post to a previous set of tags
@@ -132,7 +132,7 @@ class MoebooruApi_Mixin(object):
             history_id (int): The id number of the tag history.
         """
         params = {'id': post_id, 'history_id': history_id}
-        return self._get('post/revert_tags', params, 'PUT')
+        return self.request('PUT', 'post/revert_tags', data=params)
 
     def post_vote(self, post_id, score):
         """Action lets you vote for a post (Requires login).
@@ -150,7 +150,7 @@ class MoebooruApi_Mixin(object):
         """
         if score <= 3 and score >= 0:
             params = {'id': post_id, 'score': score}
-            return self._get('post/vote', params, 'POST')
+            return self.request('POST', 'post/vote', data=params)
         else:
             raise PybooruAPIError("Value of 'score' only can be 0, 1, 2 or 3.")
 
@@ -167,7 +167,7 @@ class MoebooruApi_Mixin(object):
             after_id (int): Return all tags that have an id number greater
                             than this.
         """
-        return self._get('tag', params)
+        return self.request('GET', 'tag', params=params)
 
     def tag_update(self, name=None, tag_type=None, is_ambiguous=None):
         """Action to lets you update tag (Requires login) (UNTESTED).
@@ -187,7 +187,7 @@ class MoebooruApi_Mixin(object):
             'tag[tag_type]': tag_type,
             'tag[is_ambiguous]': is_ambiguous
             }
-        return self._get('tag/update', params, 'PUT')
+        return self.request('PUT', 'tag/update', data=params)
 
     def tag_related(self, **params):
         """Get a list of related tags.
@@ -197,7 +197,7 @@ class MoebooruApi_Mixin(object):
             type (str): Restrict results to this tag type. Can be general,
                         artist, copyright, or character.
         """
-        return self._get('tag/related', params)
+        return self.request('GET', 'tag/related', params=params)
 
     def artist_list(self, **params):
         """Get a list of artists.
@@ -207,7 +207,7 @@ class MoebooruApi_Mixin(object):
             order (str): Can be date or name.
             page (int): The page number.
         """
-        return self._get('artist', params)
+        return self.request('GET', 'artist', params=params)
 
     def artist_create(self, name, urls=None, alias=None, group=None):
         """Function to create an artist (Requires login) (UNTESTED).
@@ -227,7 +227,7 @@ class MoebooruApi_Mixin(object):
             'artist[alias]': alias,
             'artist[group]': group
             }
-        return self._get('artist/create', params, method='POST')
+        return self.request('POST', 'artist/create', data=params)
 
     def artist_update(self, artist_id, name=None, urls=None, alias=None,
                       group=None):
@@ -253,7 +253,7 @@ class MoebooruApi_Mixin(object):
             'artist[alias]': alias,
             'artist[group]': group
             }
-        return self._get('artist/update', params, method='PUT')
+        return self.request('PUT', 'artist/update', data=params)
 
     def artist_destroy(self, artist_id):
         """Action to lets you remove artist (Requires login) (UNTESTED).
@@ -261,7 +261,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             artist_id (int): The id of the artist to destroy.
         """
-        return self._get('artist/destroy', {'id': artist_id}, method='POST')
+        return self.request('POST', 'artist/destroy', data={'id': artist_id})
 
     def comment_show(self, comment_id):
         """Get a specific comment.
@@ -269,7 +269,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             comment_id (str): The id number of the comment to retrieve.
         """
-        return self._get('comment/show', {'id': comment_id})
+        return self.request('GET', 'comment/show', params={'id': comment_id})
 
     def comment_create(self, post_id, comment_body, anonymous=None):
         """Action to lets you create a comment (Requires login).
@@ -285,7 +285,7 @@ class MoebooruApi_Mixin(object):
             'comment[body]': comment_body,
             'comment[anonymous]': anonymous
             }
-        return self._get('comment/create', params, method='POST')
+        return self.request('POST', 'comment/create', data=params)
 
     def comment_destroy(self, comment_id):
         """Remove a specific comment (Requires login).
@@ -293,7 +293,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             comment_id (int): The id number of the comment to remove.
         """
-        return self._get('comment/destroy', {'id': comment_id}, 'DELETE')
+        return self.request('DELETE', 'comment/destroy', data={'id': comment_id})
 
     def wiki_list(self, **params):
         """Function to retrieves a list of every wiki page.
@@ -304,7 +304,7 @@ class MoebooruApi_Mixin(object):
             limit (int): The number of pages to retrieve (Default: 100).
             page (int): The page number.
         """
-        return self._get('wiki', params)
+        return self.request('GET', 'wiki', params=params)
 
     def wiki_create(self, title, body):
         """Action to lets you create a wiki page (Requires login) (UNTESTED).
@@ -314,7 +314,7 @@ class MoebooruApi_Mixin(object):
             body (str): The body of the wiki page.
         """
         params = {'wiki_page[title]': title, 'wiki_page[body]': body}
-        return self._get('wiki/create', params, method='POST')
+        return self.request('POST', 'wiki/create', data=params)
 
     def wiki_update(self, title, new_title=None, page_body=None):
         """Action to lets you update a wiki page (Requires login) (UNTESTED).
@@ -329,7 +329,7 @@ class MoebooruApi_Mixin(object):
             'wiki_page[title]': new_title,
             'wiki_page[body]': page_body
             }
-        return self._get('wiki/update', params, method='PUT')
+        return self.request('PUT', 'wiki/update', data=params)
 
     def wiki_show(self, **params):
         """Get a specific wiki page.
@@ -338,7 +338,7 @@ class MoebooruApi_Mixin(object):
             title (str): The title of the wiki page to retrieve.
             version (int): The version of the page to retrieve.
         """
-        return self._get('wiki/show', params)
+        return self.request('GET', 'wiki/show', params=params)
 
     def wiki_destroy(self, title):
         """Function to delete a specific wiki page (Requires login)
@@ -347,7 +347,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             title (str): The title of the page to delete.
         """
-        return self._get('wiki/destroy', {'title': title}, method='DELETE')
+        return self.request('DELETE', 'wiki/destroy', data={'title': title})
 
     def wiki_lock(self, title):
         """Function to lock a specific wiki page (Requires login)
@@ -356,7 +356,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             title (str): The title of the page to lock.
         """
-        return self._get('wiki/lock', {'title': title}, 'POST')
+        return self.request('POST', 'wiki/lock', data={'title': title})
 
     def wiki_unlock(self, title):
         """Function to unlock a specific wiki page (Requires login)
@@ -365,7 +365,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             title (str): The title of the page to unlock.
         """
-        return self._get('wiki/unlock', {'title': title}, method='POST')
+        return self.request('POST', 'wiki/unlock', data={'title': title})
 
     def wiki_revert(self, title, version):
         """Function to revert a specific wiki page (Requires login) (UNTESTED).
@@ -375,7 +375,7 @@ class MoebooruApi_Mixin(object):
             version (int): The version to revert to.
         """
         params = {'title': title, 'version': version}
-        return self._get('wiki/revert', params, method='PUT')
+        return self.request('PUT', 'wiki/revert', data=params)
 
     def wiki_history(self, title):
         """Get history of specific wiki page.
@@ -383,7 +383,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             title (str): The title of the wiki page to retrieve versions for.
         """
-        return self._get('wiki/history', {'title': title})
+        return self.request('GET', 'wiki/history', params={'title': title})
 
     def note_list(self, **params):
         """Get note list.
@@ -391,7 +391,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             post_id (int): The post id number to retrieve notes for.
         """
-        return self._get('note', params)
+        return self.request('GET', 'note', params=params)
 
     def note_search(self, query):
         """Search specific note.
@@ -399,7 +399,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             query (str): A word or phrase to search for.
         """
-        return self._get('note/search', {'query': query})
+        return self.request('GET', 'note/search', params={'query': query})
 
     def note_history(self, **params):
         """Get history of notes.
@@ -410,7 +410,7 @@ class MoebooruApi_Mixin(object):
             limit (int): How many versions to retrieve (Default: 10).
             page (int): The note id number to retrieve versions for.
         """
-        return self._get('note/history', params)
+        return self.request('GET', 'note/history', params=params)
 
     def note_revert(self, note_id, version):
         """Function to revert a specific note (Requires login) (UNTESTED).
@@ -420,7 +420,7 @@ class MoebooruApi_Mixin(object):
             version (int): The version to revert to.
         """
         params = {'id': note_id, 'version': version}
-        return self._get('note/revert', params, method='PUT')
+        return self.request('PUT', 'note/revert', data=params)
 
     def note_create_update(self, post_id=None, coor_x=None, coor_y=None,
                            width=None, height=None, is_active=None, body=None,
@@ -449,7 +449,7 @@ class MoebooruApi_Mixin(object):
             'note[body]': body,
             'note[is_active]': is_active
             }
-        return self._get('note/update', params, method='POST')
+        return self.request('POST', 'note/update', data=params)
 
     def user_search(self, **params):
         """Search users.
@@ -460,7 +460,7 @@ class MoebooruApi_Mixin(object):
             id (int): The id number of the user.
             name (str): The name of the user.
         """
-        return self._get('user', params)
+        return self.request('GET', 'user', params=params)
 
     def forum_list(self, **params):
         """Function to get forum posts.
@@ -471,7 +471,7 @@ class MoebooruApi_Mixin(object):
             parent_id (int): The parent ID number. You'll return all the
                              responses to that forum post.
         """
-        return self._get('forum', params)
+        return self.request('GET', 'forum', params=params)
 
     def pool_list(self, **params):
         """Function to get pools.
@@ -482,7 +482,7 @@ class MoebooruApi_Mixin(object):
             query (str): The title.
             page (int): The page number.
         """
-        return self._get('pool', params)
+        return self.request('GET', 'pool', params=params)
 
     def pool_posts(self, **params):
         """Function to get pools posts.
@@ -493,7 +493,7 @@ class MoebooruApi_Mixin(object):
             id (int): The pool id number.
             page (int): The page number.
         """
-        return self._get('pool/show', params)
+        return self.request('GET', 'pool/show', params=params)
 
     def pool_update(self, pool_id, name=None, is_public=None,
                     description=None):
@@ -511,7 +511,7 @@ class MoebooruApi_Mixin(object):
             'pool[is_public]': is_public,
             'pool[description]': description
             }
-        return self._get('pool/update', params, method='PUT')
+        return self.request('PUT', 'pool/update', data=params)
 
     def pool_create(self, name, description, is_public):
         """Function to create a pool (Require login) (UNTESTED).
@@ -523,7 +523,7 @@ class MoebooruApi_Mixin(object):
         """
         params = {'pool[name]': name, 'pool[description]': description,
                   'pool[is_public]': is_public}
-        return self._get('pool/create', params, method='POST')
+        return self.request('POST', 'pool/create', data=params)
 
     def pool_destroy(self, pool_id):
         """Function to destroy a specific pool (Require login) (UNTESTED).
@@ -531,7 +531,7 @@ class MoebooruApi_Mixin(object):
         Parameters:
             pool_id (int): The pool id number.
         """
-        return self._get('pool/destroy', {'id': pool_id}, method='DELETE')
+        return self.request('DELETE', 'pool/destroy', data={'id': pool_id})
 
     def pool_add_post(self, **params):
         """Function to add a post (Require login) (UNTESTED).
@@ -540,7 +540,7 @@ class MoebooruApi_Mixin(object):
             pool_id (int): The pool to add the post to.
             post_id (int): The post to add.
         """
-        return self._get('pool/add_post', params, method='PUT')
+        return self.request('PUT', 'pool/add_post', data=params)
 
     def pool_remove_post(self, **params):
         """Function to remove a post (Require login) (UNTESTED).
@@ -549,7 +549,7 @@ class MoebooruApi_Mixin(object):
             pool_id (int): The pool to remove the post to.
             post_id (int): The post to remove.
         """
-        return self._get('pool/remove_post', params, method='PUT')
+        return self.request('PUT', 'pool/remove_post', data=params)
 
     def favorite_list_users(self, post_id):
         """Function to return a list with all users who have added to favorites
@@ -558,6 +558,6 @@ class MoebooruApi_Mixin(object):
         Parameters:
             post_id (int): The post id.
         """
-        response = self._get('favorite/list_users', {'id': post_id})
+        response = self.request('GET', 'favorite/list_users', params={'id': post_id})
         # Return list with users
         return response['favorited_users'].split(',')
