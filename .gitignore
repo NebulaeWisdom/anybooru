@@ -17,6 +17,10 @@ venv/
 .vscode
 .idea
 
+# reference sources of the upstream sites (independent clones, not part of the package)
+danbooru/
+moebooru/
+
 # ignore test file
 .pytest_cache
 pro.py
