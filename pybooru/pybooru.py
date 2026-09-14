@@ -1,4 +1,4 @@
-"""Shared configured HTTP transport for Danbooru and Moebooru."""
+"""Shared configured HTTP transport for the supported engine families."""
 
 import requests
 
@@ -41,8 +41,8 @@ class _Pybooru:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def _request(self, url, api_call, request_args, method="GET"):
-        """Send an HTTP request and return JSON, or None for an empty success."""
+    def _send(self, url, api_call, request_args, method):
+        """Send HTTP, record the response, and preserve non-success bodies."""
         for key in ("params", "data"):
             if key in request_args:
                 request_args[key] = encode_params(request_args[key])
@@ -58,6 +58,15 @@ class _Pybooru:
         }
         if not 200 <= response.status_code < 300:
             raise PybooruHTTPError(response)
+        return response
+
+    def _request_bytes(self, url, api_call, request_args, method="GET"):
+        """Return raw successful response bytes, without JSON decoding."""
+        return self._send(url, api_call, request_args, method).content
+
+    def _request(self, url, api_call, request_args, method="GET"):
+        """Return JSON, or None for an empty successful response."""
+        response = self._send(url, api_call, request_args, method)
         if not response.content:
             return None
         try:
