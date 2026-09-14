@@ -63,16 +63,35 @@ next_page = client.post_list(tags=example['tags'], page='b{0}'.format(last_id), 
 
 ## Moebooru 系站点的分页
 
-Moebooru 面不在本轮重写范围内（见 [moebooru.md](moebooru.md)），其分页参数同样直接透传，
-`page` 为页码、`limit` 为每页数量，上限由站点决定。
+Moebooru 面同样不做本地分页：`page` 就是页码（服务端把它夹在 `1..1000000`），每页数量由端点自己决定，
+而且各端点并不一致：
+
+| 端点 | 每页 / 上限 |
+| :--- | :--- |
+| `post_list` | `limit` 默认 40，超过 1000 一律夹到 1000；`tags` 里的 `limit:` 元标签可以覆盖 |
+| `pool_list` | 20；`query` 里的 `limit:N` 被夹到 ≤100 |
+| `pool_show` | `page × 24`（账号开启合集浏览模式时 ×1000） |
+| `note_list` | 100（带 `post_id`）/ 16 |
+| `note_history` | 25（按 `post_id`、`user_id` 时 50），**`limit` 被忽略** |
+| `comment_list` | 25，**`limit` 被忽略** |
+| `comment_search` / `forum_search` | 30 |
+| `forum_list` | 100（带 `parent_id`）/ 30；`latest` 固定第一页 10 条 |
+| `wiki_list` | `limit` 生效，默认 25；`wiki_recent_changes` 用 `per_page`，默认 25 |
+| `artist_list` | 50（带 `name` / `url`）/ 25，**`limit` 被忽略** |
+| `tag_list` | 默认 50；`limit=0` 返回全部 |
+
+逐条来源见 [moebooru-api.md 的分页与上限表](moebooru-api.md#分页与实际上限)。Moebooru **没有** Danbooru
+那样的 `page=a1000` / `b1000` 游标形式，`page` 只接受编号。
 
 ```python
 from pybooru import Moebooru
 
-client = Moebooru('konachan')
-example = client.config['examples']['moebooru']
+with Moebooru('yandere', config_file='pybooru.json') as client:
+    example = client.config['examples']['moebooru']
 
-posts = client.post_list(tags=example['tags'], page=1, limit=example['limit'])
+    for page in example['pages']:
+        posts = client.post_list(tags=example['tags'], page=page, limit=example['limit'])
+        print('page:', page, 'posts:', len(posts))
 ```
 
 ## 相关文档

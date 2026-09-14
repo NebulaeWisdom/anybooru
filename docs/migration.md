@@ -1,6 +1,6 @@
 # 从 Pybooru 4.x 迁移
 
-5.x（`5.0.0.dev1`）以本地上游引擎源码为契约重写了对 Danbooru 面的访问，Moebooru 面同步了共享配置用法。
+5.x（`5.0.0.dev1`）以本地上游引擎源码为契约重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
 ## 一、破坏性变更总览
@@ -35,22 +35,24 @@ client._get('posts.json', {'tags': 'rating:g'})
 client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 ```
 
-`request(method, path, *, params=None, data=None, files=None)` 成为唯一出口（5.x 的 Danbooru 面**不再有**
-`_get()`；Moebooru 面保留自己的 `_get`）：
+`request(method, path, *, params=None, data=None, files=None)` 成为唯一出口（5.x 的两个面**都不再有**
+`_get()`）：
 
-* `path` 是相对路径，自动补 `.json`；
-* 查询参数与 multipart 表单使用 Rails 括号编码；无文件的 `data` 使用 JSON 请求体，保留空数组；`None` 省略；
-* 认证按“`username` 或 `api_key` 任一非空就附加 HTTP Basic（缺项为空串）”自动处理，**不再有 `auth=` 参数**；
-  只有两项都为空才是匿名请求，凭据不全会由服务端返回 `401`；
+* `path` 是相对路径，自动补 `.json`（Moebooru 面在旧 `api_version` 下还会给裸集合路径补 `/index`）；
+* 查询参数与 multipart 表单使用 Rails 括号编码；`None` 省略。请求体分面：**Danbooru 面无文件的 `data`
+  用 JSON 请求体**（保留空数组等结构），**Moebooru 面恒用 Rails 表单**；
+* 认证分面：Danbooru 按“`username` 或 `api_key` 任一非空就附加 HTTP Basic（缺项为空串）”自动处理，
+  **不再有 `auth=` 参数**，只有两项都为空才是匿名请求，凭据不全会由服务端返回 `401`；
+  Moebooru 用 `login` + `password_hash`（GET 进查询串，其他动词进表单体）；
 * 不自动重试，不做本地权限判断。
 
-详见 [danbooru.md](danbooru.md)。
+详见 [danbooru.md](danbooru.md) 与 [moebooru.md](moebooru.md)。
 
 ### 3. 方法命名与签名统一
 
 | 4.x | 5.x |
 | :--- | :--- |
-| 各方法零散参数（`name=`, `order=`, `limit=` …） | 列表方法统一 `xxx_list(search=None, **params)` |
+| 各方法零散参数（`name=`, `order=`, `limit=` …） | Danbooru 面列表方法统一 `xxx_list(search=None, **params)`；Moebooru 面没有 `search` 字典，过滤条件都是顶层 `**params` |
 | `auth=False` 开关 | 无（凭据决定） |
 | 写方法逐个显式参数 | `xxx_create(**attributes)` / `xxx_update(id, **attributes)`，键名与 Rails strong params 一致 |
 | 本地 `raise PybooruAPIError(...)` 校验参数 | 不做本地校验，交给服务端 |
@@ -70,13 +72,39 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 5. 资源命名对齐上游
 
-* wiki 相关：`wiki_*` → `wiki_page_*`（`wiki_list` → `wiki_page_list`、`wiki_show` → `wiki_page_show` 等）；
+* wiki 相关（Danbooru 面）：`wiki_*` → `wiki_page_*`（`wiki_list` → `wiki_page_list`、`wiki_show` → `wiki_page_show` 等）；
 * 版本列表：`*_versions` → `*_versions_list`；
 * 别名与蕴含：`tag_aliases` → `tag_aliases_list`、`tag_implications` → `tag_implications_list`；
 * 相关标签：`tag_related` → `related_tag`（签名不同，见下）；
 * 投票：`post_vote` → `post_vote_create`、`comment_vote` → `comment_vote_create`；
 * 收藏：`favorite_add` / `favorite_remove` → `favorite_create` / `favorite_delete`；
 * 计数：`count_posts` → `counts_posts`。
+
+### 6. Moebooru 面也按上游路由重写
+
+`Moebooru` 类在 5.x 同样逐端点对齐了上游 `moebooru/config/routes.rb`（HEAD `206455e1`）与控制器，
+共 90 个原生方法，方法命名与 Danbooru 面一致（`xxx_list` / `xxx_show` / `xxx_create` / `xxx_update` /
+`xxx_destroy`）。**旧名字只在本文出现**：
+
+| 旧名 / 旧签名 | 5.x |
+| :--- | :--- |
+| `pool_posts(**params)` | `pool_show(pool_id, **params)`：返回的是**一个合集对象**，帖子在 `posts` 里 |
+| `user_search(**params)` | `user_list(**params)` |
+| `note_create_update(...)` | `note_update(note_id=None, **attributes)`，新建时用 `note[post_id]` |
+| `wiki_show(**params)` | **移除**：`wiki/show` 只有 HTML 分支（`.json` → `406`），改用 `wiki_list` / `wiki_history` |
+| `comment_create(post_id, comment_body, anonymous=)` | `comment_create(post_id, body)`：`comment[anonymous]` 不被允许 |
+| `post_create(tags, file_=, rating_locked=, note_locked=, …)` | `post_create(tags, *, file=None, source=None, md5=None, anonymous=None, **attributes)`：文件可选、`source` 可单独使用；创建接口不接受 `is_*_locked` |
+| `post_update(post_id, …, file_=)` | `post_update(post_id, **attributes)`：没有 `post[file]` |
+| `post_vote(post_id, score)` | `post_vote(post_id, score=None)`：省略 `score` 是读取当前投票 |
+| 合集写操作用 PUT / DELETE（`pool_update` / `pool_destroy` / `pool_add_post` / `pool_remove_post`） | 全部改为 **POST**：这些路由不接受 PUT / DELETE |
+| `tag_update(...)` 用 PUT + 顶层 `name` | `tag_update(name, **attributes)` 用 POST + `tag[name]` |
+| `artist_create/update(..., alias=, group=)` | 改用 `artist[alias_name]` / `artist[alias_names]` / `artist[member_names]`；`artist[alias]` 与 `artist[group]` 不被允许，`artist_destroy` 补 `commit='Yes'` |
+| `note_history(..., limit=)` | `limit` 移除：控制器忽略它 |
+| `favorite_list_users(post_id)` 拆分成名字列表 | 返回**原始对象** `{'favorited_users': 'name1,name2'}`（服务端把名字拼成一个字符串） |
+| 布尔开关 | 引擎按字面量比较，要传字符串：`unflag='1'`、`redo='1'`、`forcegray='1'`、`commit='Yes'` 等 |
+
+新增端点与完整签名见 [moebooru-api.md](moebooru-api.md)，按用途查找见
+[moebooru-capabilities.md](moebooru-capabilities.md)。
 
 ## 二、逐方法对照
 
@@ -259,10 +287,12 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 5. 替换已删除的方法（`post_unvote` / `comment_unvote` / `artist_undelete` / `artist_banned` /
    `dmail_delete`）；
 6. 捕获异常时改用新字段（`PybooruHTTPError.http_code` / `.url` / `.body` / `.data`）；
-7. Moebooru 调用方只需改构造与配置来源，方法签名未变（详见 [moebooru.md](moebooru.md)）。
+7. Moebooru 调用方要改构造与配置来源，并按[上文第 6 小节](#6-moebooru-面也按上游路由重写)替换旧方法与参数
+   （`pool_posts` / `user_search` / `note_create_update` / `wiki_show`、合集写操作的动词、属性键名等）。
 
 ## 五、未验证项
 
 * 所有需要登录的写接口都只做了源码对齐，**未做线上实测**；
-* Moebooru 面未做线上验证；
+* Moebooru 面的写接口与账号动作未做线上实测；匿名只读记录见
+  [verification.md](verification.md)；
 * 已完成的匿名只读验证记录（如有）见 [danbooru-api.md](danbooru-api.md) 的“验证状态”一节。

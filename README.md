@@ -99,16 +99,22 @@ client.comment_create(post_id=example['post_id'], body=example['comment_body'])
 ```python
 from pybooru import Moebooru
 
-client = Moebooru('konachan', config_file='pybooru.json')
+# 'yandere' 是 pybooru.json 中 sites 段的键名；Moebooru 面没有 search 字典，
+# 过滤条件（tags、limit、page 等）就是顶层参数。
+client = Moebooru('yandere', config_file='pybooru.json')
 example = client.config['examples']['moebooru']
 
-posts = client.post_list(tags=example['tags'], limit=example['limit'])
-for post in posts:
+for post in client.post_list(tags=example['tags'], limit=example['limit']):
     print(post['file_url'])
+
+client.close()
 ```
 
-Moebooru 面的 API 文件本轮未重写，只同步了共享配置用法；其线上可用性尚未验证，详见
-[docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md)。
+Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生方法，覆盖帖子、合集、笔记、标签、
+画师、评论、wiki、论坛与账号端点）；匿名只读端点的执行记录见
+[docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md)，
+需要登录的写接口只做源码对齐、未做线上实测。完整清单见
+[docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md)。
 
 ## 文档
 
@@ -125,14 +131,18 @@ Moebooru 面的 API 文件本轮未重写，只同步了共享配置用法；其
 | [docs/errors.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/errors.md) | 异常与状态码 |
 | [docs/danbooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru.md) | Danbooru 客户端与 `request()` 通用入口 |
 | [docs/danbooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md) | Danbooru 各 API 面与端点清单 |
-| [docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md) | Moebooru 面现状与用法 |
+| [docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md) | Moebooru 客户端与 `request()` 通用入口 |
+| [docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md) | Moebooru 各 API 面与端点清单 |
+| [docs/moebooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-capabilities.md) | Moebooru 能做什么、想做某件事该用哪个方法 |
 | [docs/migration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
 | [docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
 可运行示例见 [examples/](https://github.com/LuqueDaniel/pybooru/tree/master/examples)：
 
 - `examples/danbooru/`：Danbooru 系站点的列表、详情、分页、相关标签、评论等示例；
-- `examples/moebooru/`：Moebooru 系站点的对应示例。
+- `examples/moebooru/`：Moebooru 系站点的五个匿名只读示例（`list_posts.py`、`list_tags.py`、
+  `wiki_list.py`、`list_comments.py`、`related_tags.py`），默认站点取自 `examples.moebooru.site`（当前为
+  yande.re），不发写请求。
 
 示例中的关键词、ID 等参数一律从根配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
 分页。

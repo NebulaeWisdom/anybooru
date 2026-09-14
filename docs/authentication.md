@@ -38,14 +38,15 @@ client = Danbooru('danbooru', username='your-username', api_key='your-api-key')
 
 ## Moebooru 系站点
 
-Moebooru 引擎不用 HTTP Basic：登录信息随**写请求的请求体**一起提交，字段是：
+Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是：
 
 | 字段 | 值 |
 | :--- | :--- |
 | `login` | 用户名 |
 | `password_hash` | `SHA1(hash_string.format(password))` 的十六进制摘要 |
 
-其中 `hash_string` 是该站点 `help/api` 页面约定的加盐模板（含 `{0}` 占位符），`password` 是明文密码。
+`GET` / `HEAD` 请求把这两个字段放进**查询串**，其他动词放进**表单体**（客户端按方法自动选择）。
+`hash_string` 是该站点 `help/api` 页面约定的加盐模板（含 `{0}` 占位符），`password` 是明文密码。
 两者都来自根配置文件的站点条目：
 
 ```json
@@ -60,10 +61,13 @@ Moebooru 引擎不用 HTTP Basic：登录信息随**写请求的请求体**一�
 }
 ```
 
-只读接口按匿名 GET 发出，不需要上述字段。
+只读接口按匿名 GET 发出，不需要上述字段；站点条目的 `hash_string` 为 `null` 时要登录必须显式传入。
+服务端还接受 `username` + `api_key` 查询参数（该身份受 `limit_api` 限制，只有 `json` / `xml` / `zip`
+格式被放行）、会话 Cookie 与 `user[name]` + `user[password]` 明文，本库只实现 `password_hash` 一种。
 
-> Moebooru 面的实现本轮**未重写**，只同步了共享配置用法，其线上可用性**尚未验证**，
-> 详见 [moebooru.md](moebooru.md)。
+> Moebooru 面的端点已按上游 `moebooru/` HEAD `206455e1` 的路由与控制器对齐（90 个原生方法）；
+> 匿名只读端点的执行记录见 [verification.md](verification.md)，需要登录的写接口**未做线上实测**，
+> 详见 [moebooru.md](moebooru.md) 与 [moebooru-api.md](moebooru-api.md) 的认证与权限一节。
 
 ## 写接口的状态
 

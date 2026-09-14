@@ -16,7 +16,9 @@ Danbooru 与 Moebooru 是被大量图站采用的引擎模板，所以本库对�
 | [errors.md](errors.md) | 异常层次、`PybooruHTTPError` 字段、引擎状态码 |
 | [danbooru.md](danbooru.md) | Danbooru 客户端构造、`request()` 通用入口、参数编码 |
 | [danbooru-api.md](danbooru-api.md) | Danbooru 各 API 面：端点、参数、认证要求、路由来源 |
-| [moebooru.md](moebooru.md) | Moebooru 面现状、构造与用法、未验证说明 |
+| [moebooru.md](moebooru.md) | Moebooru 客户端构造、`request()` 通用入口、认证与版本路径 |
+| [moebooru-api.md](moebooru-api.md) | Moebooru 各 API 面：端点、参数、权限过滤器、路由来源 |
+| [moebooru-capabilities.md](moebooru-capabilities.md) | 不知道有哪些 Moebooru API？按目的找入口、区分匿名/登录能力、浏览全部原生方法 |
 | [migration.md](migration.md) | 从 Pybooru 4.x 迁移到 5.x 的逐项对照 |
 | [verification.md](verification.md) | 线上验证状态：已实测与未实测清单 |
 
@@ -43,9 +45,10 @@ with Danbooru('danbooru') as client:            # 读取当前目录的 pybooru.
 2. **不做隐式兜底**：不猜站点能力、不限制未知的 `search[...]` 参数、不自动翻页、不自动重试、
    不在客户端做权限判断——服务端返回什么就原样交给调用者。
 3. **通用入口 + 原生方法**：每个原生方法都是 `request(method, path, *, params, data, files)` 的
-   薄封装；缺少原生方法的端点可以直接用 `request()` 访问，见 [danbooru.md](danbooru.md)。
+   薄封装（两个面都有这个入口）；缺少原生方法的端点可以直接用 `request()` 访问，见
+   [danbooru.md](danbooru.md) 与 [moebooru.md](moebooru.md)。
 4. **参数语义跟随引擎**：嵌套字典编码成 Rails 的 `a[b]` 形式，列表编码成 `a[]`，布尔编码成
-   `true` / `false`，`None` 直接不发送。
+   `true` / `false`，`None` 直接不发送；Danbooru 面无文件的请求体是 JSON，Moebooru 面恒用 Rails 表单。
 
 ## 验证状态
 
@@ -53,8 +56,9 @@ with Danbooru('danbooru') as client:            # 读取当前目录的 pybooru.
 
 * Danbooru 只读端点的匿名线上验证已在 `danbooru.donmai.us` 执行（12 次成功 + 3 次预期错误），
   逐条结果见 [verification.md](verification.md)；
-* 所有需要登录的写接口都只做了**源码对齐**，**未做线上实测**；
-* Moebooru 面本轮未重写，只同步了共享配置用法，**未做线上验证**，见 [moebooru.md](moebooru.md)。
+* Moebooru 面已按上游 `moebooru/` HEAD `206455e1` 的路由与控制器重写（90 个原生方法），
+  匿名只读端点的执行记录同样记在 [verification.md](verification.md)；
+* 所有需要登录的写接口都只做了**源码对齐**，**未做线上实测**。
 
 ## 许可
 

@@ -8,7 +8,8 @@
 ### 需求范围纠正
 
 - 移除由个人猴子补丁展示延伸出的专用工作流示例、文档章节与三个示例配置键；画师查询只保留上游通用契约说明。
-- 库 API 实现和根配置结构不变；此前真实执行的验证输入与结果仍按历史记录保留，不作为产品能力承诺。
+- 这一项只删除个人补丁延伸出的示例与配置键，不改变 Danbooru 面的实现与根配置结构（Moebooru 面的重写见下文）；
+  此前真实执行的验证输入与结果仍按历史记录保留，不作为产品能力承诺。
 
 ### 配置与认证
 
@@ -51,15 +52,39 @@
 
 ### Moebooru 面
 
-- API 方法签名**保持原样**，只迁移共享配置加载、会话、编码与错误处理；
-  构造器按 `sites` 段读取 `url` / `username` / `password` / `hash_string` / `api_version`。
-- 线上可用性**未验证**。
+- 按上游 `moebooru/` HEAD `206455e1` 的 `config/routes.rb` 与 `app/controllers/*` 重写为 **90 个原生方法**：
+  帖子 17、合集 10、笔记/历史/收藏/内联/站内信 11、画师 4、标签/别名/蕴含 12、评论 7、wiki 9、论坛 11、账号 9。
+- 写方法统一为“语义必需字段 + `**attributes` 按模型名嵌套”（`post[...]`、`pool[...]`、`note[...]`、
+  `tag_alias[...]`、`wiki_page[...]`、`comment[...]`、`forum_post[...]`、`artist[...]`、`user[...]`）；
+  协议开关按引擎比较的字面值发送（`commit='Yes'`、`unflag='1'`、`redo='1'`、`api_version='2'`），
+  不再把 Python 布尔当真值。
+- 修正旧实现的错误调用：合集写操作改用 POST（旧实现用 PUT/DELETE，没有匹配的路由）、
+  `tag_update` 改为 POST 且键名是 `tag[name]`、画师属性改用 `artist[alias_name]` / `artist[alias_names]` /
+  `artist[member_names]`（`artist[alias]` 与 `artist[group]` 不被允许）、`artist_destroy` 补 `commit='Yes'`、
+  笔记新建改用 `note[post_id]`、评论去掉不被允许的 `comment[anonymous]`、`post_update` 去掉 `post[file]`、
+  创建帖子去掉不接受的 `post[is_rating_locked]` / `post[is_note_locked]`、`post_vote` 允许省略 `score`
+  读取当前投票、`note_history` 去掉被忽略的 `limit`。
+- 补齐有 JSON 契约的端点：`post_activate`、`post_update_batch`、`post_moderate`、`post_flag`、
+  `post_undelete`、`post_similar`、`post_popular_recent/by_day/by_week/by_month`、`post_acknowledge_new_deleted_posts`、
+  `pool_show`、`pool_import`、`pool_order`、`pool_copy`、`history_undo`、`inline_list/copy/delete`、
+  `dmail_mark_all_read`、`comment_list/search/update/mark_as_spam`、`forum_show/search/mark_all_read`、
+  `wiki_recent_changes`、`tag_summary`、`tag_autocomplete_name`、`tag_alias_list/create/update`、
+  `tag_implication_list/create/update`、`tag_mass_edit`、`user_list`、`user_autocomplete_name`、`user_check`、
+  `user_create`、`user_update`、`user_authenticate`、`user_modify_blacklist`、`user_reset_password`、
+  `user_record_destroy`。
+- 方法更名与移除：`pool_posts` → `pool_show`、`note_create_update` → `note_update`、`user_search` → `user_list`；
+  `wiki_show` 移除，因为 `wiki/show` 只有 HTML 分支（`.json` 得到 `406`），不是因为路由不存在。
+- 排除项按“HTML/JS/订阅源/ZIP 没有 JSON 契约”处理：不提供包装、也不声称路由不存在，逐族清单见
+  [docs/moebooru-api.md](docs/moebooru-api.md)。
+- 构造器仍按 `sites` 段读取 `url` / `username` / `password` / `hash_string` / `api_version`；
+  认证字段在 GET 走查询串、其他动词走表单体。
+- 匿名只读端点的线上证据记在 [docs/verification.md](docs/verification.md)；**写接口与账号动作未实测**。
 
 ### 文档
 
 - 删除 Sphinx 文档树（`docs/source/`、`docs/Makefile`、`docs/make.bat`）、预览脚本与 `setup.cfg`
   的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、根配置、认证、分页、错误、
-  各 Danbooru API 面、Moebooru 现状、迁移）。
+  各 Danbooru API 面、Moebooru 客户端/端点清单/能力总览、迁移）。
 - README、CONTRIBUTING 更新为中文并与 5.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
 - 示例重写为从根配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
@@ -80,7 +105,8 @@
   `related_tag`、`wiki_page_list`、`wiki_page_show`、`comment_list`、`pool_list`；
   逐条记录见 [docs/verification.md](docs/verification.md)。
 - 所有需要登录的写接口仅做到源码对齐，**未做线上实测**；
-- Moebooru 面未做线上验证；
+- Moebooru 面的匿名只读端点由维护者按同样方式记录在 [docs/verification.md](docs/verification.md)，
+  本文不重复其结果；Moebooru 的写接口与账号动作未实测；
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 ## Pybooru 4.2.2 - (2020-10-17)

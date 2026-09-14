@@ -86,11 +86,16 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
       "comment_body": "示例评论"
     },
     "moebooru": {
-      "site": "konachan",
+      "site": "yandere",
       "tags": "rating:s",
       "limit": 3,
-      "post_id": 1,
-      "comment_body": "示例评论"
+      "pages": [1, 2],
+      "tag_order": "count",
+      "comment_query": "",
+      "wiki_query": "touhou",
+      "related_tags": "touhou",
+      "related_type": "general",
+      "preview_chars": 120
     }
   }
 }
@@ -141,14 +146,23 @@ Moebooru 系站点（Moebooru 引擎）：
 | 键 | 所属 | 说明 |
 | :--- | :--- | :--- |
 | `site` | 两者 | 传给客户端构造函数的站点名，对应 `sites` 段的键 |
-| `tags` | 两者 | 搜索关键词 |
-| `limit` | 两者 | 单页数量 |
-| `pages` / `tag_search` / `preview_chars` | Danbooru | 编号分页示例的页码数组、标签查询字典、wiki 正文显示长度 |
-| `post_id` | 两者 | 帖子 ID（示例优先改用列表返回的首个 ID，见 [danbooru.md](danbooru.md)） |
-| `comment_body` | 两者 | 评论正文示例 |
-| `wiki_query` / `wiki_title` | Danbooru | wiki 页面查询词与标题 |
+| `tags` | 两者 | 搜索关键词（Moebooru 面作为顶层 `tags` 参数发送） |
+| `limit` | 两者 | 单页数量（服务端可能按端点自行限制或忽略，见 [moebooru-api.md](moebooru-api.md#分页与实际上限)） |
+| `pages` | 两者 | 编号分页示例的页码数组 |
+| `preview_chars` | 两者 | 正文显示长度（Danbooru 的 wiki 示例、Moebooru 的评论示例） |
+| `tag_search` | Danbooru | 标签查询字典（Moebooru 面没有 `search[...]` 字典） |
+| `tag_order` | Moebooru | `tag_list` 的 `order` 值，如 `count` |
+| `comment_query` | Moebooru | 评论流查询词；空字符串表示不启用全文过滤 |
+| `post_id` | Danbooru | 帖子 ID（示例优先改用列表返回的首个 ID，见 [danbooru.md](danbooru.md)） |
+| `comment_body` | Danbooru | 评论正文示例 |
+| `wiki_query` | 两者 | wiki 页面查询词 |
+| `wiki_title` | Danbooru | wiki 页面标题（Moebooru 没有 JSON 的单页读取方法） |
 | `related_query` / `related_category` / `related_order` | Danbooru | 相关标签查询参数 |
+| `related_tags` / `related_type` | Moebooru | 相关标签查询的 `tags` 与 `type` 参数 |
 | `search_sample_size` / `tag_sample_size` | Danbooru | 相关标签查询的样本规模 |
+
+Moebooru 示例读 `comment_query`（评论流查询词，空串表示不做全文过滤）与 `preview_chars`（正文截断长度）；
+Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 
 示例脚本的用法：
 

@@ -30,7 +30,7 @@ Conventions:
       the version-2 envelope), writes return ``{success: true, ...}`` and empty
       successes return ``None``.
     * Redirect-only actions whose target has a JSON page are exposed as well
-      (``pool_import``, ``pool_order``, ``pool_copy`` and the alias,
+      (``pool_import``, ``pool_order`` and the alias,
       implication and forum writes). The client follows the redirect, so the
       final GET does not confirm the write: a flash-only validation failure
       redirects to the same page.
@@ -186,7 +186,7 @@ class MoebooruApi_Mixin(object):
                             data={"id": post_id, "score": score})
 
     def post_activate(self, post_ids):
-        """Approve pending posts (requires login; janitor level).
+        """Release held posts (member level; moderators may release others' posts).
 
         Parameters:
             post_ids (list): Post ids, sent as repeated ``post_ids[]`` fields.
@@ -197,7 +197,7 @@ class MoebooruApi_Mixin(object):
                             data={"post_ids": post_ids})
 
     def post_acknowledge_new_deleted_posts(self):
-        """Mark the new-deleted-posts notice as seen (requires login)."""
+        """Mark the deletion notice as seen; anonymous calls do not update a user."""
         return self.request("POST", "post/acknowledge_new_deleted_posts")
 
     def post_update_batch(self, post):
@@ -412,9 +412,8 @@ class MoebooruApi_Mixin(object):
             name (str): Name of the copy; the server appends `` (copy)`` to the
                 original name when blank.
 
-        The action redirects to the new pool, whose JSON page the client
-        follows; that page does not by itself confirm the copy. The reply is
-        ``{success: true}`` and the new id is only in the redirect.
+        The JSON reply is ``{success: true}``; only the HTML redirect carries
+        the new pool id, so JSON callers must query the pool list to find it.
         """
         return self.request("POST", "pool/copy",
                             data={"id": pool_id, "name": name})
@@ -457,8 +456,8 @@ class MoebooruApi_Mixin(object):
         """Get notes (anonymous).
 
         Parameters:
-            post_id (int): Restrict to one post (100 notes per page); without
-                it only posts that carry notes are listed, 16 per page.
+            post_id (int): Restrict to one post; otherwise paginate 16 posts
+                having notes. The server flattens all notes from those posts.
             page (int): Page number.
 
         The JSON reply is a flat array of every matching note.
@@ -789,7 +788,7 @@ class MoebooruApi_Mixin(object):
 
         ``'Delete'`` redirects to the alias list, which the client follows.
         ``'Approve'`` redirects to the HTML-only job task page, so following it
-        raises a format error (406) *even when the approval jobs were created*:
+        can raise an HTTP/JSON format error even after approval jobs were created:
         do not retry the call blindly, verify with :meth:`tag_alias_list`.
         """
         return self.request("POST", "tag_alias/update",
@@ -839,9 +838,9 @@ class MoebooruApi_Mixin(object):
             reason (str): Reason passed to the deletion notification.
 
         ``'Delete'`` redirects to the implication list. ``'Approve'`` redirects
-        to the HTML-only job task page, so following it raises a format error
-        (406) even when the approval jobs were created; verify the result
-        instead of retrying blindly.
+        to the HTML-only job task page, so the final HTTP/JSON response can fail
+        even after approval jobs were created; verify the result instead of
+        retrying blindly.
         """
         return self.request("POST", "tag_implication/update",
                             data={"implications": implications,
@@ -855,8 +854,8 @@ class MoebooruApi_Mixin(object):
         """Get comments (anonymous).
 
         Parameters:
-            post_id (int): Restrict to one post; otherwise all comments are
-                listed.
+            post_id (int): The post whose comments to list. If omitted, this
+                revision queries post 0, not the global recent-comment feed.
             page (int): Page number (25 per page; ``limit`` is ignored by the
                 controller).
 
@@ -871,7 +870,7 @@ class MoebooruApi_Mixin(object):
 
         Parameters:
             query (str): Search phrase; ``user:<name>`` narrows it to one
-                author.
+                author. An explicitly supplied empty string lists recent comments.
             page (int): Page number (30 per page).
         """
         return self.request("GET", "comment/search",
