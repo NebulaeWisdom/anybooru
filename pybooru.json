@@ -42,14 +42,6 @@
       "password": "",
       "api_version": "1.13.0+update.3",
       "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
-    },
-    "lolibooru": {
-      "url": "https://lolibooru.moe",
-      "username": "",
-      "api_key": "",
-      "password": "",
-      "api_version": "1.13.0+update.3",
-      "hash_string": null
     }
   },
   "examples": {
