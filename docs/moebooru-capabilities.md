@@ -34,7 +34,7 @@
 | 维护合集 | `pool_create` / `pool_update` / `pool_add_post` / `pool_remove_post` / `pool_import` / `pool_order` / `pool_copy` / `pool_destroy` | `c.pool_add_post(pool_id, post_id)` | 需登录；复制需 contributor |
 | 写笔记、回滚版本 | `note_update` / `note_revert` / `history_undo` | `c.note_update(post_id=post_id, x=1, y=1, width=10, height=10, body='…')` | 需登录 |
 | 发评论、改评论、标垃圾 | `comment_create` / `comment_update` / `comment_destroy` / `comment_mark_as_spam` | `c.comment_create(post_id, body)` | 写评论需登录；`comment_mark_as_spam` 路由没有登录过滤器 |
-| 编辑 wiki | `wiki_create` / `wiki_update` / `wiki_revert` / `wiki_lock` / `wiki_unlock` / `wiki_destroy` | `c.wiki_update(title, body=body)` | 编辑需成员；锁定与删除需版主 |
+| 编辑或重命名 wiki | `wiki_create` / `wiki_update` / `wiki_revert` / `wiki_lock` / `wiki_unlock` / `wiki_destroy` | `c.wiki_update(title, body=body)`；`c.wiki_update(title, new_title=new_title)` | 编辑需成员；锁定与删除需版主 |
 | 发论坛帖、管理主题 | `forum_create` / `forum_update` / `forum_destroy` / `forum_lock` / `forum_unlock` / `forum_stick` / `forum_unstick` | `c.forum_create(title, body)` | 发帖需登录；主题管理需版主 |
 | 维护画师与标签 | `artist_create` / `artist_update` / `artist_destroy` / `tag_update` / `tag_mass_edit` | `c.artist_update(artist_id, urls=urls)` | 画师与标签编辑需成员；删除画师需 privileged；批量改名需版主 |
 | 审核别名与蕴含 | `tag_alias_create` / `tag_alias_update` / `tag_implication_create` / `tag_implication_update` | `c.tag_alias_update({alias_id: 1}, commit='Approve')` | 创建需成员；审批需版主（删除待审项时创建者也可以） |

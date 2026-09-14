@@ -238,7 +238,7 @@
 | `wiki_history(title=None, **params)` | `GET\|POST wiki/history(/:id)(.json)`（`routes.rb:265`） | 匿名 | `title` 或 `id` 指定页面；返回 `wiki_page_versions` 数组（按版本倒序，**不分页**） |
 | `wiki_recent_changes(**params)` | `GET\|POST wiki/recent_changes`（`routes.rb:267`） | 匿名 | `user_id`、`per_page`（默认 25）、`page` |
 | `wiki_create(title, body)` | `POST wiki/create(.json)`（`routes.rb:275` 附近） | 成员 | `wiki_page[title]`、`wiki_page[body]`；校验失败 → `420` |
-| `wiki_update(title, **attributes)` | `POST\|PUT wiki/update(.json)`（`routes.rb:273`） | 成员 | 顶层 `title` 选中页面，属性 `wiki_page[title]`、`wiki_page[body]`；**必须至少一个 `wiki_page[...]` 键**，否则 `400`；锁定页 → `422` |
+| `wiki_update(title, *, new_title=None, **attributes)` | `POST/PUT wiki/update.json`（`routes.rb:273`） | 成员 | 顶层 `title` 选中页面；`new_title` → `wiki_page[title]`，`body` → `wiki_page[body]`，两层标题可以同时传入而不冲突；**必须至少一个嵌套属性**，否则 `400`；锁定页 → `422` |
 | `wiki_destroy(title)` / `wiki_lock(title)` / `wiki_unlock(title)` | `POST\|DELETE wiki/destroy(.:format)` / `POST\|PUT wiki/lock` / `wiki/unlock`（`routes.rb:270-274`） | mod+ | 顶层 `title`；`{success:true}`；不存在的标题在 lock / unlock 上会 500 |
 | `wiki_revert(title, version)` | `POST\|PUT wiki/revert(.:format)`（`routes.rb:271`） | 成员 | 顶层 `title` + `version`；锁定页 → `422` |
 | `forum_list(**params)` | `GET\|POST forum(.json)`（`routes.rb:68`；别名 `/forum/index`） | 匿名 | `parent_id`（每页 100）、`latest`（固定第一页 10 条）、`page`（否则每页 30） |

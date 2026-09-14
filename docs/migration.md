@@ -92,6 +92,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `user_search(**params)` | `user_list(**params)` |
 | `note_create_update(...)` | `note_update(note_id=None, **attributes)`，新建时用 `note[post_id]` |
 | `wiki_show(**params)` | **移除**：`wiki/show` 只有 HTML 分支（`.json` → `406`），改用 `wiki_list` / `wiki_history` |
+| `wiki_update(title, new_title=, page_body=)` | `wiki_update(title, new_title=..., body=...)`：`new_title` 保留为显式关键字，区分顶层旧标题与嵌套新标题；`page_body` 改为 `body` |
 | `comment_create(post_id, comment_body, anonymous=)` | `comment_create(post_id, body)`：`comment[anonymous]` 不被允许 |
 | `post_create(tags, file_=, rating_locked=, note_locked=, …)` | `post_create(tags, *, file=None, source=None, md5=None, anonymous=None, **attributes)`：文件可选、`source` 可单独使用；创建接口不接受 `is_*_locked` |
 | `post_update(post_id, …, file_=)` | `post_update(post_id, **attributes)`：没有 `post[file]` |

@@ -990,14 +990,15 @@ class MoebooruApi_Mixin(object):
                             data=_model("wiki_page", {"title": title,
                                                       "body": body}))
 
-    def wiki_update(self, title, **attributes):
+    def wiki_update(self, title, *, new_title=None, **attributes):
         """Update a wiki page (requires login; member level; POST only).
 
         Parameters:
             title (str): Top-level selector for the page to update.
+            new_title (str): New title, sent as ``wiki_page[title]`` without
+                colliding with the top-level page selector.
 
         Attributes:
-            title (str): New title (a rename).
             body (str): New body.
 
         At least one ``wiki_page[...]`` key must be sent: the controller
@@ -1005,7 +1006,7 @@ class MoebooruApi_Mixin(object):
         page answers 422.
         """
         return self.request("POST", "wiki/update",
-                            data=dict(_model("wiki_page", attributes),
+                            data=dict(_model("wiki_page", dict(attributes, title=new_title)),
                                       title=title))
 
     def wiki_destroy(self, title):
