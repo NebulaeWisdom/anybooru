@@ -1,179 +1,119 @@
-# Danbooru 客户端
+# Danbooru 客户端用法
 
-`Danbooru` 类负责 Danbooru 引擎系站点的全部访问：读取根配置、构造请求、附加认证、把服务端 JSON
-原样返回。
+```python
+from pybooru import Danbooru
+with Danbooru('danbooru') as client:                       # 读取当前目录的 pybooru.json
+    print(client.wiki_page_show(client.config['examples']['danbooru']['wiki_title'])['title'])
+```
+
+真实字段值（2026-09-15 匿名验证中按标题查询得到的 `title`）：
+
+```text
+help:api
+```
+
+另一次执行 `examples/danbooru/related_tag.py` 得到 `query: touhou posts: 1096795` 与
+`1girl`、`solo`、`hat`，逐条见 [verification.md](verification.md)。
+
+`Danbooru` 类负责 Danbooru 引擎系站点的全部访问：读根配置、构造请求、附加认证、把服务端 JSON
+原样返回。方法清单见 [方法参考](danbooru-api.md)，按目的找入口见
+[能力入口](danbooru-capabilities.md)，逐条路由与上游出处见 [契约审计附注](danbooru-contract-notes.md)。
 
 ## 构造
 
 ```python
-from pybooru import Danbooru
-
-client = Danbooru('danbooru', config_file='pybooru.json')
+Danbooru(site_name=None, site_url=None, username=None, api_key=None, proxies=None,
+         *, config_file='pybooru.json', timeout=None, user_agent=None)
 ```
 
-| 参数 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `site_name` | str | `sites` 段的键名，如 `'danbooru'`、`'safebooru'` |
-| `config_file` | str | 配置文件路径，默认当前工作目录下的 `pybooru.json` |
-| `site_url` | str | 显式覆盖站点地址 |
-| `username` | str | 显式覆盖用户名 |
-| `api_key` | str | 显式覆盖 API key |
-| `proxies` | dict | 显式覆盖代理 |
-| `timeout` | number | 显式覆盖超时秒数 |
-| `user_agent` | str | 显式覆盖 `User-Agent` |
+`site_name` 是 `sites` 段的键名（如 `'danbooru'`、`'safebooru'`），同时决定读取哪个站点的
+`api_key`；`config_file` 指向配置文件，默认当前工作目录的 `pybooru.json`，文件不存在直接抛
+`FileNotFoundError` 而不回落到内置站点；其余参数显式覆盖配置文件同名值。见 [configuration.md](configuration.md)。
 
-构造函数参数优先于配置文件中的同名值；`config_file` 指向的文件不存在时直接抛 `FileNotFoundError`，
-不会回落到任何内置站点。配置结构的完整说明见 [configuration.md](configuration.md)。
+解析后的配置挂在公开属性 `config` 上：`config['request']['timeout']`（`30`）、
+`config['sites']['danbooru']['url']`、`config['examples']['danbooru']['tags']`（`rating:g`）；
+示例脚本都从 `config['examples']['danbooru']` 取关键词与条数，切换站点改 `client.site_url` 即可。
 
-## 读到的配置
+## 认证
 
-解析后的配置挂在公开属性 `config` 上：
-
-```python
-client.config['request']['timeout']              # 30
-client.config['sites']['danbooru']['url']        # https://danbooru.donmai.us
-client.config['examples']['danbooru']['tags']    # rating:g
-```
-
-可以随时改 `site_url` 属性切换站点地址：
-
-```python
-client.site_url = 'https://safebooru.donmai.us'
-```
+`username` 或 `api_key` **任一非空**就附加 HTTP Basic（缺项按空串补），两项都空才匿名；权限由服务端
+判定，返回 `401`（凭据无效/不完整，不会静默降级为匿名）或 `403`（权限不足），详见
+[authentication.md](authentication.md)。
 
 ## 通用请求入口
 
-所有原生方法都是 `request()` 的薄封装。需要访问还没有原生方法的端点时，直接用 `request()`：
+`request(method, path, *, params=None, data=None, files=None)` 是所有原生方法的底座，没有原生方法的
+JSON 路由也直接用它：
 
 ```python
-client.request('GET', 'posts.json', params={'tags': 'rating:g', 'limit': 3})
-client.request('GET', 'posts/1.json')
-client.request('POST', 'comments', data={'comment': {'post_id': 1, 'body': '示例评论'}})
+client = Danbooru('danbooru')     # 本节自己构造一个，不依赖上面 with 块里已关闭的客户端
+client.request('GET', 'explore/posts/popular.json', params={'scale': 'week', 'limit': 5})
+client.request('POST', 'comments.json', data={'comment': {'post_id': 1, 'body': '示例评论'}})
 ```
 
-```python
-request(method, path, *, params=None, data=None, files=None)
-```
-
-| 参数 | 说明 |
-| :--- | :--- |
-| `method` | HTTP 方法，如 `'GET'`、`'POST'`、`'PUT'`、`'DELETE'` |
-| `path` | 相对路径，带不带 `.json` 都可以（`'posts.json'` 与 `'posts'` 等价） |
-| `params` | 查询参数，都会按 Rails 括号形式拼进 URL 的查询串 |
-| `data` | 结构化请求体（嵌套 dict 就是一层嵌套键） |
-| `files` | 上传的文件；非 `None` 时请求体改用 multipart 编码 |
-
-行为约定：
-
-* **不做隐式兜底**：`path` 就是站点根地址之后的那一段，只做两件事——去掉开头的 `/`、缺 `.json` 时补上；
-  路径里的 ID 需要调用者自己转义，客户端不猜测、不改写；
-* **不自动重试**：网络错误、限流、5xx 都直接把结果抛给调用者；
-* **权限交给服务端**：`username` 或 `api_key` 任一非空就附加 HTTP Basic（缺项为空串），两项都空才匿名；
-  不做本地鉴权判断；
-* **请求头固定**：`User-Agent` 取配置，`Accept: application/json`；
-* **不走环境变量代理**：会话关闭了 requests 的 `trust_env`，代理只来自配置或显式参数。
+* `method` 是 `'GET'` / `'POST'` / `'PUT'` / `'DELETE'` 等；`path` 带不带 `.json` 都可以
+  （`'posts.json'` 与 `'posts'` 等价），开头的 `/` 会去掉；`params` 是查询参数（Rails 括号形式）；
+  `data` 是结构化请求体；`files` 非空时请求体改用 multipart；
+* **不做隐式兜底**：路径里的 ID 要调用者自己转义（`wiki_page_show` 已内置转义），不自动重试，
+  网络错误、限流、5xx 全抛给调用者；
+* **请求头固定**：`User-Agent` 取配置，`Accept: application/json`；会话 `trust_env=False`，
+  代理只来自配置或显式参数，不读环境变量。
 
 ## 参数编码
 
-分两套编码，取决于这次请求有没有文件：
+查询串用 Rails 括号形式：嵌套 dict → `a[b]`，列表 → 重复键 `a[]`，布尔 → `true`/`false`，`None`
+不发送。请求体分两套：**无文件发 JSON**（嵌套 dict 就是嵌套对象，结构原样保留），**带文件发
+Rails 表单 / multipart**。无文件用 JSON 的意义是保留结构——`pool_update(pool_id, post_ids=[])`
+会把显式空数组真的发出去（用于清空合集内容），表单编码会丢掉它。带文件的字段名是**字面**键
+（`upload[files][0]`、`post_replacement[replacement_file]`）：requests 不为 multipart 字段展开括号，
+键名由客户端按服务端约定拼好。
 
-| 情形 | 编码方式 |
-| :--- | :--- |
-| `params`（查询串） | Rails 括号形式：嵌套 dict → `a[b]`，列表 → 重复键 `a[]`，布尔 → `true`/`false`，`None` 不发送 |
-| `data`（请求体，无文件） | **JSON 请求体**：嵌套 dict 就是嵌套的 JSON 对象，结构原样保留 |
-| `data` + `files`（有文件） | Rails 表单 / multipart 编码（同下表的括号规则） |
-
-无文件时用 JSON 请求体的意义在于**保留结构而不是压成字符串**：例如
-`pool_update(pool_id, post_ids=[])` 会把显式的空数组真的发出去（用于清空合集内容），
-而表单编码会把它丢掉。`None` 值同样不会被发送。
-
-有文件时（`upload_create(files=[...])`）走 multipart，文件字段用**字面**键名：
+搜索字典（`search`）是嵌套结构，由原生方法放进 `search[...]` 层：
 
 ```python
-upload[files][0]
+client.tag_list(search={'name_matches': 'touhou'}, limit=2)      # 验证记录：touhou，tag id 29
+client.related_tag(search={'query': 'touhou', 'order': 'frequency'}, limit=2)
 ```
 
-requests 不会为 multipart 字段展开括号，所以这类字段名要按服务端约定原样书写。
-
-搜索字典（`search`）也是嵌套结构，由原生方法负责放进对应的层：
-
-```python
-client.tag_list(search=example['tag_search'], limit=example['limit'])
-client.related_tag(search={'query': example['related_query'], 'order': example['related_order']},
-                   limit=example['limit'])
-```
-
-有一个例外要记住：**帖子列表不读 `search` 字典**，它的过滤条件全部写在 `tags` 查询串里作为元标签
-（`rating:g`、`score:>10`、`order:score`、`limit:50`）：
+**帖子的列表查询是例外**：它不读 `search` 字典，过滤条件全写在顶层 `tags` 里当元标签：
 
 ```python
 client.post_list(tags='rating:g order:score', limit=10)
 ```
 
-## 返回值
+## 返回值与上一次请求
 
-| 服务端响应 | 返回值 |
-| :--- | :--- |
-| JSON 响应体 | 解析后的 Python 对象（dict / list / 标量），原样返回，不改字段、不包装 |
-| `204 No Content` 或空响应体 | `None` |
-| HTTP 错误状态 | 抛 `PybooruHTTPError`，携带状态码、URL 与响应内容 |
-| 网络层错误 | 原样抛出 requests 的异常 |
-
-详见 [errors.md](errors.md)。
-
-## 上一次请求的信息
-
-每次请求后，`last_call` 都会更新为本次请求的实际情况：
+JSON 响应体解析后原样返回（dict / list / 标量，不改字段、不包装）；`204` 或空正文返回 `None`；
+非 2xx 抛 `PybooruHTTPError`（带状态码、URL、响应内容），2xx 但非 JSON 抛 `PybooruAPIError`，
+网络层异常原样抛出，见 [errors.md](errors.md)。`last_call` 记录每次请求的实际情况，其 `url` 是含查询串的最终地址，可直接排查“参数到底发成了什么样”：
 
 ```python
-posts = client.post_list(tags=example['tags'])
-client.last_call
-# {'API': 'posts.json',
-#  'url': 'https://danbooru.donmai.us/posts.json?tags=rating%3Ag',
-#  'status_code': 200,
-#  'status': 'OK',
-#  'headers': {...}}
+client.post_list(tags='rating:g', limit=2)
+client.last_call  # {'API': 'posts.json', 'status_code': 200, 'status': 'OK', 'headers': {...},
+              #  'url': 'https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=2'}
 ```
 
-`url` 是包含查询串的最终地址，可以直接用于排查“参数到底发成了什么样”。
+## 常见坑
 
-## 原生方法
+* **帖子列表不吃 `search`**：写 `search={'tags': ...}` 会被静默忽略，表现为“返回最新全集”；
+* **`GET` 不带请求体**：带 body 的 GET 由服务端 `400` 拒绝，客户端也不会把 `data` 放进 GET；
+* **空字符串的 `search` 值会被清理**：服务端剔除空白项后 `302`，`None` 由客户端直接省略；
+* **`old_*` 用于并发合并**：`post_update` 的 `old_tag_string` / `old_source` / `old_rating` /
+  `old_parent_id` 把你编辑前看到的值一起发出去，服务端据此避免覆盖别人的改动；
+* **发帖分两步**：`upload_create` 只是上传，还要用 `post_create(upload_media_asset_id, ...)` 发布，
+  且该 id 是**顶层**参数；
+* **能力依赖**：`post_versions_list` / `pool_versions_list` 在未配置 archive 服务的站点返回 `501`，
+  IQDB 未配置时返回空数组；推荐服务也依赖站点配置，各自结果见方法参考。
 
-Danbooru 面为常用资源提供了原生方法，命名规则统一：
+命名规则：`xxx_list` 列表/搜索（`search` + `**params`），`xxx_show` 单条详情，`xxx_create` /
+`xxx_update` / `xxx_delete` 写操作；ID 游标是 `page='a<ID>'` / `'b<ID>'`，没有通用 `cursor` 字段，
+翻页见 [pagination.md](pagination.md)。
 
-```python
-def xxx_list(self, search=None, **params)   # 列表 / 搜索
-def xxx_show(self, xxx_id)                  # 单条详情
-def xxx_create / xxx_update / xxx_delete    # 写操作（需要登录）
-```
+## 边界与未实测
 
-* `search` 是**完整的搜索参数字典**，整包透传成 `search[...]`，不做白名单拦截；
-* 其余顶层参数（`limit`、`page`、`tags` 等）走 `**params` 原样发送；ID 游标是 `page='a<ID>'` / `'b<ID>'`，没有通用 `cursor` 字段；
-* 分页相关见 [pagination.md](pagination.md)。
-
-```python
-posts = client.post_list(tags=example['tags'], limit=example['limit'])
-tags = client.tag_list(search=example['tag_search'], limit=example['limit'])
-post = client.post_show(posts[0]['id'])
-```
-
-完整端点清单（含认证要求、画师查询语义与路由来源）见 [danbooru-api.md](danbooru-api.md)。
-
-## 关闭与上下文管理
-
-客户端持有可复用的连接会话，用完关掉即可：
-
-```python
-client = Danbooru('danbooru')
-try:
-    posts = client.post_list(tags=example['tags'])
-finally:
-    client.close()
-```
-
-也可以直接用上下文管理器：
-
-```python
-with Danbooru('danbooru') as client:
-    posts = client.post_list(tags=example['tags'])
-```
+`danbooru.donmai.us` 的早期匿名验证共 15 次：12×200 与 404/410/422 各一次，另有画师重定向验证。
+读路径覆盖 `post_list`、`post_show`、`tag_list`、`artist_list`、`artist_show_or_new`、`related_tag`、
+`wiki_page_list`、`wiki_page_show`、`comment_list`、`pool_list`；写路径、上传媒体与可选服务仍未实测。
+同族站点另有独立探测：Safebooru 匿名可用且为 Danbooru；Gelbooru/TBIB 实为 Gelbooru 引擎，不能混用。
+逐路径、身份与参数范围以 [verification.md](verification.md) 为准；本次重排没有新增网络请求。
+示例结束后用 `client.close()` 关闭非 `with` 方式建立的客户端。

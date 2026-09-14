@@ -1,69 +1,68 @@
-# Danbooru 能力总览：我想做什么，该用哪个接口？
+# Danbooru 能力入口：我想做什么，该用哪个接口？
 
-**不知道从哪个方法查起，先看这页；已经知道端点，再看 [API 参数参考](danbooru-api.md)。**
+**不知道从哪个方法查起，先看这页；已经知道端点，再看 [方法参考](danbooru-api.md)。**
 
 - **不登录也能开始**：找图、查帖子、标签、画师、wiki、公开评论、笔记、合集、用户和公开收藏。
 - **登录后才能改内容**：上传、发帖、评论、收藏、投票、编辑等；删除、审核、管理还可能要求更高等级。
 - **库负责调用 JSON API**，不是下载器或自动采集器：不自动保存图片、不自动翻页，也不保证每条记录都向匿名用户开放文件地址。
-- **有接口不等于本站已启用，也不等于已经实测**。本文不新增线上探测；已实测范围单列在下方。
 
 ## 先按目的找入口
 
-下表的 `c` 是已按根配置创建的 `Danbooru` 客户端；`query`、`url`、各类 ID 等代表你从配置或前一次响应取得的值，不是库的默认参数。初始化方式见 [客户端用法](danbooru.md)。
+下表的 `client` 是已按根配置创建的 `Danbooru` 客户端；`query`、`url`、各类 ID 等代表你从配置或前一次响应
+取得的值，不是库的默认参数。初始化方式见 [客户端用法](danbooru.md)。
 
 | 我想做什么 | 能力与方法 | 最简调用形态 | 是否需要登录 |
 | :--- | :--- | :--- | :--- |
-| 按标签、评分、时间找图 | `post_list`：组合标签和 `score:`、`date:`、`order:` 等元标签查询 | `c.post_list(tags=query)` | 匿名可查，搜索配额与内容可见性受限 |
-| 看一张图的详情，或随机找图 | `post_show` / `post_random`：按帖子 ID 读取，或在查询内随机取帖 | `c.post_show(post_id)`；`c.post_random(tags=query)` | 匿名可查 |
-| 下载原图或预览图 | `post_show`：取得**允许访问的**文件信息与地址；保存文件需另用 HTTP 客户端，本库没有原生下载方法 | `post = c.post_show(post_id)` | 地址取决于帖子对当前用户是否可见，匿名不保证拿到 |
-| 按作者找作品 | `post_list`：已知画师标签时，直接把它当标签搜索 | `c.post_list(tags=artist_name)` | 匿名可查 |
-| 查画师与主页 URL | `artist_list` / `artist_urls_list`：找画师记录，或查看记录关联的主页 | `c.artist_list(search={'url_matches': url})`；`c.artist_urls_list(search={'artist_id': artist_id})` | 匿名可查 |
-| 找标签、同义名与相关标签 | `tag_list` / `tag_aliases_list` / `related_tag`：查标签、别名、相关标签建议 | `c.tag_list(search={'name_matches': name})`；`c.related_tag(search={'query': query})` | 匿名可查 |
-| 输入关键词时给出补全建议 | `autocomplete_list`：标签、画师、用户等搜索补全 | `c.autocomplete_list(query, type=search_type)` | 匿名可查 |
-| 查 wiki 或原作者说明 | `wiki_page_show` / `artist_commentary_show`：读标签说明页、作品原文及翻译说明 | `c.wiki_page_show(title)`；`c.artist_commentary_show(post_id)` | 匿名可查可见内容 |
-| 看评论和图上笔记 | `comment_list` / `note_list`：按帖子查询讨论与笔记 | `c.comment_list(search={'post_id': post_id})`；`c.note_list(search={'post_id': post_id})` | 匿名可读；发表评论、修改笔记需登录 |
-| 按合集看系列作品 | `pool_list` / `pool_show`：找合集并取其帖子列表信息 | `c.pool_list(search={'name_matches': name})`；`c.pool_show(pool_id)` | 匿名可读；创建、修改需登录 |
-| 查用户，查看或整理收藏 | `user_show` / `favorite_list` / `favorite_create`：读用户资料、公开收藏，收藏某帖 | `c.user_show(user_id)`；`c.favorite_list(user_id=user_id)`；`c.favorite_create(post_id)` | 公开资料和公开收藏可匿名；自己的收藏操作需登录 |
-| 给收藏分组、保存常用搜索 | `favorite_group_create` / `saved_search_create`：建立收藏夹或保存标签查询 | `c.favorite_group_create(name)`；`c.saved_search_create(query=query)` | 需登录；公开收藏组可匿名查看 |
-| 上传文件并发帖 | `upload_create` → `upload_show` → `post_create`：先上传并等处理完成，再用上传媒体 ID 发布 | `c.upload_create(source=url)`；`c.post_create(asset_id, tag_string=tags, rating=rating)` | 需登录，且受上传归属与账号权限限制 |
-| 修改标签、来源、翻译状态 | `post_update` / `post_mark_as_translated`：更新已有帖子 | `c.post_update(post_id, tag_string=tags)` | 需登录，且有该帖的编辑权限 |
-| 投票、请求删除或提出申诉 | `post_vote_create` / `post_flag_create` / `post_appeal_create`：赞踩、标记待删、申诉 | `c.post_vote_create(post_id, score)`；`c.post_flag_create(post_id, reason)` | 需登录；不等同于审核员直接删除 |
-| 举报行为或处理审核队列 | `moderation_report_create` / `modqueue_list` / `post_approval_create`：提交举报或审核帖子 | `c.moderation_report_create(model_type=kind, model_id=object_id, reason=reason)`；`c.modqueue_list()` | 举报需登录且对象可举报；审核需 approver 等权限 |
-| 查论坛或发送站内信 | `forum_topics_list` / `forum_posts_list` / `dmail_create`：读讨论、回帖、发私信 | `c.forum_topics_list()`；`c.dmail_create(title, body, to_name=name)` | 公开论坛可匿名读；发帖和站内信需登录 |
-| 查修改历史、统计或来源 | `post_versions_list` / `counts_posts` / `source_show`：追溯记录、计数、解析来源 | `c.post_versions_list(search={'post_id': post_id})`；`c.counts_posts(tags=query)`；`c.source_show(url)` | 多数可匿名读；版本历史依赖站点 archive 服务 |
-| 以图搜图或看推荐 | `iqdb_query` / `recommended_posts_list`：查询相似图片或推荐结果 | `c.iqdb_query(url=url)`；`c.recommended_posts_list(search=search)` | 源码提供匿名入口，但依赖站点配置的服务 |
+| 按标签、评分、时间找图 | `post_list`：组合标签和 `score:`、`date:`、`order:` 等元标签查询 | `client.post_list(tags=query)` | 匿名可查，搜索配额与内容可见性受限 |
+| 看一张图的详情，或随机找图 | `post_show` / `post_random` | `client.post_show(post_id)`；`client.post_random(tags=query)` | 匿名可查 |
+| 取得原图或预览图地址 | `post_show`：拿**当前身份允许访问**的文件信息；保存文件要另用 HTTP 客户端 | `post = client.post_show(post_id)` | 地址取决于帖子对当前用户是否可见，匿名不保证拿到 |
+| 按作者找作品 | `post_list`：已知画师标签时直接当标签搜索 | `client.post_list(tags=artist_name)` | 匿名可查 |
+| 查画师与主页 URL | `artist_list` / `artist_urls_list` / `artist_show` | `client.artist_list(search={'url_matches': url})` | 匿名可查 |
+| 找标签、同义名与相关标签 | `tag_list` / `tag_aliases_list` / `related_tag` | `client.tag_list(search={'name_matches': name})` | 匿名可查 |
+| 输入关键词时给出补全建议 | `autocomplete_list` | `client.autocomplete_list(query, type=search_type)` | 匿名可查 |
+| 查 wiki 或原作者说明 | `wiki_page_list` / `wiki_page_show` / `artist_commentary_show` | `client.wiki_page_show(title)` | 匿名可查可见内容 |
+| 看评论和图上笔记 | `comment_list` / `note_list` | `client.comment_list(search={'post_id': post_id})` | 匿名可读；发表与修改需登录 |
+| 按合集看系列作品 | `pool_list` / `pool_show` / `pool_gallery` | `client.pool_show(pool_id)` | 匿名可读；创建、修改需登录 |
+| 查用户，查看或整理收藏、保存搜索 | `user_show` / `favorite_list` / `favorite_create` / `favorite_group_create` / `saved_search_create` | `client.favorite_create(post_id)` | 公开资料与公开收藏可匿名；自己的收藏操作需登录 |
+| 上传文件并发帖 | `upload_create` → `post_create` | `client.post_create(media_asset_id, tag_string=tags, rating=rating)` | 需登录，且受上传归属与账号权限限制 |
+| 修改标签、来源、翻译状态 | `post_update` / `post_mark_as_translated` | `client.post_update(post_id, tag_string=tags, old_tag_string=before)` | 需登录，且有该帖的编辑权限 |
+| 投票、请求删除或提出申诉 | `post_vote_create` / `post_flag_create` / `post_appeal_create` | `client.post_vote_create(post_id, score=1)` | 需登录；不等同于审核员直接删除 |
+| 举报行为或处理审核队列 | `moderation_report_create` / `modqueue_list` / `post_approval_create` | `client.modqueue_list()` | 举报需登录且对象可举报；审核需 approver 等权限 |
+| 查论坛或发送站内信 | `forum_topics_list` / `forum_posts_list` / `dmail_create` | `client.dmail_create(title, body, to_name=name)` | 公开论坛可匿名读；发帖和站内信需登录 |
+| 查修改历史、统计或来源 | `post_versions_list` / `counts_posts` / `source_show` | `client.counts_posts(tags=query)`；`client.source_show(url)` | 多数可匿名读；版本历史依赖站点 archive 服务 |
+| 以图搜图或看推荐 | `iqdb_query` / `recommended_posts_list` | `client.iqdb_query(url=url)` | 源码提供匿名入口，但依赖站点配置的服务 |
 
-**两个容易选错的地方**：帖子列表把过滤写在顶层 `tags`，其他大多数列表放在 `search` 字典；上传成功也不等于已发帖，需要后续 `post_create`。翻页看 [分页说明](pagination.md)，请求失败看 [错误说明](errors.md)。
+**两个容易选错的地方**：帖子列表把过滤写在顶层 `tags`，其他大多数列表放在 `search` 字典；上传成功不等于
+已发帖，还要用上传媒体 id 调 `post_create`。翻页看 [pagination.md](pagination.md)，请求失败看
+[errors.md](errors.md)。
 
 ## 匿名和登录，能力差在哪里？
 
-这里的“可匿名”表示源码允许进入该读接口，不表示一定有结果、能看到所有记录，或能拿到全部返回信息。
+“可匿名”只表示源码允许进入该读接口，不保证一定有结果、能看到所有记录，或拿到全部返回字段。
 
 | 身份 / 条件 | 可以期待的能力 | 主要边界 |
 | :--- | :--- | :--- |
-| 匿名 | 搜索与读取公开帖子、标签、画师、wiki、评论、笔记、合集、论坛、用户、公开收藏等 | 内容可见性、私密设置、搜索配额仍生效 |
-| 已登录的普通账号 + 有效 API key | 在获授权范围内上传、发帖、编辑、评论、收藏、投票、发站内信、保存搜索 | 登录不是全站写权限；还看对象归属、封禁状态与 API key 权限 |
-| builder / approver / moderator / admin 等角色 | 部分删除、恢复、审核、文件替换、账号管理、后台任务操作 | 不同动作要求不同角色，具体查 [API 参数参考](danbooru-api.md) |
-| 站点启用了可选后端 | archive 版本历史、IQDB、推荐等服务 | 方法存在不保证每个 Danbooru 系站点都提供相同能力 |
+| 匿名 | 读公开帖子、标签、画师、wiki、评论、笔记、合集、论坛、用户、公开收藏 | 内容可见性、私密设置与搜索配额仍生效 |
+| 已登录 + 有效 API key | 在获授权范围内上传、发帖、编辑、评论、收藏、投票、发站内信、保存搜索 | 还看对象归属、封禁状态与 key 权限 |
+| builder / approver / moderator / admin | 部分删除、恢复、审核、文件替换、账号管理与后台任务 | 不同动作要求不同角色 |
+| 站点启用了可选后端 | archive 版本历史、IQDB、推荐服务 | 方法存在不保证每个 Danbooru 系站点都启用 |
 
-返回信息不必背字段表，只记住这几条：
+返回字段只需记住这几条：
 
-- **帖子与媒体**：`PostPolicy` 根据帖子对当前用户是否可见，决定是否提供原图/大图/预览地址；不可见时也会省去 `md5`。这不是“匿名一律没有文件地址”，但也不能按 `post['file_url']` 必存在来理解接口。
-- **用户**：公开资料可查；`favorite_tags`、`blacklisted_tags`、`per_page` 等个人偏好通常只在查询自己时加入。
-- **评论、投票与举报记录**：即使列表可读，已删除正文、参与者身份等也可能因权限被隐藏。
-- **收藏、上传与私信**：公开收藏可匿名读；私密收藏、上传详情和私信还要看归属与权限。匿名调用上传列表不代表能查看他人的上传。
+- **帖子与媒体**：`file_url` / `large_file_url` / `preview_file_url` 只在帖子对当前用户可见时出现，
+  不可见时连 `md5` 也会被省去，所以不能按 `post['file_url']` 必存在来写代码。
+- **用户**：公开资料可查；`favorite_tags`、`blacklisted_tags`、`per_page` 等偏好通常只在查自己时出现。
+- **评论、投票与举报**：已删除正文、参与者身份等可能被隐藏；公开收藏可匿名读，私密收藏、上传详情与
+  私信还要看归属与权限。
 
-以上概括来自上游 `PostPolicy`、`UserPolicy`、`CommentPolicy`、`FavoritePolicy`、`UploadPolicy` 等源码，**不是本次新增的逐字段线上测试结论**。
-
-## 哪些已经真实用过？
-
-已有匿名记录覆盖：帖子列表/搜索/详情和 ID 游标分页、标签搜索、画师 URL 与名称查询、相关标签、wiki 查询、评论列表、合集列表，以及不存在资源、页码超限、标签数超限的错误处理。还记录过画师查询的重定向结果。
-
-其他能力在这里列出，是因为**原生方法与对应上游契约存在**，不是宣称全部实测通过。需要登录的写操作仍未实测，本次也没有为了编写总览增加线上请求。历史证据见 [验证记录](verification.md)。
+以上是上游权限过滤器的行为概括，逐条规则与出处见
+[附注的权限过滤器](danbooru-contract-notes.md#权限与字段级过滤器)。
 
 ## 完整原生方法索引
 
-以下按资源列出当前 `api_danbooru.py` 的 **227 个原生 API 方法**；每项只解释“干什么”，不重复参数表。列表通常返回一页数据，创建/更新/删除等通常是写操作；是否可调用仍以上面的权限边界与 [详细 API 参考](danbooru-api.md) 为准。
+以下是 `api_danbooru.py` 的 **227 个原生方法**，每项只解释“干什么”。签名与可复制调用见
+[方法参考](danbooru-api.md)，每个方法的参数键、路由与状态见
+[契约审计附注](danbooru-contract-notes.md#逐资源路由参数键与状态227-个原生方法)。
 
 ### 状态、API key 与限流
 
@@ -150,10 +149,10 @@
 - `tag_version_show` — 读取一个标签版本。
 - `tag_aliases_list` — 查询标签别名关系。
 - `tag_alias_show` — 读取一条别名关系。
-- `tag_alias_delete` — 拒绝或移除一条别名关系。
+- `tag_alias_delete` — 拒绝一条别名请求。
 - `tag_implications_list` — 查询标签蕴含关系。
 - `tag_implication_show` — 读取一条蕴含关系。
-- `tag_implication_delete` — 拒绝或移除一条蕴含关系。
+- `tag_implication_delete` — 拒绝一条蕴含请求。
 - `related_tag` — 根据查询取得相关标签建议。
 - `autocomplete_list` — 取得指定类型的自动补全建议。
 
@@ -171,9 +170,6 @@
 - `artist_urls_list` — 查询画师关联的主页地址。
 - `artist_versions_list` — 查询画师记录修改历史。
 - `artist_version_show` — 读取一个画师记录版本。
-
-### 原作者说明及翻译
-
 - `artist_commentaries_list` — 搜索作品的原作者说明与译文。
 - `artist_commentary_show` — 读取某帖的原作者说明。
 - `artist_commentary_create_or_update` — 创建或更新某帖的原作者说明与翻译。
@@ -361,10 +357,10 @@
 - `source_show` — 请求站点解析来源 URL。
 - `iqdb_query` — 通过站点的 IQDB 服务查询相似图片。
 
-## 找不到原生方法时
+## 边界与未实测
 
-**227 个方法并不是全部引擎路由的上限。** 发现内容、指标、部分账号管理等 JSON 路由还可通过 `c.request(method, path, params=..., data=...)` 调用；已有路由与非 JSON 排除项见 [API 参考](danbooru-api.md)。`request` 不是图片下载方法，也不会把 HTML 页面变成 JSON。
+早期 Danbooru 匿名验证为 15 次（12×200 与 404/410/422 各一次），另有画师重定向结果；后续候选站复核还访问过 users/autocomplete 等读路径。Safebooru 匿名可用且为 Danbooru，Gelbooru/TBIB 实为 Gelbooru 引擎而非兼容站。每个批次的具体路由与参数范围见 [verification.md](verification.md)，不把早期清单当作全量当前状态。全部写路径、上传媒体、高权限及可选服务成功路径仍未实测；本次总览重排没有新增网络请求。
 
-客户端还提供 `close()` 与 `with Danbooru(...) as c` 管理连接生命周期。这些是客户端操作，不计入上面的 API 方法数。
+`request()` 还能调到发现内容、指标、部分账号管理等没有原生方法的 JSON 路由，已有路由与非 JSON 排除项见[契约审计附注](danbooru-contract-notes.md)；它不是图片下载方法，也不会把 HTML 页面变成 JSON。客户端另有 `close()` 与 `with Danbooru(...) as client`，这两个是客户端操作，不计入上面的方法数。
 
-继续阅读：[如何初始化和调用](danbooru.md) · [完整端点与参数](danbooru-api.md) · [翻页方式](pagination.md) · [错误与权限失败](errors.md)。
+继续阅读：[客户端用法](danbooru.md) · [完整方法与参数](danbooru-api.md) · [翻页方式](pagination.md) · [错误与权限失败](errors.md)
