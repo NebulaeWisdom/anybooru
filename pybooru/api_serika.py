@@ -2,19 +2,19 @@
 
 """pybooru.api_serika
 
-This module contains every call of the official SerikaART API (``/api/v1``).
+Official SerikaART v1 routes and unversioned anonymous internal reads.
 
 SerikaART is neither a Danbooru nor a Moebooru site: it is a self-hosted
 Next.js application whose own documentation calls ``/api/v1`` the versioned
-"SerikaART API 1.0.0". Every method below is one thin call to
-``Serika.request()`` against a route of ``app/api/v1/**/route.ts``, so the
+"SerikaART API 1.0.0". Every method is a thin ``Serika.request()`` call
+against a route in ``app/api/**/route.ts``, so the
 controllers are the contract. ``app/api-docs/endpoints.ts`` documents only 10
 of the 16 exported handlers and disagrees with the controllers about the image
 ``:id`` routes (see below).
 
 The unversioned in-site routes of the same application are frontend internals
 with no compatibility promise; the client exposes them with an ``internal_*``
-prefix, outside this mixin's stable contract.
+prefix and return their original JSON bodies, without envelope normalization.
 
 Shared v1 facts:
     * Envelope: ``{"success": true, "data": ..., "meta": {...}}``. Methods
@@ -51,7 +51,7 @@ Shared v1 facts:
       never parses a Rails-style array.
 
 Classes:
-    SerikaApi_Mixin -- Contains all official SerikaART ``/api/v1`` calls.
+    SerikaApi_Mixin -- Official v1 and private unversioned read calls.
 """
 
 # __future__ imports
@@ -67,9 +67,9 @@ def _segment(value):
 
 
 class SerikaApi_Mixin(object):
-    """Contains all official SerikaART API calls.
+    """Official v1 methods and explicitly named private internal reads.
 
-    * Source: ``app/api/v1/**/route.ts`` in the SerikaART application.
+    * Source: ``app/api/**/route.ts`` in the SerikaART application.
     * Doc: https://serika.art/api-docs
     """
 
@@ -595,3 +595,369 @@ class SerikaApi_Mixin(object):
                 "description": description}
         return self.request("POST", "api/v1/upload", data=data,
                             files={"file": file}, envelope="data")
+
+    # ------------------------------------------------------------------
+    # Images
+    # ------------------------------------------------------------------
+
+    def internal_image_list(self, *, page=None, limit=None, tags=None,
+                            ratings=None, sort=None, ai=None, hide_ai=None,
+                            query=None, user_id=None, username=None):
+        """List images (``GET /api/images``).
+
+        Parameters:
+            page (int): 1-based page; the server parses ``1`` as the fallback.
+            limit (int): Rows per page; the server parses ``24`` as the fallback
+                and caps the value at 100.
+            tags (str): Comma-joined tag names; an image must carry every listed
+                tag (intersection). The server lowercases the names and resolves
+                them against ``tags``, so unknown names answer 404
+                ``TAG_NOT_FOUND`` once any name resolved, and an empty page when
+                none did (the outcome also depends on the server's tag cache).
+            ratings (str): Comma-joined subset of ``safe``/``questionable``/
+                ``explicit``. Omitted or entirely invalid values fall back to
+                ``safe`` server-side; listing all three removes the filter.
+            sort (str): ``newest`` (fallback), ``popular``, ``favorites``,
+                ``views``, ``oldest``, ``filesize``, ``filesize-asc``,
+                ``resolution``, ``aspectratio``, ``alphabetical``,
+                ``alphabetical-reverse``, ``random`` (non-deterministic, and the
+                only value sent with ``Cache-Control: no-store``).
+            ai (bool): ``True`` selects only AI-generated images.
+            hide_ai (bool): ``True`` hides AI-generated images. Both flags
+                together select nothing.
+            query (str): Server-side search over description, uploader username
+                and tag names (substring, case-insensitive).
+            user_id (str): Uploader account id (``users.id``, a text column);
+                the literal ``'null'`` selects anonymous uploads.
+            username (str): Uploader username, case-insensitive; takes
+                precedence over ``user_id``.
+
+        Returns the raw body ``{"success": true, "images": [...],
+        "pagination": {page, limit, total, pages, has_next}}`` (or
+        ``{"success": false, "error": ..., "code": ...}`` with a 4xx/5xx).
+        Each image carries both database names and the frontend aliases:
+        ``id``/``dbid``/``_id`` are the internal bigint id (``dbid``/``_id`` as
+        strings), ``sequential_id``/``post_id``/``sequentialId`` are the public
+        sequential id, plus ``user_id``/``userId``, ``username``, ``url``,
+        ``thumbnail_url``/``thumbnailUrl``, ``width``, ``height``,
+        ``file_size``/``fileSize``, ``rating``, ``is_ai_generated``/
+        ``isAIGenerated``, ``upvotes``, ``downvotes``, ``favorites``,
+        ``views``, ``created_at``/``createdAt`` and ``tags``
+        (``[{_id, id, name, type, count}]``).
+
+        Unversioned private station API; anonymous read. Live status in
+        docs/verification.md (200 recorded before this refactor).
+        """
+        params = {
+            "page": page,
+            "limit": limit,
+            "tags": tags,
+            "ratings": ratings,
+            "sort": sort,
+            "ai": ai,
+            "hideAI": hide_ai,
+            "q": query,
+            "userId": user_id,
+            "username": username,
+        }
+        return self.request("GET", "api/images", params=params)
+
+    def internal_image_show(self, image_id):
+        """Read one image by its public sequential id (``GET /api/images/:id``).
+
+        Parameters:
+            image_id (int): ``sequential_id``, the public post number - not the
+                internal bigint ``id``. A non-numeric value answers 400.
+
+        Returns ``{"success": true, "image": {...}}``; the object repeats the
+        list aliases and adds ``original_filename``/``originalFilename``,
+        ``file_size``, ``content_type``/``contentType``, ``source``,
+        ``description``, ``deleted``, ``unlisted``, the deletion/unlisting
+        audit columns and ``updated_at``/``updatedAt``.
+
+        Anonymous visibility: a deleted or unlisted image answers 404
+        (``"Image not found"``), the same shape as a missing id, so the two
+        cannot be told apart. Reading a visible image makes the server
+        increment ``views`` in the background and returns ``views + 1``; this
+        is the site's own counter and is not a session write.
+
+        Unversioned private station API; anonymous read. Live status in
+        docs/verification.md (200 recorded before this refactor).
+        """
+        path = "api/images/{0}".format(_segment(image_id))
+        return self.request("GET", path)
+
+    def internal_image_comments(self, image_id):
+        """Read an image's comments (``GET /api/images/:id/comments``).
+
+        Parameters:
+            image_id (int): Public ``sequential_id``.
+
+        Returns ``{"success": true, "comments": [...]}`` in ascending creation
+        order. Each comment has ``_id`` (string row id), ``imageId`` (the
+        internal bigint id as a string), ``userId`` (account id),
+        ``username``, ``avatarUrl``, ``rank``, ``content``, ``parentId``
+        (string, absent for top-level), ``asArtist``, ``artistTagName``
+        (absent unless the author commented as a verified artist) and
+        ``createdAt``/``updatedAt``. A missing image answers 404.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/images/{0}/comments".format(_segment(image_id))
+        return self.request("GET", path)
+
+    # ------------------------------------------------------------------
+    # Tags
+    # ------------------------------------------------------------------
+
+    def internal_tag_list(self, *, query=None, limit=None, type=None):
+        """List tags (``GET /api/tags``).
+
+        Parameters:
+            query (str): Substring matched against tag names
+                (case-insensitive).
+            limit (int): Row count; the server parses ``50`` as the fallback and
+                applies no upper clamp.
+            type (str): One of ``general``, ``artist``, ``character``,
+                ``copyright``, ``meta``. Any other value is ignored by the
+                server, which then adds no type filter.
+
+        Returns ``{"success": true, "tags": [...]}`` ordered by descending use
+        count, with each row being the full ``tags`` record (``id``,
+        ``name``, ``type``, ``count``, ``created_at``), plus ``grouped``, the
+        same rows bucketed by type.
+
+        Unversioned private station API; anonymous read. Live status in
+        docs/verification.md (200 recorded before this refactor).
+        """
+        params = {"q": query, "limit": limit, "type": type}
+        return self.request("GET", "api/tags", params=params)
+
+    def internal_tag_show(self, name):
+        """Read one tag by name (``GET /api/tags/:name``).
+
+        Parameters:
+            name (str): Tag name. The server tries the name as given plus its
+                space/underscore variants (all lowercased), so ``blue archive``
+                and ``blue_archive`` both resolve.
+
+        Returns ``{"success": true, "tag": {_id, id, name, type, count,
+        createdAt}}`` where ``_id`` is the id as a string; 404 when no variant
+        matches.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/tags/{0}".format(_segment(name))
+        return self.request("GET", path)
+
+    def internal_tag_autocomplete(self, query, *, limit=None):
+        """Read tag autocomplete suggestions (``POST /api/tags``).
+
+        The handler is POST-only but read-only: it queries ``tags`` and a
+        server-side cache, and never calls ``getCurrentUser``. The request body
+        is JSON, not a form.
+
+        Parameters:
+            query (str): The typed prefix/substring. A missing or non-string
+                value answers 200 with an empty ``suggestions`` list instead of
+                an error.
+            limit (int): Suggestion count; the server parses ``10`` as the
+                fallback and clamps the value to 1..50.
+
+        Returns ``{"success": true, "suggestions": [...]}`` where each
+        suggestion is a ``tags`` row, ranked exact match first, then prefix,
+        then word-boundary, then descending use count. The ranking score is
+        removed from the returned rows.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        data = {"query": query, "limit": limit}
+        return self.request("POST", "api/tags", data=data)
+
+    def internal_tag_complementary(self, tag):
+        """Read complementary tag suggestions (``POST /api/tags/complementary``).
+
+        POST-only but read-only (no session): a JSON body, not a form.
+
+        Parameters:
+            tag (str): Source tag name, lowercased and trimmed server-side. A
+                missing value answers 400.
+
+        Returns ``{"success": true, "suggestions": [{name, type, count}]}``,
+        at most three entries. For a hard-coded relationship list of about
+        twenty popular copyrights/characters/tags the server answers those
+        names, filling in ``{name, type: 'general', count: 0}`` for names that
+        have no tag row yet. Otherwise it falls back to the tags that most often
+        co-occur with the given tag, and answers an empty list when the tag
+        does not exist.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        return self.request("POST", "api/tags/complementary", data={"tag": tag})
+
+    # ------------------------------------------------------------------
+    # Artists
+    # ------------------------------------------------------------------
+
+    def internal_artist_list(self, *, page=None, limit=None):
+        """List artist pages (``GET /api/artists``).
+
+        Parameters:
+            page (int): 1-based page; the server parses ``1`` as the fallback.
+            limit (int): Rows per page; the server parses ``50`` as the fallback
+                and caps the value at 100.
+
+        Returns ``{"success": true, "artists": [...], "pagination":
+        {page, limit, total, pages}}`` (no ``has_next``) ordered by the artist
+        tag's descending use count. Each artist has ``_id`` and ``tagId`` (both
+        strings), ``tagName``, ``claimedByUserId``/``claimedByUsername``,
+        ``verified``, ``avatarUrl``, ``bannerUrl``, ``bio``, ``socials``,
+        ``postCount`` and ``createdAt``.
+
+        Unversioned private station API; anonymous read. Live status in
+        docs/verification.md (200 recorded before this refactor).
+        """
+        params = {"page": page, "limit": limit}
+        return self.request("GET", "api/artists", params=params)
+
+    def internal_artist_show(self, tag_name):
+        """Read one artist page (``GET /api/artists/:tagName``).
+
+        Parameters:
+            tag_name (str): The artist **tag** name (space/underscore variants
+                accepted). The tag must have ``type = 'artist'``; otherwise the
+                answer is 404 ``"Artist not found"``.
+
+        Returns ``{"success": true, "tag": {_id, id, name, type, count},
+        "artist": {...} | null, "reviews": {count, averages: {trust, quality,
+        communication, pricing}}}``. ``artist`` is the profile row
+        (``_id``/``tagId`` as strings, ``tagName``, claim and verification
+        fields, ``avatarUrl``, ``bannerUrl``, ``bio``, ``socials``,
+        ``createdAt``) and is ``null`` when the artist tag exists without a
+        profile row. ``averages.pricing`` is ``null`` when no review rated it;
+        the other averages are ``0`` when there are no reviews.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/artists/{0}".format(_segment(tag_name))
+        return self.request("GET", path)
+
+    def internal_artist_wiki(self, tag_name):
+        """Read an artist wiki page (``GET /api/artists/:tagName/wiki``).
+
+        Parameters:
+            tag_name (str): Artist tag name (variants accepted).
+
+        Returns ``{"success": true, "wiki": {...} | null}`` where ``wiki`` has
+        ``content``, ``infobox`` (free-form object), ``lastEditedBy`` (the
+        editor's username), ``lastEditedAt`` and ``editCount`` (length of the
+        stored history array). ``wiki`` is ``null`` when the artist has no wiki
+        yet; 404 when the artist tag itself does not exist. Editing is a
+        separate login-required POST and is not exposed here.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/artists/{0}/wiki".format(_segment(tag_name))
+        return self.request("GET", path)
+
+    def internal_artist_reviews(self, tag_name):
+        """Read an artist's reviews (``GET /api/artists/:tagName/reviews``).
+
+        Parameters:
+            tag_name (str): Artist tag name (variants accepted).
+
+        Returns ``{"success": true, "reviews": [...]}`` newest first; each
+        review has ``_id`` (string), ``userId`` (account id, not a public
+        number), ``username``, ``ratings`` (the stored object: ``trust``,
+        ``quality``, ``communication`` and optional ``pricing``, each 1-5),
+        ``comment`` (may be null) and ``createdAt``. 404 when the artist tag
+        does not exist. Writing a review is a separate login-required POST.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/artists/{0}/reviews".format(_segment(tag_name))
+        return self.request("GET", path)
+
+    # ------------------------------------------------------------------
+    # Users
+    # ------------------------------------------------------------------
+
+    def internal_user_list(self, username):
+        """Look up one user by username (``GET /api/users``).
+
+        Despite the collection path this route is a single-user lookup and
+        requires ``username``; without it the server answers 400.
+
+        Parameters:
+            username (str): Exact username, compared case-insensitively against
+                the local ``users`` table. There is no list-all mode and no
+                account-service fallback on this route: an unknown name answers
+                404.
+
+        Returns ``{"success": true, "user": {...}}`` with ``id`` (the account id
+        string), ``username``, ``avatarUrl``, ``bannerUrl``, ``rank``,
+        ``createdAt``, ``isPremium`` and ``isVerified``. ``bannerUrl``,
+        ``isPremium`` and ``isVerified`` are filled from the site's account
+        service with a server-side service key; when that call is unavailable
+        they come back empty/``false`` while the rest of the row still resolves,
+        so treat them as best-effort.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        return self.request("GET", "api/users", params={"username": username})
+
+    def internal_user_show(self, user_id):
+        """Read one user by account id (``GET /api/users/:id``).
+
+        Parameters:
+            user_id (str): The account id (``users.id``, a text primary key used
+                throughout the site for uploaders, comment authors, votes and
+                favorites) - NOT the sequential public post number and not a
+                username.
+
+        Returns ``{"success": true, "user": {id, username, avatarUrl, rank,
+        createdAt}}``. The local row is served first; otherwise the site asks
+        its account service (server-side service key), stores the returned user
+        in the local ``users`` table and answers from that. The local store
+        happens without any caller session - it is the server mirroring its own
+        account service, not a session write by this client. 404 when the
+        account service does not know the id.
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/users/{0}".format(_segment(user_id))
+        return self.request("GET", path)
+
+    def internal_user_activity(self, user_id, *, type=None):
+        """Read a user's public activity (``GET /api/users/:id/activity``).
+
+        Parameters:
+            user_id (str): Account id. The server also accepts a username here:
+                it looks the id up first and retries case-insensitively by
+                username.
+            type (str): ``all`` (server fallback, returns both sections),
+                ``likes`` or ``comments``. Any other value returns
+                ``{"success": true}`` with neither section.
+
+        Returns ``{"success": true, "likes": [...], "comments": [...]}`` with
+        only the requested sections present (each capped at 50 rows).
+        ``likes`` are the user's upvotes, each an image object carrying the list
+        aliases (``id``/``dbid``/``_id``, ``sequential_id``/``sequentialId``,
+        ``thumbnailUrl``, ``tags``). ``comments`` have ``_id``, ``content``,
+        ``createdAt`` and ``image`` (``{sequentialId, thumbnailUrl}``, or
+        ``null`` when the image row is gone).
+
+        Unversioned private station API; anonymous read. Source-aligned
+        only, not exercised: live status in docs/verification.md.
+        """
+        path = "api/users/{0}/activity".format(_segment(user_id))
+        return self.request("GET", path, params={"type": type})
