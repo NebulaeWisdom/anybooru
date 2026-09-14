@@ -21,6 +21,9 @@ venv/
 danbooru/
 moebooru/
 
+# scratch/process files (temporary work products, never committed)
+temp/
+
 # ignore test file
 .pytest_cache
 pro.py
