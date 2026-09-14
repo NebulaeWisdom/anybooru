@@ -50,10 +50,12 @@ JSON 响应。因此对重定向类端点只能说“跟随重定向，最终格
 
 ### 可运行示例
 
-另执行了两个仓库内原生示例，均通过同一根配置使用代理、匿名访问：
+另执行了两个仓库内原生示例，均通过同一根配置使用代理、匿名访问。其中
+`examples/danbooru/pixiv_id_to_tag.py` 是个人猴子补丁示例，已在 `20cea4b` 中删除，
+下面的命令与输出仅作历史记录，不是当前可运行入口：
 
 ```bash
-.venv/Scripts/python.exe examples/danbooru/pixiv_id_to_tag.py --config pybooru.json
+.venv/Scripts/python.exe examples/danbooru/pixiv_id_to_tag.py --config pybooru.json  # 该脚本已删除
 .venv/Scripts/python.exe examples/danbooru/related_tag.py --config pybooru.json
 ```
 
