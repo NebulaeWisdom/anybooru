@@ -69,6 +69,27 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 > 匿名只读端点的执行记录见 [verification.md](verification.md)，需要登录的写接口**未做线上实测**，
 > 详见 [moebooru.md](moebooru.md) 与 [moebooru-api.md](moebooru-api.md) 的认证与权限一节。
 
+## Serika 系站点
+
+Serika 是独立第三类引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
+`Authorization: Bearer <key>`；根样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
+不制造占位 key。URL、代理、超时仍来自同一份 `pybooru.json`。
+
+| 契约面 | 认证与交付边界 |
+| :--- | :--- |
+| 官方 v1：`api_index` / `stats` / `user_list` / `random_image` | 控制器允许匿名，示例只走这些公开方法 |
+| 官方 v1：其他 12 个方法 | API key + 对应权限；本轮无 key、不申请、不向这些路由发请求，仅源码对齐，未实测成功响应 |
+| 站内非版本化 `internal_*` | 前端自用私有契约，只封装匿名公开读取；不实现浏览器 cookie 登录 |
+| 站内评论/投票/收藏/上传/管理/账号写操作 | 依赖 Serika Accounts 会话或属于写路径，不在本轮能力范围；API key 不是会话 token |
+
+客户端不预判权限、不自动换成站内接口、不在认证失败后退回匿名。服务端使用 `api_keys.rate_limit`
+限流；当前 v1 控制器将缺 key、缺权限、超限统一编码为 `code: UNAUTHORIZED`，但 HTTP 状态分别为
+`401` / `403` / `429`。不要只看 `code` 判断原因；`PybooruHTTPError.http_code`、`.data['code']`
+与 `.body` 都保留原值。源码中的 `withApiAuth` 才会生成 `RATE_LIMITED`，实际 v1 路由没用它。
+
+完整逐条权限、稳定性与文档矛盾见 [serika-api.md](serika-api.md)，站内读取与排除范围见
+[serika-capabilities.md](serika-capabilities.md)。线上事实和源码对齐项分列于 [verification.md](verification.md)。
+
 ## 写接口的状态
 
 标注为“需要登录”的写接口（创建评论、投票、上传、编辑 wiki 等）都按其上游引擎控制器的源码实现对齐，
