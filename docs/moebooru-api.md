@@ -1,348 +1,360 @@
-# Moebooru API 面与端点清单
+# Moebooru 方法参考
 
-本文按 Moebooru 引擎（本地只读参考 `moebooru/`，HEAD `206455e1`）的 `config/routes.rb` 与
-`app/controllers/*` 整理端点契约，是 `Moebooru` 客户端原生方法的路由来源。行号引用格式为
-`routes.rb:N`（表示 `moebooru/config/routes.rb`）、`xxx_controller.rb:N`（表示
-`moebooru/app/controllers/xxx_controller.rb`）。
+`Moebooru` 客户端共 **90 个原生方法**，每个都是 `Moebooru.request()` 的薄封装，对应 Moebooru 引擎
+（只读参考 `moebooru/` HEAD `206455e1`）确实提供 JSON 的端点。本页按资源分组：每组先给 2–4 个
+**常用**方法的实际签名、可复制片段与返回要点，其余方法以「签名 — 何时用；返回什么」一行式列出，
+不再重复代码块。逐条权限、上游坐标、排除项与源码对齐/已实测状态在
+[契约审计附注](moebooru-contract-notes.md)。
 
-> **验证状态**：全部条目都是**源码对齐**（路由、动词、参数、权限逐条核对）。
-> 需要凭据的写接口**一律未实测**；匿名只读端点的线上记录见文末[验证状态](#验证状态)。
-> 官方 `help/api` 页（`app/views/help/api.en.html.erb`）仍在仓库里，但部分内容已过期，
-> 本文以路由与控制器为准。
+## 共享前置
 
-## 全局契约
+下文的 `c` 都是这个已按根配置构造好的客户端（站点名与其余输入取自 `sites` / `examples.moebooru` 段；
+那份清单是样例，不是支持边界，任何跑 Moebooru 引擎的站点都可以 `site_url=` + `api_version=` 直接接入）：
 
-### 路径、动词与格式
+```python
+from pybooru import Moebooru
 
-* **格式后缀**：`routes.rb` 里用 `match` / `get` / `post` 声明的路由都隐含一个可选 `(.:format)`；
-  唯一例外是 `post/show`，它显式写了 `:format => false`（`routes.rb:153`）；
-* **本库始终请求 `.json`**：`Moebooru.request()` 会补齐后缀；方法内部把 id 作为请求参数发送
-  （`/post/update.json` 带 `id=`），而不是拼进路径——引擎自带的前端脚本也是这么发的；
-* **`post/show` 不是 JSON 端点**：`.json` 匹配不到该路由，也不会匹配 `post(.:format)`，
-  最终落到兜底路由 `match "*path" => "errors#not_found"`（`routes.rb:280`）的 `head :not_found`
-  （`errors_controller.rb:5`），得到**空正文 `404`**；对 `/post/show` 发 `Accept: application/json`
-  则得到 `406`。**单帖 JSON 走 `post_list(tags='id:<id>')`**（md5 用 `tags='md5:<hash>'`），
-  需要外层信封时再带 `api_version=2`——`id` 查询本身不要求它；
-* **旧 `/index` 别名**：`/post/index`、`/pool/index`、`/note/index`、`/wiki/index`、`/forum/index`、
-  `/artist/index`、`/comment/index`、`/tag/index`、`/tag_alias/index`、`/tag_implication/index`、
-  `/user/index`、`/user_record/index`、`/inline/index`、`/job_task/index`、`/banned/index`、
-  `/admin/index`、`/batch/index` 仍然存在，但每一行都标着 `# FIXME: remove this`
-  （如 `routes.rb:138`、`routes.rb:122`）；官方帮助的版本记录也写明 `1.13.0+update.3` 移除了 `/index`。
-  客户端在 `api_version` 为 `1.13.0` / `1.13.0+update.1` / `1.13.0+update.2` 时才会生成这种路径，
-  新代码不要依赖别名；
-* **HTML-only 不等于路由不存在**：被排除的端点（见文末[排除项](#排除项不是缺失路由)）大多有真实路由，
-  只是没有 JSON 分支、或只有 JS/订阅源/二进制响应。请求不支持的格式时，带 `respond_to` 的动作用
-  `UnknownFormat` 回 `406`，完全没有 `respond_to` 的动作用 `MissingTemplate` 回 `500`。
+c = Moebooru('yandere', config_file='pybooru.json')
+```
 
-### 认证
+片段里的 `post_id` / `pool_id` / `comment_id` / `note_id` / `artist_id` / `title` 等是**从读响应里取到的值**
+（例如 `post_id = posts[0]['id']`、`title = pages[0]['title']`），本页不预设任何额外的配置键。
 
-* 登录字段：`login` + `password_hash`，其中 `password_hash = SHA1(hash_string.format(password))`
-  （`user.rb:87-97`，帮助页 `help/api.en.html.erb:95`）；本库在 GET/HEAD 放进查询串，其他动词放进表单体；
-* 服务端也接受：`username` + `api_key`（`user.rb:12-14`，会置 `@from_api`）、会话 Cookie、
-  `login` + `password_hash`、`user[name]` + `user[password]` 明文（`application_controller.rb:34-79`）。
-  本库只实现 `password_hash` 一种；
-* **`api_key` 身份必须请求 `.json`**：`limit_api` 只对 `xml` / `json` / `zip` 放行，
-  其他格式直接 `head :not_found`（`application_controller.rb:296-300`）；
-* **匿名**＝`username` 与 `password` 都为空；凭据不完整不会降级成匿名，由服务端决定结果；
-* **反垃圾参数陷阱**：请求里出现顶层参数 `url1` 时，`filter_spam` 直接 `head :ok`
-  （`application_controller.rb:370-372`），即 `200` 空响应。不要使用这个参数名。
+通用入口（没有原生方法的端点直接用它）：`request(method, path, *, params=None, data=None, files=None)`
 
-### 权限
+* `path` 是相对路径，带不带 `.json` 都可以（`'post'` 与 `'post.json'` 等价）；路径里的 id 由调用者转义。
+* `params` 是查询串；`data` 是 **Rails 表单**（Moebooru 面没有 JSON 请求体）：嵌套 dict → `a[b]`，列表 → 重复键 `a[]`，布尔 → `true`/`false`，`None` 不发送；`files` 非空时请求体改为 multipart。
+* 认证：配置了凭据时 `GET`/`HEAD` 把 `login` + `password_hash` 放进查询串，其他动词放进表单体；两项凭据都为空才是匿名。
+* 不做隐式兜底：不自动重试、不自动翻页、不做本地分页上限、不预判权限；传入的文件对象由调用者关闭。
 
-* 权限来自控制器的 `before_action` 过滤器，**没有独立的策略层**（与 Danbooru 的 Pundit 不同）：
-  `admin_only` / `mod_only` / `janitor_only` / `privileged_only` / `contributor_only` /
-  `member_only` / `post_member_only` / `post_privileged_only` / `blocked_only` / `no_anonymous`；
-* 拒绝时走 `access_denied`，JSON 是 `403 {"success": false, "reason": "access denied"}`
-  （`application_controller.rb:12-30`）；
-* `post_member_only` / `post_privileged_only` 在 `ApplicationController` 里有显式定义
-  （覆盖了动态生成的同名方法），因此**对所有动词都执行成员/权限检查**：不要按
-  “只有 POST 需要登录”理解这些动作（例如 `post/update` 的 GET 表单页同样要求成员身份）；
-* 除过滤器之外还有些动作在方法体内判权限，例如 `comment#destroy/update` 的
-  `has_permission?`、`inline#delete` 的 `has_permission?`、`post#destroy` 的 `can_user_delete?`
-  （版主，或帖子被 hold，或上传未满一天）。
+**参数分层**：读方法的过滤与分页（`tags`、`query`、`name`、`limit`、`page`…）都是**顶层参数**，没有 Danbooru 的 `search[...]` 字典；写方法是「语义必需字段显式 + 其余属性按模型名嵌套」，键名就是 `post[...]`、`pool[...]`、`note[...]`、`tag[...]`、`tag_alias[...]`、`wiki_page[...]`、`comment[...]`、`forum_post[...]`、`artist[...]`、`user[...]`。引擎按字符串比较的开关要传**字面值**，不要传 Python 布尔：`unflag='1'`、`redo='1'`、`forcegray='1'`、`anonymous='1'`、`filter='1'`、`commit='Yes' | 'Approve' | 'Delete' | 'Post'`、`api_version='2'`。
 
-### 参数分层
+### 两个 `api_version` 不要混
 
-| 层 | 形式 | 说明 |
-| :--- | :--- | :--- |
-| 顶层查询参数 | `?tags=...&limit=10&page=2` | 控制器直接读取的字段：搜索词、分页、开关 |
-| 嵌套属性 | `?post[tags]=...` / 表单 `pool[name]=...` | 写方法的模型属性，键名前缀就是模型名 |
-
-* Moebooru **没有** Danbooru 的 `search[...]` 搜索字典：过滤条件本身就是顶层参数；
-* 列表方法读 `**params` 原样透传；写方法是“语义必需字段显式 + 其余属性 `**attributes`”，
-  属性嵌套在模型名下：`post[...]`、`pool[...]`、`note[...]`、`tag[...]`、`tag_alias[...]`、
-  `tag_implication[...]`、`wiki_page[...]`、`comment[...]`、`forum_post[...]`、`artist[...]`、
-  `user[...]`、`user_record[...]`；
-* **引擎里按字符串比较的开关必须传字面值**，不要传 Python 布尔：`unflag='1'`（`post_controller.rb:523`）、
-  `redo='1'`（`history_controller.rb:186`）、`forcegray='1'`、`anonymous='1'`、
-  `commit='Yes' | 'Approve' | 'Delete' | 'Cancel' | 'Post'`、`api_version='2'`、`filter='1'`、
-  `include_tags='1'` 等；
-* 嵌套哈希用 `params.require(:model)`：**缺少或为空的嵌套哈希会得到 `400`**
-  （如 `wiki_update` 必须至少发送一个 `wiki_page[...]` 键，`post_update` 缺少 `post` 时控制器直接
-  `head :unprocessable_entity`，即 `422` 空正文）；
-* `None` 值由客户端直接省略，不会发送。
-
-### 分页与实际上限
-
-页码是 1 起始，服务端把 `page` 夹在 `1..1000000`（`app/helpers/sessions_helper.rb:2`）。
-每页大小按端点各自写死，下表是**服务端的真实行为**，不是客户端的限制：
-
-| 端点 | 每页 / 上限 | 来源 |
-| :--- | :--- | :--- |
-| `post_list` | 默认 40（`limit:` 元标签可覆盖）；>1000 一律夹到 1000 | `post_controller.rb:273-276` |
-| `pool_list` | 每页 20；`query` 里的 `limit:N` 被夹到 ≤100 | `pool_controller.rb:10-13,31-33` |
-| `pool_show` | 每页 24 个帖子（账号 `pool_browse_mode == 1` 时每页 1000 个） | `pool_controller.rb:111-122` |
-| `note_list` | 先按帖子分页（带 `post_id` 时每页上限 100 个帖子，否则 16 个），再展平这些帖子的全部笔记；并非每页 100/16 条笔记 | `note_controller.rb:19-33` |
-| `note_history` | 25；按 `post_id` / `user_id` 时 50；**`limit` 被忽略** | `note_controller.rb:40-50` |
-| `note_search` | 25 | `note_controller.rb:9` |
-| `comment_list` | 25；**`limit` 被忽略** | `comment_controller.rb:61-63` |
-| `comment_search` | 30 | `comment_controller.rb:109` |
-| `forum_list` | 带 `parent_id` 时 100，否则 30；`latest` 固定第一页 10 条 | `forum_controller.rb:119-125`；`forum_post.rb:177-179` |
-| `wiki_list` | `limit` 生效，默认 25 | `wiki_controller.rb:43,57` |
-| `wiki_recent_changes` | `per_page` 生效，默认 25 | `wiki_controller.rb:158` |
-| `artist_list` | 带 `name` / `url` 时 50，否则 25；**`limit` 被忽略** | `artist_controller.rb:81-90` |
-| `tag_list` | 默认 50；`limit=0` 返回全部 | `tag_controller.rb:36-43,77-81` |
-| `tag_related` | 没有 `limit` 参数，硬上限 25 | `app/models/tag/related_tag_methods.rb:6` |
-| `tag_autocomplete_name` / `user_autocomplete_name` | 硬上限 20 | `tag_controller.rb:14`；`user_controller.rb:22` |
-| `tag_alias_list` / `tag_implication_list` / `inline_list` / `user_list` | 20 | 各控制器 `paginate per_page: 20` |
-| `post_popular_recent` / `_by_day` / `_by_week` / `_by_month` | 最多 40 条，按 `score` 降序 | `post_controller.rb:432-482` |
-| `history` 索引（HTML-only） | 20 | `history_controller.rb:165` |
-
-**被忽略的 `limit` 不要在调用侧当作支持**：`comment_list`、`note_history`、`artist_list` 都不读它。
-
-### 响应形态
-
-| 服务端 | 客户端拿到 |
+| 位置 | 作用 |
 | :--- | :--- |
-| `respond_to_list` | 原对象的 JSON；列表为数组，详情为单个对象 |
-| `respond_to_success(..., api: X)` | `X` 合并 `{"success": true}`；没有 `api:` 时就是 `{"success": true}` |
-| `respond_to_error(...)` | 状态 `420`（校验）/ `421`（限额）/ `422`（锁定）/ `423`（已存在）/ `424`（参数非法）/ `500`，体为 `{"success": false, "reason": ...}`（`application_controller.rb:120-152`） |
-| `access_denied` | `403 {"success": false, "reason": "access denied"}` |
-| `head :no_content` | `204`，本库返回 `None`（`forum_mark_all_read`） |
-| `Post.batch_api_data` | `{"posts": [...], "pool_posts": [...], "pools": [...], "tags": {...}, "votes": {...}}`，被 `post_update_batch` / `post_moderate` / `post_vote` / `post_flag` / `pool_remove_post` / `post_undelete` 使用 |
+| 构造参数 / 站点条目的 `api_version` | 选择**列表路径形态**：`1.13.0` / `1.13.0+update.1` / `1.13.0+update.2` 时裸集合路径补成 `/index`；现役站点自述 `1.13.0+update.3`，走的是非 `/index` 形态 |
+| `post_list` 的查询参数 `api_version='2'` | 选择**响应信封**：不带是顶层数组，带 `'2'` 是 `{posts, pool_posts, pools, tags, votes}` |
 
-字段级结构不在这里穷举：帖子对象字段集中在 `post/api_methods.rb:4-80`，合集对象在
-`pool.rb:129-141`，笔记在 `note.rb:52-68`，评论顶层数组在 `comment#index` 的 `respond_to_list("comments")`。
+### 返回值
 
-错误响应不一定是 JSON：HTML 错误页（例如对未知 id 请求 `comment/show` 得到的 `404`）会把原始文本放在
-`PybooruHTTPError.body`，此时 `.data` 是 `None`。判定失败请以状态码为准，不要假定 `.data` 一定可解析。
-
-### 写请求的重定向与结果歧义
-
-`requests` 跟随 `302` / `303` 并保留 `Accept`，所以“最终读到 JSON”是可能的，但它**不是写入成功的确认**：
-校验失败只 flash 提示时也会重定向到同一个目标页。以下动作的返回值形态与直觉不同：
-
-| 动作 | 实际返回 |
+| 服务端响应 | 客户端拿到 |
 | :--- | :--- |
-| `tag_alias_create` / `tag_implication_create` | 成功后 `302` 到 `tag_alias#index` / `tag_implication#index`（这两个索引支持 JSON），跟随重定向后拿到的是**索引数组**，不是 `{success:true}` |
-| `tag_alias_update` / `tag_implication_update` | `Delete` 分支重定向到索引；`Approve` 分支重定向到 `job_task#index`（**HTML-only**）：即使改动已经生效，也可能拿到 `500` 或非 JSON 响应。**不要据此盲目重试** |
-| `pool_import` / `pool_order` | POST 恒 `302` 到 `pool/show`（`redirect_to` 在 `respond_to` 之前），最终读到的是该合集 JSON |
-| `forum_create` / `forum_update` / `forum_destroy` / `forum_lock` / `forum_unlock` / `forum_stick` / `forum_unstick` | `302` 到 `forum#show` 或 `forum#index`（都支持 JSON），最终读到帖子对象或数组；`forum_lock` 的 id 在请求体里（`routes.rb:77`） |
-| `artist_destroy` | 只有 `commit='Yes'` 才返回 `{success:true}`；否则 `302` 回索引页（不是 JSON 错误） |
-| `tag_mass_edit` | 仅在站点开启 `enable_asynchronous_tasks` 时同步返回 `{success:true}`；同步分支没有 JSON 响应，**不要期待统一格式** |
+| JSON 响应体 | 解析后的 Python 对象，原样返回，不改字段、不包装（列表是数组，详情是单个对象） |
+| `204` 或空响应体 | `None`（`forum_mark_all_read`） |
+| HTTP 错误状态 | `PybooruHTTPError`，带 `http_code` / `url` / `body` / `data`；`.data` 只在正文本身是 JSON 时有值 |
+| 2xx 但正文不是 JSON | `PybooruAPIError` |
+| 网络层错误 | 原样抛出 requests 的异常 |
 
-判定写入是否真的生效，最可靠的做法是写完后自己再查一次目标资源。
+排查「参数到底发成了什么样」看 `c.last_call['url']`（`last_call` 只表示最近一次请求）。
+异常类型见 [errors.md](errors.md)。各族的具体形态见文末[响应形态](#响应形态)。
 
-## 帖子
+## 帖子（17）
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `post_list(**params)` | `GET post(.json)`（`routes.rb:137`；别名 `/post/index`） | 匿名 | `tags`（元标签全部可用）、`limit`、`page`、`filter='1'`、`api_version='2'`、`include_tags` / `include_votes` / `include_pools`；不带 `api_version=2` 返回顶层数组，带则返回 `{posts,pool_posts,pools,tags,votes}`（`api_version=2` 配 XML 会得到 `424 V2 API is JSON-only`） |
-| `post_create(tags, *, file=None, source=None, md5=None, anonymous=None, **attributes)` | `POST post/create(.json)`（`routes.rb:165`，multipart） | 成员 | `post[file]` **仅在提供文件时**发送；`post[source]`、`post[parent_id]`、`post[rating]`、`post[tags]`、`post[is_held]`；顶层 `md5` 用于上传后校验（不匹配 → `420` 并销毁帖子）、`anonymous='1'`（contributor+）。`post[is_rating_locked]` / `post[is_note_locked]` **不被创建接口接受**（`post_controller.rb:845-847`）；**仅来源上传有效**（`post/file_methods.rb:216-218`）；重复 md5 → `423` 带 `post_id` / `location`；超出每日限额 → `421` |
-| `post_update(post_id, **attributes)` | `POST\|PUT post/update(/:id)(.json)`（`routes.rb:162`） | 成员 | 允许属性：`post[tags]`、`post[old_tags]`、`post[source]`、`post[parent_id]`、`post[rating]`、`post[is_held]`、`post[is_shown_in_index]`、`post[is_note_locked]`、`post[is_rating_locked]`、`post[frames_pending_string]`（`post_controller.rb:853-854`）。**没有文件替换**：`post[file]` 不被接受；缺少 `post` 哈希 → `422` 空正文；非版主改已删除帖 → `422 Post Locked` |
-| `post_destroy(post_id, reason=None, *, destroy=None)` | `POST\|DELETE post/destroy(/:id)(.json)`（`routes.rb:164`） | 成员（+ 权限判定） | `reason`；对**已被标记删除**的帖子，传 `destroy='1'`（任意非空值）才是永久删除，且仅版主可用（否则 `403`）；`commit='Cancel'` 直接 `302` 回帖子页；权限不足在动作内 `access_denied`（`post_controller.rb:217-244`） |
-| `post_revert_tags(post_id, history_id)` | `POST\|PUT post/revert_tags(/:id)(.json)`（`routes.rb:161`） | 成员 | `history_id` 是 `post_tag_histories` 的 id；返回只有 `{success:true}`（不带帖子数据） |
-| `post_vote(post_id, score=None)` | `POST\|PUT post/vote(/:id)(.json)`（`routes.rb:163`） | 成员 | 不传 `score` 是**读自己当前的投票**（`{success:true, vote:<int>}`）；写入接受 `0..3`（0 清除投票），非版主负分或 `>3` → `424 Invalid score`；重复投票 → `423 Already voted`（带帖子数据） |
-| `post_activate(post_ids)` | `GET\|POST post/activate(.json)`（`routes.rb:140`） | 成员 | `post_ids` **必须是数组**（`post_ids[]=N`），非数组得到空 `204`；作用是**释出被 hold 的帖子**（`is_held = true` 的记录，`post/status_methods.rb:19-43`），非版主只能作用于自己的帖子；返回 `{success:true, count:N}` |
-| `post_acknowledge_new_deleted_posts()` | `GET\|POST post/acknowledge_new_deleted_posts(.json)`（`routes.rb:139`） | 匿名可达 | 无参数；登录时顺带更新 `last_deleted_post_seen_at`；返回 `{success:true}` |
-| `post_update_batch(post)` | `GET\|POST post/update_batch(.json)`（`routes.rb:156`） | 成员 | `post` 是 **id 为键的映射**：`post[<post_id>][属性]`，属性同 `post_update`；只带 id 的条目是“只订阅回包”的请求；返回恒为 JSON 的 `batch_api_data`（不受格式影响） |
-| `post_moderate(ids, commit, reason=None, reason2=None)` | `GET\|POST post/moderate(.json)`（`routes.rb:146`） | janitor+ | `ids[<post_id>]=1` 的映射、`commit='Approve'` 或 `'Delete'`、`reason` / `reason2`；返回被触及帖子（含父帖）的 `batch_api_data` |
-| `post_flag(post_id, reason=None, *, unflag=None)` | `POST\|PUT post/flag(/:id)(.json)`（`routes.rb:160`；**GET 未路由**） | 成员 | 正常分支 `reason` 必填；`unflag='1'` 取消标记（仅标记者本人或版主）；非 active 的帖子标记 → `500`；非 flagged 的帖子取消标记 → `500`；返回 `batch_api_data` |
-| `post_undelete(post_id)` | `GET\|POST post/undelete(/:id)(.json)`（`routes.rb:155`） | janitor+ | 返回帖子（及父帖）的 `batch_api_data` |
-| `post_similar(*, file=None, **params)` | `GET post/similar(.json)`；提供文件时 `POST post/similar(.json)`（`routes.rb:154`） | 匿名 | 查询参数 `id`（对比帖，未知 → `404`）、`url`、`search_id`、`services`（默认 `local`）、`threshold`、`forcegray='1'`、`width` / `height`、`initial='1'`；`file` 走 multipart 的 `file` 字段；没有 id/url/file/search_id → `503 no search supplied`；服务失败 → `503` 带服务报错文本；对比帖已删除 → `500 Post deleted` |
-| `post_popular_recent(**params)` | `GET\|POST post/popular_recent(.json)`（`routes.rb:151`） | 匿名 | `period` ∈ `1w` / `1m` / `1y`，其他值被强制成 `1d` |
-| `post_popular_by_day(**params)` / `post_popular_by_week(**params)` / `post_popular_by_month(**params)` | `GET\|POST post/popular_by_day(.json)` / `_week` / `_month`（`routes.rb:148-150`） | 匿名 | `year`、`month`、`day`（缺省取当前时间）；日期非法 → `400` 空正文 |
+读是 `post_list(**params)`，写是「必需字段显式 + `post[...]` 属性」；**没有 `post_show`**。
 
-## 合集
+```python
+posts = c.post_list(tags='rating:s', page=1, limit=3)
+print(posts[0]['id'], posts[0]['file_url'])
+```
 
-合集的所有写路由都同时挂着 GET，但 **GET 只是渲染表单页面，写入必须用 POST**；客户端方法一律发 POST。
+`post_list(**params)` 返回**顶层数组**，每项含 `id / tags / source / score / md5 / file_url / preview_url / sample_url / jpeg_url / width / height / rating / status / parent_id / creator_id / is_held / last_noted_at` 等；已删除的帖子不带 `file_url` / `sample_url` / `jpeg_url`。
+单帖用 `tags='id:<id>'`（md5 用 `tags='md5:<hash>'`），空数组表示不存在或当前身份不可见；带 `api_version='2'` 才切到信封；`limit` 默认 40、上限 1000。
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `pool_list(**params)` | `GET\|POST pool(.json)`（`routes.rb:121`；别名 `/pool/index`） | 匿名 | `query`（`order:X`、`limit:N`、`posts:RANGE`）、`order`（`name` / `date` / `updated` / `id`）、`page` |
-| `pool_show(pool_id, **params)` | `GET/POST pool/show.json`（`routes.rb:131`，id 由查询参数传入） | 匿名 | 返回**一个合集对象**，帖子在 `posts` 里，每页 24 个（浏览模式为 1 时 1000 个）；id 不存在时也会 `302` 到 `/pool`，最终可能是合集列表 |
-| `pool_create(name, **attributes)` | `POST pool/create(.json)`（`routes.rb:125`） | 成员 | `pool[name]`、`pool[description]`、`pool[is_public]`、`pool[is_active]`；返回 `{success:true}`，**不带新 id** |
-| `pool_update(pool_id, **attributes)` | `POST pool/update(/:id)(.json)`（`routes.rb:133`；**PUT 未路由**） | 成员 | 同上四个属性；不是合集所有者且合集非公开 → `403` |
-| `pool_destroy(pool_id)` | `POST pool/destroy(/:id)(.json)`（`routes.rb:126`；**DELETE 未路由**） | 成员 | `{success:true}`；无更新权限 → `403` |
-| `pool_add_post(pool_id, post_id, sequence=None)` | `POST pool/add_post(.json)`（`routes.rb:123`；**PUT 未路由**） | 成员 | 顶层 `pool_id` / `post_id`；`pool[sequence]` 可省；帖子已在合集 → `423 Post already exists` |
-| `pool_remove_post(pool_id, post_id)` | `POST pool/remove_post(.json)`（`routes.rb:129`；**PUT 未路由**） | 成员 | 返回帖子的 `batch_api_data`，并带 `X-Post-Id` 响应头 |
-| `pool_copy(pool_id, name=None)` | `POST pool/copy(/:id)`（`routes.rb:124`） | contributor+ | `name` 默认 `<原名> (copy)`；JSON 只有 `{success:true}`，**新 id 只在 HTML 重定向里** |
-| `pool_import(pool_id, posts)` | `POST pool/import(/:id)`（`routes.rb:127`） | 成员（+ 合集可更新） | `posts[<post_id>]=<sequence>`（按 sequence 排序）；POST **恒 `302`** 到 `pool/show`，跟随重定向后读到该合集 JSON |
-| `pool_order(pool_id, sequences)` | `POST pool/order(/:id)`（`routes.rb:128`） | 成员（+ 合集可更新） | `pool_post_sequence[<pool_post_id>]=<sequence>`；同样恒 `302` |
+```python
+with open('image.jpg', 'rb') as upload_file:
+    c.post_create('1girl rating:s', file=upload_file, source='https://example.org/1.jpg')
+```
 
-## 笔记、历史、收藏、内联与站内信
+`post_create(tags, *, file=None, source=None, md5=None, anonymous=None, **attributes)` 需要登录；也可以**只给来源 URL**（不带文件时服务端自己下载）。顶层 `md5=` 是上传后校验，不匹配会销毁帖子并回 420；重复 md5 → 423；超出每日上传限额 → 421；`is_rating_locked` / `is_note_locked` 在创建接口不生效。返回 `{success: true, post: {...}, tags: {...}}`。
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `note_list(**params)` | `GET/POST note.json`（`routes.rb:113`；别名 `/note/index`） | 匿名 | `post_id` 限单帖；不传时按每页 16 个有 `last_noted_at` 的帖子分页，再返回其所有笔记的展平数组；`page` 是帖子页码，`limit` 不生效 |
-| `note_search(query, **params)` | `GET\|POST note/search(.json)`（`routes.rb:116`） | 匿名 | `query` **必需**：不传会落到 HTML 分支，`.json` 得 `406`；全文检索，每页 25 |
-| `note_history(**params)` | `GET\|POST note/history(/:id)(.json)`（`routes.rb:115`） | 匿名 | 取值优先级 `id`（笔记 id）→ `post_id` → `user_id`；每页 25（按 `post_id` / `user_id` 时 50）；**`limit` 被忽略** |
-| `note_revert(note_id, version)` | `POST\|PUT note/revert(/:id)(.json)`（`routes.rb:117`） | 成员 | `version` 是 `note_versions.version`；帖子锁定 → `422 Post is locked` |
-| `note_update(note_id=None, **attributes)` | `POST\|PUT note/update(/:id)(.json)`（`routes.rb:118`） | 成员 | 传 `note_id` 走更新，不传走新建（新建必须有 `note[post_id]`）；属性 `note[x]`、`note[y]`、`note[width]`、`note[height]`、`note[body]`、`note[is_active]`（`note_controller.rb:99-100`）；返回 `{success:true, new_id, old_id, formatted_body}` |
-| `history_undo(change_ids, redo=None)` | `POST history/undo(.json)`（`routes.rb:91`） | 成员 | `id` 是**逗号分隔的 `history_changes` id**（不是 `history` 的 id）；`redo='1'` 表示重做；`change_ids` 跨多条历史且调用者低于 privileged → `403`；返回 `{success:true, successful, failed, errors}` |
-| `favorite_list_users(post_id)` | `GET\|POST favorite/list_users(.json)`（`routes.rb:65`） | **无过滤器（匿名可达）** | 返回**原始对象** `{"favorited_users": "name1,name2"}`——是逗号连接的字符串，没人收藏时是空串；帖子不存在 → `404` |
-| `inline_list(**params)` | `GET\|POST inline(.json)`（`routes.rb:94`） | 匿名 | `page`；每页 20 |
-| `inline_copy(inline_id)` | `POST\|PUT inline/copy(/:id)`（`routes.rb:100`） | 成员 | 顶层 `id`；返回 `{success:true}`（新内联图 id 只在 HTML 重定向里） |
-| `inline_delete(inline_id)` | `POST\|DELETE inline/delete(/:id)`（`routes.rb:102`） | 无过滤器，动作内判权限 | 顶层 `id`；不是本人（且非版主）→ `403`；返回 `{success:true}` |
-| `dmail_mark_all_read()` | `POST dmail/mark_all_read`（`routes.rb:62`） | 登录（blocked+） | 协议常量 `commit='Yes'`（否则 `302` 回收件箱）；返回 `{success:true}`。`GET` 同路径是确认页（`routes.rb:61`），不是 JSON |
+```python
+c.post_update(post_id, tags='1girl solo rating:s', source='https://example.org/1.jpg')
+c.post_vote(post_id, score=1)          # 1 好 / 2 很好 / 3 收藏；0 清除
+c.post_vote(post_id)                   # 不传 score 只读当前投票 → {'success': True, 'vote': 1}
+```
 
-补两点免得找错地方：
+`post_update(post_id, **attributes)` **不能替换文件**（本方法没有文件参数），允许属性是 `tags` / `old_tags` / `source` / `parent_id` / `rating` / `is_held` / `is_shown_in_index` / `is_note_locked` / `is_rating_locked` / `frames_pending_string`；缺少任何 `post[...]` 属性 → 422 空正文，非版主改已删除帖 → 422 `Post Locked`。
+`post_vote(post_id, score=None)` 写入时返回被触及帖子的批量负载（见[响应形态](#响应形态)），重复投票 → 423。
 
-* **历史通过 `note_history` / `wiki_history` 与 `history_undo` 访问**，没有额外的“归档版本”JSON 端点：
-  `history` 索引是 HTML-only（`.json` → `406`）；
-* 笔记、wiki 的历史数据在 `note_versions` / `wiki_page_versions` 表里，分别由上面两个方法读取。
+其余方法（按需查上面的参数分层与返回形态即可）：
 
-## 画师与标签
+- `post_destroy(post_id, reason=None, *, destroy=None)` — 按理由删除；已标记删除的帖子要 `destroy='1'` 才是永久删除（版主，否则 403）；返回 `{success: true}`。
+- `post_revert_tags(post_id, history_id)` — 把帖子标签回滚到某条标签历史；`history_id` 是该次标签改动的 id；返回 `{success: true}`，不带帖子数据。
+- `post_activate(post_ids)` — 释出被 hold 的帖子；`post_ids` 必须是列表，非版主只能释出自己的；返回 `{success: true, count: N}`（传非数组得到空 204 → `None`）。
+- `post_acknowledge_new_deleted_posts()` — 标记「新删除帖」提示已读；返回 `{success: true}`，匿名调用不会更新任何用户状态。
+- `post_update_batch(post)` — 一次改多个：`{post_id: {'tags': ..., 'rating': ...}}`，只带 id 的条目表示只订阅回包；返回被触及帖子的批量负载 `{posts, pool_posts, pools, tags, votes}`。
+- `post_moderate(ids, commit, reason=None, reason2=None)` — 批量 `'Approve'` / `'Delete'`（janitor+），`ids` 是 `{post_id: 任意值}` 映射；返回被处理帖子（含父帖）的批量负载 `{posts, pool_posts, pools, tags, votes}`。
+- `post_flag(post_id, reason=None, *, unflag=None)` — 标记待删，`unflag='1'` 取消自己（或版主）的标记；返回该帖的批量负载 `{posts, pool_posts, pools, tags, votes}`；非 active 的帖子标记、非 flagged 的帖子取消都回 500。
+- `post_undelete(post_id)` — 恢复已删除的帖子（janitor+）；返回该帖及其父帖的批量负载 `{posts, pool_posts, pools, tags, votes}`。
+- `post_similar(*, file=None, **params)` — 以图搜图：`url=`、`id=`（对比帖）、`search_id=` 或已打开文件，另有 `services`（默认 `'local'`）/ `threshold` / `forcegray='1'` / `width` / `height` / `initial='1'`；返回 `{success: true, posts, source, search_id, error}`，没有查询依据 → 503。
+- `post_popular_recent(**params)` — `period` 取 `'1w'` / `'1m'` / `'1y'`（其他值被服务端强制成 `'1d'`）；返回最多 40 个帖子对象，按 `score` 降序。
+- `post_popular_by_day(**params)` — 看某日热门：`year` / `month` / `day`（缺省取当天，非法日期 → 400 空正文）；返回当天最多 40 个帖子对象。
+- `post_popular_by_week(**params)` — 看某周热门：`year` / `month` / `day` 指该周内任意一天；返回该周最多 40 个帖子对象。
+- `post_popular_by_month(**params)` — 看某月热门：`year` / `month` / `day` 指该月内任意一天；返回该月最多 40 个帖子对象。
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `artist_list(**params)` | `GET\|POST artist(.json)`（`routes.rb:19`；别名 `/artist/index`） | 匿名 | `name`、`url`、`order`、`page`；每页 25（带 `name` / `url` 时 50），**`limit` 被忽略** |
-| `artist_create(name, **attributes)` | `POST artist/create(.json)`（`routes.rb:21`） | 成员 | `artist[name]`、`artist[alias_name]`、`artist[alias_names]`、`artist[member_names]`、`artist[urls]`、`artist[notes]`（`artist_controller.rb:111-112`）；**没有 `artist[alias]` / `artist[group]`**（帮助页仍写旧字段） |
-| `artist_update(artist_id, **attributes)` | `POST artist/update.json`（`routes.rb:25`；**PUT 未路由**） | 成员 | 同一份允许属性；GET 是编辑表单；`commit='Cancel'` 直接 `302` 回详情页 |
-| `artist_destroy(artist_id)` | `POST artist/destroy(/:id)(.json)`（`routes.rb:22`） | privileged+ | 必须带 `commit='Yes'` 才是删除并返回 `{success:true}`（`artist_controller.rb:22-27`） |
-| `tag_list(**params)` | `GET\|POST tag(.json)`（`routes.rb:195`；别名 `/tag/index`） | 匿名 | `limit`（默认 50，`0` 为全部）、`order`（`name` / `date` / `count`）、`name`（支持 `*`）、`type`、`id`、`after_id`、`page` |
-| `tag_related(**params)` | `GET/POST tag/related.json`（`routes.rb:205`） | 匿名 | `tags`（空白分隔，百分号与逗号被剥离并转小写）、`type`（必须是站点 `tag_types` 的键）；返回**对象** `{tag: [[name,count],...]}`，没有 `limit`，每组最多 25 项 |
-| `tag_update(name, **attributes)` | `POST tag/update(.json)`（`routes.rb:208`；**POST-only**） | 成员 | `tag[name]`（必填）、`tag[tag_type]`、`tag[is_ambiguous]`；顶层的 `name` 不生效 |
-| `tag_autocomplete_name(term)` | `GET tag/autocomplete_name`（`routes.rb:197`） | 匿名 | 只渲染 JSON 的动作；硬上限 20 个名字 |
-| `tag_summary(**params)` | `GET tag/summary`（`routes.rb:207`） | 匿名 | `version`；带 `version` 且未变化时返回 `{version, unchanged:true}`，否则 `{version, data}` |
-| `tag_mass_edit(start, result)` | `POST\|GET tag/mass_edit`（`routes.rb:201`） | mod+ | `start` 缺失 → `424 Start tag missing`；只有站点开启 `enable_asynchronous_tasks` 时才同步返回 `{success:true}`（异步队列走 `job_task`） |
-| `tag_alias_list(**params)` | `GET\|POST tag_alias`（`routes.rb:189`；别名 `/tag_alias/index`） | 匿名 | `query`、`page`；每页 20；返回 `[{id,name,alias_id,pending}]` |
-| `tag_alias_create(name, alias_name, reason=None)` | `POST tag_alias/create`（`routes.rb:192`） | 成员 | 引擎字段是 `tag_alias[name]`、`tag_alias[alias]`、`tag_alias[reason]`，所以 Python 形参用 `alias_name` 表示别名；创建的是 `is_pending` 记录，成功后 `302` 到索引（JSON 可用） |
-| `tag_alias_update(aliases, commit, reason=None)` | `POST\|PUT tag_alias/update`（`routes.rb:191`） | mod+（`Delete` 时待审记录的创建者也可以） | `aliases[<id>]` 映射、`commit='Delete'` / `'Approve'`、`reason`；Approve 分支见上文[重定向说明](#写请求的重定向与结果歧义) |
-| `tag_implication_list(**params)` | `GET tag_implication`（`routes.rb:211`；别名 `/tag_implication/index`） | 匿名 | `query`、`page`；每页 20；返回 `[{id,consequent_id,predicate_id,pending}]`；`commit='Search Aliases'` 会重定向到别名列表 |
-| `tag_implication_create(predicate, consequent, reason=None)` | `POST tag_implication/create`（`routes.rb:214`） | 成员 | `tag_implication[predicate]`、`tag_implication[consequent]`、`tag_implication[reason]`；成功后 `302` 到索引 |
-| `tag_implication_update(implications, commit, reason=None)` | `POST\|PUT tag_implication/update`（`routes.rb:213`） | mod+（`Delete` 时同上） | `implications[<id>]` 映射、`commit`、`reason` |
+## 合集（10）
 
-## 评论、wiki 与论坛
+合集的所有写路由都同时挂着 GET，但 **GET 只是渲染表单页，写入必须 POST**——下面的方法已经发 POST。
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `comment_list(**params)` | `GET\|POST comment(.json)`（`routes.rb:43`；别名 `/comment/index`） | 匿名 | `post_id`、`page`；**必须带 `post_id`**：模型生成的查询恒带 `post_id = params[:post_id].to_i`（`comment.rb:15-17`），不传就等价于 `post_id=0`，得到空数组；**必须走 `.json` 后缀**——控制器分支判断的是 `params[:format]`（`comment_controller.rb:61`），只发 `Accept` 头会拿到 HTML；每页 25，**`limit` 被忽略** |
-| `comment_search(query, **params)` | `GET\|POST comment/search`（`routes.rb:47`） | 匿名 | `query`（支持 `user:<name>`）、`page`；传空字符串则不启用全文过滤，可当作不带 `post_id` 的评论流使用——这类查询在线上可能返回空列表，**空列表是正常结果，不是失败**；每页 30 |
-| `comment_show(comment_id)` | `GET\|POST comment/show(/:id)(.json)`（`routes.rb:48`） | 匿名 | `id`；返回单条评论对象 |
-| `comment_create(post_id, body)` | `POST comment/create(.json)`（`routes.rb:51`） | 成员 | `comment[post_id]`、`comment[body]`；控制器只在顶层 `commit='Post'` 时才检查成员每小时限额（`comment_controller.rb:34`，本库不发送该值，因此不会进入该分支），`commit='Post without bumping'` 可不顶帖；**`comment[anonymous]` 不被接受**（`comment_controller.rb:141-142`） |
-| `comment_update(comment_id, **attributes)` | `POST\|PUT comment/update(/:id)`（`routes.rb:50`） | 成员（本人或版主） | `comment[body]`、`comment[post_id]`；无权 → `403` |
-| `comment_destroy(comment_id)` | `POST\|DELETE comment/destroy(/:id)(.json)`（`routes.rb:49`） | 成员（本人或版主） | `{success:true}`；无权 → `403` |
-| `comment_mark_as_spam(comment_id)` | `POST comment/mark_as_spam(/:id)`（`routes.rb:52`） | **无过滤器（匿名可达）** | `{success:true}`；控制器没有来源过滤，所以不能当作“匿名安全”的读接口 |
-| `wiki_list(**params)` | `GET/POST wiki.json`（`routes.rb:260`；别名 `/wiki/index`） | 匿名 | `query`（普通词走全文检索，`title:` 前缀切换为标题匹配）、`order`（`date` / `title`）、`limit`（默认 25）、`page` |
-| `wiki_history(title=None, **params)` | `GET\|POST wiki/history(/:id)(.json)`（`routes.rb:265`） | 匿名 | `title` 或 `id` 指定页面；返回 `wiki_page_versions` 数组（按版本倒序，**不分页**） |
-| `wiki_recent_changes(**params)` | `GET\|POST wiki/recent_changes`（`routes.rb:267`） | 匿名 | `user_id`、`per_page`（默认 25）、`page` |
-| `wiki_create(title, body)` | `POST wiki/create(.json)`（`routes.rb:275` 附近） | 成员 | `wiki_page[title]`、`wiki_page[body]`；校验失败 → `420` |
-| `wiki_update(title, *, new_title=None, **attributes)` | `POST/PUT wiki/update.json`（`routes.rb:273`） | 成员 | 顶层 `title` 选中页面；`new_title` → `wiki_page[title]`，`body` → `wiki_page[body]`，两层标题可以同时传入而不冲突；**必须至少一个嵌套属性**，否则 `400`；锁定页 → `422` |
-| `wiki_destroy(title)` / `wiki_lock(title)` / `wiki_unlock(title)` | `POST\|DELETE wiki/destroy(.:format)` / `POST\|PUT wiki/lock` / `wiki/unlock`（`routes.rb:270-274`） | mod+ | 顶层 `title`；`{success:true}`；不存在的标题在 lock / unlock 上会 500 |
-| `wiki_revert(title, version)` | `POST\|PUT wiki/revert(.:format)`（`routes.rb:271`） | 成员 | 顶层 `title` + `version`；锁定页 → `422` |
-| `forum_list(**params)` | `GET\|POST forum(.json)`（`routes.rb:68`；别名 `/forum/index`） | 匿名 | `parent_id`（每页 100）、`latest`（固定第一页 10 条）、`page`（否则每页 30） |
-| `forum_show(forum_id, **params)` | `GET\|POST forum/show(/:id)`（`routes.rb:74`） | 匿名 | `id`；返回单个帖子对象 |
-| `forum_search(query, **params)` | `GET\|POST forum/search`（`routes.rb:75`） | 匿名 | `query`、`page`；每页 30 |
-| `forum_create(title, body, **attributes)` | `POST forum/create`（`routes.rb:83`） | 成员 | `forum_post[parent_id]`（`0` / 缺省 = 新主题，否则回复）、`forum_post[title]`、`forum_post[body]`；`302` 到 `forum/show/<根帖 id>` |
-| `forum_update(forum_id, **attributes)` | `POST\|PUT forum/update(/:id)`（`routes.rb:81`） | 成员（创建者或版主） | `forum_post[title]`、`forum_post[body]`、`forum_post[parent_id]`；`302` |
-| `forum_destroy(forum_id)` | `POST\|DELETE forum/destroy(/:id)`（`routes.rb:82`） | 成员（创建者或版主） | `302` |
-| `forum_lock(forum_id)` / `forum_unlock(forum_id)` / `forum_stick(forum_id)` / `forum_unstick(forum_id)` | `POST\|PUT forum/lock`（id 在请求体）/ `forum/unlock(/:id)` / `forum/stick(/:id)` / `forum/unstick(/:id)`（`routes.rb:77-80`） | mod+ | `302` |
-| `forum_mark_all_read()` | `GET\|POST forum/mark_all_read`（`routes.rb:76`） | 成员 | `204` 空响应 → 本库返回 `None` |
+```python
+pools = c.pool_list(query='order:name', page=1)
+print(pools[0]['id'], pools[0]['name'], pools[0]['post_count'])
+```
 
-## 账号
+`pool_list(**params)` 返回**顶层数组**，每项 `id / name / created_at / updated_at / user_id / is_public / post_count / description`；每页 20，`query` 里的 `limit:N` 上限 100，`order` 取 `name` / `date` / `updated` / `id`。
 
-账号面只做源码对齐，**不做线上实测**（也没有可用的测试账号）。
+```python
+pool = c.pool_show(pool_id)            # 单个合集对象，帖子在 pool['posts'] 里
+print(pool['name'], [post['id'] for post in pool['posts']])
+```
 
-| 方法 | 路由（动词） | 凭据 | 关键参数与返回 |
-| :--- | :--- | :--- | :--- |
-| `user_list(**params)` | `GET\|POST user(.json)`（`routes.rb:225`；别名 `/user/index`） | 匿名 | `name`、`level`、`id`、`order`、`page`；返回的每条只有 `{name, id}`（`user.rb:183-185`），每页 20 |
-| `user_autocomplete_name(term)` | `GET user/autocomplete_name`（`routes.rb:224`） | 匿名 | 关键词长度 < 2 返回空数组；硬上限 20 个名字 |
-| `user_check(username, password)` | `POST user/check`（`routes.rb:231`） | 匿名 | 这是**独立端点，按协议要求明文发送** `username` + `password`；返回 `{response, exists, name, id, no_email, pass_hash, user_info}` |
-| `user_create(name, password, password_confirmation, **attributes)` | `POST user/create`（`routes.rb:247`） | 匿名 | `user[...]`：`name`、`email`、`password`、`password_confirmation`、`blacklisted_tags`、`always_resize_images`、`receive_dmails`、`show_samples`、`use_browser`、`show_advanced_editing`、`pool_browse_mode`；返回 `{response: 'success'\|'error', errors: [...]}` |
-| `user_update(**attributes)` | `POST/PUT/PATCH user/update.json`（`routes.rb:246`） | 已登录 | 更新属性同创建接口但不接受 `name`，额外允许 `current_password`；返回 `{success:true}` 或 `420` |
-| `user_authenticate(**params)` | `POST\|PUT user/authenticate`（`routes.rb:244`） | 已登录 | `url`；`{success:true}` |
-| `user_modify_blacklist(add=None, remove=None)` | `POST\|PUT user/modify_blacklist`（`routes.rb:245`） | 已登录 | `add[]` / `remove[]`；返回 `{success:true, result:[tags]}` |
-| `user_reset_password(name, email)` | `GET\|POST user/reset_password`（`routes.rb:238`） | 匿名 | `user[name]`、`user[email]`；返回 `{result: 'success'}`（另有 `unknown-user` / `no-email` / `wrong-email` 失败结果） |
-| `user_record_destroy(user_record_id)` | `POST\|DELETE user_record/destroy(/:id)`（`routes.rb:257`） | privileged+（且 mod+ 或记录提交者） | `{success:true}`；否则 `403` |
+`pool_show(pool_id, **params)` **不返回数组**：返回一个合集对象，每页 24 个帖子（账号启用合集浏览模式时 1000）。未知 id 会重定向到合集列表，最终可能读到一个列表。
 
-## 排除项（不是缺失路由）
+```python
+c.pool_add_post(pool_id, post_id, sequence=1)   # sequence 省略即追加到末尾
+```
 
-下面这些路径**都有真实路由**，但没有本库支持的 JSON 契约，因此不提供包装方法。
-`Moebooru.request()` 也始终请求 `.json`，不是 HTML/订阅源/ZIP 下载出口；请求这些地址可能先得到
-HTTP 错误（`PybooruHTTPError`），只有 2xx 非 JSON 正文才抛 `PybooruAPIError`。
+`pool_add_post(pool_id, post_id, sequence=None)` 返回 `{success: true}`（不带合集内容）；帖子已在合集 → 423。
 
-### 只渲染 HTML / JS（`.json` 会 406 或 500）
+- `pool_create(name, **attributes)` — 新建合集（`description` / `is_public` / `is_active`）；返回 `{success: true}`，**不回传新 id**，要用 `pool_list` 再查。
+- `pool_update(pool_id, **attributes)` — 改名、描述与公开/启用状态（同一组属性）；返回 `{success: true}`，不是所有者且合集非公开 → 403。
+- `pool_destroy(pool_id)` — 删除合集；返回 `{success: true}`，无更新权限 → 403。
+- `pool_remove_post(pool_id, post_id)` — 移除帖子；返回被移除帖子的批量负载 `{posts, pool_posts, pools, tags, votes}`，响应头带 `X-Post-Id`。
+- `pool_copy(pool_id, name=None)` — 连帖子一起复制（contributor+），`name` 省略时服务端追加 ` (copy)`；JSON 只有 `{success: true}`，新 id 只在 HTML 重定向里。
+- `pool_import(pool_id, posts)` — `{post_id: sequence}` 按 sequence 升序批量加入；POST 恒重定向到合集页，读到的合集 JSON 不是写入确认。
+- `pool_order(pool_id, sequences)` — `{pool_post_id: sequence}` 重排；同样恒重定向到合集页，读到合集 JSON。
 
-| 路由 | 说明 |
+## 笔记、历史、收藏、内联与站内信（11）
+
+```python
+notes = c.note_list(post_id=post_id)
+print(notes[0]['x'], notes[0]['y'], notes[0]['body'])
+```
+
+`note_list(**params)` 返回**扁平数组**，每项 `id / post_id / x / y / width / height / body / is_active / version / creator_id / created_at / updated_at`。**分页单位是帖子**：不带 `post_id` 时服务端先按帖子分页（每页 16 个「有笔记的帖子」），再展平这些帖子的全部笔记，所以不是「每页 16 条笔记」，`limit` 也不生效。
+
+```python
+c.note_history(post_id=post_id)        # 也可用 id=<笔记 id>、user_id=<作者>
+```
+
+`note_history(**params)` 返回版本数组（`version / post_id / body / x / y / width / height / is_active / creator_id / created_at` …），**按版本倒序**；每页 25，按 `post_id` / `user_id` 过滤时 50；`limit` 被忽略，翻页仍用 `page`。
+
+```python
+c.note_update(post_id=post_id, x=10, y=10, width=100, height=100, body='译注')
+c.note_update(note_id, body='改过的正文')       # 传 note_id 就是更新
+```
+
+`note_update(note_id=None, **attributes)` 返回 `{success: true, new_id, old_id, formatted_body}`；不传 `note_id` 是**新建**且必须给 `note[post_id]`；锁定帖 → 422。
+
+- `note_search(query, **params)` — 全文搜索正文，每页 25；**`query` 必需**，不给会落到 HTML 分支得到 406；返回匹配的笔记数组。
+- `note_revert(note_id, version)` — 回滚笔记，`version` 是笔记的历史版本号；返回 `{success: true}`，锁定帖 → 422。
+- `history_undo(change_ids, redo=None)` — 撤销/重做一批历史变更；`change_ids` 要传**变更条目的 id**（不是历史批次的 id，发送时逗号连接），`redo='1'` 表示重做；返回 `{success: true, successful, failed, errors}`。
+- `favorite_list_users(post_id)` — 收藏者名单：返回原始对象 `{'favorited_users': 'name1,name2'}`（服务端拼成一个字符串，无人收藏是空串）；帖子不存在 → 404。
+- `inline_list(**params)` — 内联图组列表，每页 20；返回数组，每项 `id / description / user_id / images`。
+- `inline_copy(inline_id)` — 复制自己的内联图组；返回 `{success: true}`，新组 id 只在 HTML 重定向里。
+- `inline_delete(inline_id)` — 删除自己的内联图组；返回 `{success: true}`，不是本人（且非版主）→ 403。
+- `dmail_mark_all_read()` — 站内信全部标记已读；返回 `{success: true}`。
+
+## 画师（4）
+
+```python
+artists = c.artist_list(name='fuzichoco')      # 也可 url='https://...'；name 是子串匹配
+print(artists[0]['id'], artists[0]['name'], artists[0]['urls'])
+```
+
+`artist_list(**params)` 返回 `id / name / alias_id / group_id / urls`（`urls` 是数组）；每页 25，按 `name` / `url` 过滤时 50，**`limit` 被忽略**。`name` 不是精确相等（子串命中即可）。
+
+```python
+c.artist_update(artist_id, urls='https://www.pixiv.net/users/27517', notes='备注')
+```
+
+`artist_update(artist_id, **attributes)` 需要登录；允许 `name / alias_name / alias_names / member_names / urls / notes`，返回 `{success: true}`。
+
+- `artist_create(name, **attributes)` — 新建画师，允许字段同上（`name` 已在签名里，`alias` / `group` 不是允许键）；返回 `{success: true}`，校验失败 → 420。
+- `artist_destroy(artist_id)` — 删除画师（privileged+）；只有协议要求的 `commit='Yes'` 才返回 `{success: true}`，缺了会重定向回索引而不删除。
+
+## 标签、别名与蕴含（12）
+
+```python
+tags = c.tag_list(name='touhou', limit=3, order='count')
+print([(tag['name'], tag['count']) for tag in tags])
+```
+
+`tag_list(**params)` 返回 `id / name / count / type / ambiguous`；`name` 子串匹配（`*` 会变成原始 SQL 模式），`order` 取 `name` / `date` / `count`，默认每页 50，`limit=0` 返回**全部**标签（站点很大时很重）。
+
+```python
+related = c.tag_related(tags='touhou', type='general')
+for name, count in related['touhou'][:3]:
+    print(name, count)
+```
+
+`tag_related(**params)` 返回**对象** `{查询标签: [[名称, 共现次数], ...]}`，每组最多 25 项，**没有 `limit`**；`type` 必须是站点 `tag_types` 里的键；请求里的 `%`、`/`、`*` 会被剥掉并转小写。
+
+```python
+c.tag_update('tag_name', tag_type=1, is_ambiguous='1')
+```
+
+`tag_update(name, **attributes)` 发 POST，且键名是 `tag[name]`（顶层的 `name` 不会生效，`PUT` 未路由）；返回 `{success: true}`，未知标签 → 404。
+
+- `tag_autocomplete_name(term)` — 名字补全；返回最多 20 个名字的数组（按长度再按字母序）。
+- `tag_summary(**params)` — 标签缓存摘要；返回 `{version, data}`，带上次拿到的 `version` 且未变化时是 `{version, unchanged: True}`。
+- `tag_mass_edit(start, result)` — 全站把 `start` 改名成 `result`（mod+）；开启异步任务的站点同步返回 `{success: true}`，同步分支没有 JSON 响应；`start` 为空 → 424。
+- `tag_alias_list(**params)` — 别名列表（`query` / `page`，每页 20）；返回数组，每项 `id / name / alias_id / pending`。
+- `tag_alias_create(name, alias_name, reason=None)` — 申请别名：`name` 是别名本身、`alias_name` 是目标标签；创建的是待审记录，随后重定向到别名列表，读到的列表 JSON 不是写入确认。
+- `tag_alias_update(aliases, commit, reason=None)` — 审批或删除别名：`aliases` 是 `{别名 id: 任意值}`，`commit='Approve'` / `'Delete'`（其他值 → 400）；`'Delete'` 重定向到别名列表，`'Approve'` 见下方注意。
+- `tag_implication_list(**params)` — 蕴含列表；返回数组，每项 `id / predicate_id / consequent_id / pending`。
+- `tag_implication_create(predicate, consequent, reason=None)` — 申请蕴含（`predicate` 蕴含 `consequent`）；建的是待审记录，随后重定向到蕴含列表。
+- `tag_implication_update(implications, commit, reason=None)` — 审批或删除蕴含：`implications` 是 `{蕴含 id: 任意值}`，语义与返回同别名审批。
+
+`Approve` 分支重定向到 HTML-only 的任务页：**即使审批任务已经建好，也可能拿到 500 或非 JSON 响应**，不要据此盲目重试——写完后用 `tag_alias_list` / `tag_implication_list` 自己确认。
+
+## 评论（7）
+
+```python
+comments = c.comment_list(post_id=post_id)
+print([comment['creator'] for comment in comments])
+```
+
+`comment_list(**params)` 返回 `id / created_at / post_id / creator / creator_id / body`。**必须带 `post_id`**：不带时查询恒为 `post_id=0` 并返回空数组——它不是全站最新评论；每页 25，`limit` 被忽略。
+
+```python
+recent = c.comment_search(query='', page=1)     # 空 query 不启用全文过滤，可当评论流用
+c.comment_search(query='user:touhou_fan')       # 按作者过滤
+```
+
+`comment_search(query, **params)` 每页 30，返回评论数组；**空列表是正常结果**，不是失败。
+
+```python
+c.comment_create(post_id, '来评论一句')
+```
+
+`comment_create(post_id, body)` 需要登录；返回 `{success: true}`；小时限额 → 421，校验失败 → 420；`comment[anonymous]` 不是允许字段。
+
+- `comment_show(comment_id)` — 读一条评论，字段与列表相同；不存在的 id 回 404 HTML 页（`.data` 为 `None`）。
+- `comment_update(comment_id, **attributes)` — 改 `body`（本人或版主）；返回 `{success: true}`，无权 → 403。
+- `comment_destroy(comment_id)` — 删除（本人或版主）；返回 `{success: true}`，无权 → 403。
+- `comment_mark_as_spam(comment_id)` — 标记为垃圾并返回 `{success: true}`；该路由没有登录过滤器，匿名也能进，但它**不是只读接口**。
+
+## Wiki（9）
+
+```python
+pages = c.wiki_list(query='touhou', limit=3)
+print(pages[0]['title'], pages[0]['version'])
+```
+
+`wiki_list(**params)` 返回 `id / title / body / updater_id / locked / version / created_at / updated_at`；`limit` 生效（默认 25），`order` 取 `title`（默认）或 `date`。**没有 `wiki_show`**：`wiki/show` 只渲染 HTML，要正文用 `wiki_list(query='title:<标题>')`。
+
+```python
+c.wiki_history(title='alphes')        # 也可 id=<页面 id>
+```
+
+`wiki_history(title=None, **params)` 返回该页面的全部版本，**按版本倒序、不分页**（`title` 或 `id` 指定页面）。更宽的范围用 `wiki_recent_changes`。
+
+```python
+c.wiki_update('old_title', new_title='new_title')
+c.wiki_update('title', body='新正文')
+```
+
+`wiki_update(title, *, new_title=None, **attributes)` 的顶层 `title` 用来**选中页面**，`new_title` 才是写出 `wiki_page[title]` 的那一个——两个同名参数已经拆开，可以同时传。返回 `{success: true}`；必须至少给一个 `wiki_page[...]` 属性，否则 400；锁定页 → 422。
+
+- `wiki_recent_changes(**params)` — 最近的 wiki 改动：`user_id` / `per_page`（默认 25）/ `page`；返回改动数组。
+- `wiki_create(title, body)` — 新建页面；返回 `{success: true, location}`，校验失败 → 420。
+- `wiki_destroy(title)` / `wiki_lock(title)` / `wiki_unlock(title)` — 删除 / 锁定 / 解锁（mod+）；返回 `{success: true}`，不存在的标题在 lock / unlock 上会 500。
+- `wiki_revert(title, version)` — 回滚到某个历史版本号；返回 `{success: true}`，锁定页 → 422。
+
+## 论坛（11）
+
+```python
+topics = c.forum_list(page=1)          # 主题每页 30
+print(topics[0]['id'], topics[0]['title'], topics[0]['pages'])
+```
+
+`forum_list(**params)` 返回 `id / parent_id / title / body / creator / creator_id / updated_at / pages`；`parent_id=` 看某个主题的回复（每页 100），`latest='1'` 固定第一页 10 条。
+
+```python
+c.forum_create('主题标题', '正文', parent_id=0)    # parent_id 为 0 或省略 = 新主题，否则是回复
+```
+
+`forum_create(title, body, **attributes)` 需要登录；写动作会重定向到主题页，客户端跟随后的结果**不是写入确认**。
+
+- `forum_show(forum_id, **params)` — 读一个论坛帖，字段与列表相同。
+- `forum_search(query, **params)` — 全文搜索，每页 30；返回匹配的论坛帖数组。
+- `forum_update(forum_id, **attributes)` — 改 `title` / `body` / `parent_id`（创建者或版主）；重定向回主题，读到的主题 JSON 不是写入确认，无权 → 403。
+- `forum_destroy(forum_id)` — 删除帖子或主题（创建者或版主）；重定向到主题或论坛索引；返回的是重定向后的页面 JSON，不是删除确认。
+- `forum_lock(forum_id)` / `forum_unlock(forum_id)` / `forum_stick(forum_id)` / `forum_unstick(forum_id)` — 主题管理（mod+）；结果同样只体现在重定向后的主题页 JSON。
+- `forum_mark_all_read()` — 全部标记已读；`204` 空响应，客户端返回 `None`。
+
+## 账号（9）
+
+```python
+users = c.user_list(name='admin')       # 每页 20
+print([user['name'] for user in users])
+```
+
+`user_list(**params)` 返回的**每一行只有 `{name, id}`**，不是完整用户对象。
+
+```python
+c.user_update(show_samples='1', receive_dmails='0')
+```
+
+`user_update(**attributes)` 需登录；**不接受 `name`**，改密码或邮箱要带 `current_password`；返回 `{success: true}`。两个方法共用的 `user[...]` 设置是 `email` / `blacklisted_tags` / `always_resize_images` / `receive_dmails` / `show_samples` / `use_browser` / `show_advanced_editing` / `pool_browse_mode`，注册时另有 `password` / `password_confirmation`（已在签名里）。
+
+- `user_autocomplete_name(term)` — 名字补全；返回名字数组（最多 20 个，关键词短于 2 个字符返回空数组）。
+- `user_check(username, password)` — 独立端点，按协议**明文**发送 `username` + `password`（不是配置里的密码哈希）；返回 `{response, exists, name, id, no_email, pass_hash, user_info}`，`response` 为 `'success'` / `'unknown-user'` / `'wrong-password'`。
+- `user_create(name, password, password_confirmation, **attributes)` — 注册；**失败也是 200**：返回 `{response: 'success' | 'error', errors: [...]}`，其余 `user[...]` 设置与 `user_update` 同组。
+- `user_authenticate(**params)` — 重新认证当前会话（`url=` 是回跳路径）；返回 `{success: true}`。
+- `user_modify_blacklist(add=None, remove=None)` — 增删自己的标签黑名单（列表发成 `add[]` / `remove[]`）；返回 `{success: true, result: [...]}`。
+- `user_reset_password(name, email)` — 请求重置邮件；返回 `{result: 'success'}`；账号不存在 / 没有邮箱 / 邮箱不符分别是 `'unknown-user'` / `'no-email'` / `'wrong-email'`（500），SMTP 拒收是 `'invalid-email'`。
+- `user_record_destroy(user_record_id)` — 删除用户记录（privileged+，且需版主或该记录提交者）；返回 `{success: true}`，无权 → 403。
+
+## 分页与实际上限
+
+页码从 1 开始，服务端把 `page` 夹在 `1..1000000`。**每页大小由服务端写死**，下表是它的真实行为，
+不是客户端的限制：
+
+| 端点 | 每页 / 上限 |
 | :--- | :--- |
-| `GET post/show(/:id)(/*tag_title)`（`routes.rb:153`） | `:format => false`，只渲染 HTML；`.json` 落到兜底 404 空正文。单帖 JSON 用 `post_list(tags='id:<id>')` |
-| `GET post/browse`（`routes.rb:142`） | 浏览器页面，`.json` → `406` |
-| `GET\|POST post/deleted_index`（`routes.rb:144`） | 只有 HTML 模板，`.json` → `500`；控制器没有登录过滤器 |
-| `GET\|POST post/upload`（`routes.rb:157`）、`post/upload_problem`（`routes.rb:158`） | 上传表单；`upload_problem` 是空动作且没有模板，任何格式都 `500` |
-| `GET\|POST post/delete(/:id)`（`routes.rb:143`） | 删除确认页；真正的写是 `post_destroy` |
-| `GET post/error`（`routes.rb:145`） | 静态 HTML |
-| `GET\|POST tag/cloud`（`routes.rb:198`） | 标签云的**浏览器能力**：只渲染页面，没有 JSON |
-| `GET\|POST tag/popular_by_day` / `_week` / `_month`（`routes.rb:202-204`） | 同样只渲染页面；日期非法 → `400` |
-| `GET\|POST tag/edit(/:id)`、`tag/edit_preview`（`routes.rb:199-200`） | HTML 编辑页 / 预览片段 |
-| `GET wiki/show.json`（`routes.rb:269`） | `respond_to` 只有 `format.html`（`wiki_controller.rb:110-130`），`.json` → `406`。移除 JSON 包装是因为动作只有 HTML，不是路由不存在 |
-| `GET\|POST wiki/add`、`wiki/diff`、`wiki/edit`、`wiki/preview`、`wiki/rename`（`routes.rb:262-268`） | 编辑 / 对比 / 预览页面 |
-| `GET\|POST history`、`history/index`（`routes.rb:89-90`） | 索引页只有 `format.html`（`history_controller.rb`），`.json` → `406` |
-| `GET\|POST comment/edit(/:id)`、`comment/moderate`（`routes.rb:45-46`） | HTML / 重定向 |
-| `GET\|POST forum/preview`、`forum/new`、`forum/add`、`forum/edit(/:id)`（`routes.rb:70-73`） | 预览片段（即使请求 `.json` 也返回 HTML）与表单页 |
-| `GET\|POST pool/select`（`routes.rb:130`）、`pool/transfer_metadata`（`routes.rb:132`） | 选择器（`.json` → `406`）与元数据迁移表单（`.json` → `500`） |
-| `GET\|POST artist/preview`、`artist/show(/:id)`（`routes.rb:23-24`） | 预览片段与 `302` 到 wiki 页面 |
-| `GET\|POST tag/show(/:id)`（`routes.rb:206`） | `302` 到 wiki 页面 |
-| `GET\|POST tag_subscription`、`tag_subscription/index`（`routes.rb:217-218`） | 索引只渲染 HTML；`create`（219）与 `destroy(/:id)`（221）只有 JS 分支；`update`（220）`302` 到 `user#edit` |
-| `dmail` / `dmail/inbox`、`compose`、`preview`、`show`、`create`、`show_previous_messages`（`routes.rb:55-60`） | 模板或重定向（create 为 POST、preview 为 GET，其余 GET/POST）；show 会顺带标记邮件已读。只有 mark_all_read 的 POST 有 JSON |
-| `inline/create`、`add_image`、`update`、`edit`、`crop`、`delete_image`（`routes.rb:96-103`） | 重定向或 HTML/JS；update 为 POST/PUT，delete_image 为 POST/DELETE，其余 GET/POST。仅暴露有 JSON 的 inline_list / inline_copy / inline_delete |
-| `user/*` 的界面路由 | `user/show(/:id)`（`routes.rb:240`，HTML 且需登录）、`edit`（232）/ `change_email`（229）/ `change_password`（230）/ `home`（233）/ `login`（235）/ `signup`（242）/ `invites`（234）/ `block(/:id)`（228）/ `unblock`（243）/ `set_avatar(/:id)`（239）/ `remove_avatar/:id`（248）/ `show_blocked_users`（241）：HTML 表单或 `302` |
-| `GET\|POST user_record`、`user_record/index`、`user_record/create(/:id)`（`routes.rb:254-256`） | 索引只有 HTML；创建是表单重定向 |
-| `GET help(/:page)`（`routes.rb:86`） | 帮助页只有 HTML 模板（`app/views/help/`）。本库固定发 `Accept: application/json`，因此 `request('GET', 'help/api')` 落到兜底路由得到 `404`：`yande.re` 回它自己的 HTML 404 页，`konachan.com` / `sakugabooru.com` 回空正文。换 `Accept: text/html` 就是 `200`——**这不是路由不存在**。各站 `help/api` 正是站点自述 API 版本与加盐模板的来源 |
+| `post_list` | 默认 40（`limit:` 元标签可覆盖）；超过 1000 一律夹到 1000 |
+| `pool_list` | 每页 20；`query` 里的 `limit:N` 夹到 ≤100 |
+| `pool_show` | 每页 24 个帖子（账号启用合集浏览模式时 1000） |
+| `note_list` | 先按帖子分页（带 `post_id` 每页 100 个帖子，否则 16 个），再展平这些帖子的全部笔记 |
+| `note_history` | 25；按 `post_id` / `user_id` 时 50；`limit` 被忽略 |
+| `note_search` | 25 |
+| `comment_list` | 25；`limit` 被忽略 |
+| `comment_search` | 30 |
+| `forum_list` | 带 `parent_id` 时 100，否则 30；`latest` 固定第一页 10 条 |
+| `wiki_list` | `limit` 生效，默认 25 |
+| `wiki_recent_changes` | `per_page` 生效，默认 25 |
+| `artist_list` | 带 `name` / `url` 时 50，否则 25；`limit` 被忽略 |
+| `tag_list` | 默认 50；`limit=0` 返回全部 |
+| `tag_related` | 没有 `limit`，每组上限 25 |
+| `tag_autocomplete_name` / `user_autocomplete_name` | 上限 20 |
+| `tag_alias_list` / `tag_implication_list` / `inline_list` / `user_list` | 20 |
+| `post_popular_recent` / `_by_day` / `_by_week` / `_by_month` | 最多 40 条，按 `score` 降序 |
 
-### 仅重定向
+## 响应形态
 
-| 路由 | 说明 |
+| 服务端动作 | 客户端拿到 |
 | :--- | :--- |
-| `GET\|POST post/view(/:id)`（`routes.rb:159`） | `302` 到 `post/show` |
-| `GET\|POST post/random(/:id)`（`routes.rb:152`） | `302` 到 `post/show/<id>` 或 `/post`；没有 JSON 端点，路径里的 id 会被动作忽略 |
+| 列表 | 顶层数组（`tag_related`、`favorite_list_users` 除外，见下） |
+| 写成功 | `{success: true}`，部分带额外键：`count`（`post_activate`）、`vote`（`post_vote` 读）、`new_id` / `old_id` / `formatted_body`（`note_update`）、`location`（`wiki_create`）、`result`（黑名单、密码重置） |
+| 批量写 | 被触及帖子的批量负载 `{posts, pool_posts, pools, tags, votes}`（`post_update_batch`、`post_moderate`、`post_vote`、`post_flag`、`pool_remove_post`、`post_undelete`） |
+| 跟随重定向 | 目标页的 JSON：可能是数组（别名 / 蕴含 / 论坛索引）或单个对象（合集、主题） |
+| `204` | `None` |
+| 原始对象 | `favorite_list_users` → `{'favorited_users': 'name1,name2'}`；`tag_related` → `{标签: [[名称, 计数], ...]}` |
+| 错误 | `PybooruHTTPError`；正文不是 JSON 时 `.data` 为 `None`，原文在 `.body` |
 
-### 依赖站点开关或本身就是死路由
+## 边界与未实测汇总
 
-| 路由 | 说明 |
-| :--- | :--- |
-| `GET\|POST user/activate_user`、`user/resend_confirmation`（`routes.rb:227,237`） | 动作只在 `CONFIG[enable_account_email_activation]` 开启时定义，样例配置里没有该键 |
-| `GET\|POST user/remove_from_blacklist`（`routes.rb:236`） | 空动作且没有模板，任何格式都 `500` |
-| `GET\|POST report/set_dates` 等报表路由（`routes.rb:170-175`） | 控制器里 `set_dates` 是 private 方法，报表只渲染 HTML / 投票模板 |
-| `resources :advertisements`（`routes.rb:9-16`）、`batch/*`（`routes.rb:32-36`）、`blocks/*`（`routes.rb:39-40`）、`job_task/*`（`routes.rb:106-110`）、`admin/*`（`routes.rb:3-6`）、`settings/api`（`routes.rb:178-180`） | 全部渲染模板或重定向：`advertisements#redirect` 还会累加点击数；`job_task` 的 index/show 是 HTML 或跳转 `post/show`；`admin/reset_password` 只有一个 JSON 的异常分支（不是正常的成功契约）；`settings/api#show` 的 `ensure_api_key` 会改动账号状态，不是匿名只读接口 |
-| `GET\|POST static/*`、`opensearch`、`help(/:page)`、`banned`、`root`（`routes.rb:85,182-186,280`） | 站点页面 / 导航 / 状态码，没有数据包装 |
-
-### 订阅源与二进制
-
-| 路由 | 说明 |
-| :--- | :--- |
-| `GET post/atom(.:format)`、`GET\|POST atom`（`routes.rb:141,167`） | Atom 订阅源（最新 40 帖），**不是 JSON** |
-| `GET post/piclens`（`routes.rb:147`） | RSS 订阅源，默认格式 `rss` |
-| `GET pool/zip/:id`（`routes.rb:134`） | 二进制 ZIP（`send_data` + `X-Archive-Files` 头，未知 hash 时 `404`，否则 `302` 到 `?hash=<md5>`）。本库是 JSON 客户端，不做包装 |
-
-### 弃用的 `/index` 别名
-
-`/post/index`、`/pool/index`、`/note/index`、`/wiki/index`、`/forum/index`、`/artist/index`、
-`/comment/index`、`/tag/index`、`/tag_alias/index`、`/tag_implication/index`、`/user/index`、
-`/user_record/index`、`/inline/index`、`/job_task/index`、`/banned/index`、`/admin/index`、`/batch/index`
-都还在路由表里，但都标着 `# FIXME: remove this`；官方帮助的版本记录写明 `1.13.0+update.3` 移除了
-`/index`。客户端只在旧 `api_version` 下生成它们，新代码不要依赖。
-
-## 验证状态
-
-匿名只读验证与未验证清单见 [verification.md](verification.md)（由维护者在其中追加逐条结果）；
-本文不重复线上结果，也不在此处补充任何未执行过的计数。
-
-* 本页所有条目都是**源码对齐**（行号针对上游 `206455e1`）；
-* 匿名只读端点在 `yande.re` 上的执行记录链接在 `verification.md`；
-* **全部写接口未实测**；`user_check`、`user_create`、`user_reset_password` 这类账号动作尤其没有
-  可用凭据，仅保证请求形态与源码一致；
-* 具体站点可能关闭部分能力（例如未开启 `enable_asynchronous_tasks` 时 `tag_mass_edit` 没有 JSON 响应）。
+* 本页全部条目按上游源码对齐。**写动作与账号动作没有线上实测**；匿名只读的真实执行范围和逐条命令见
+  [verification.md](verification.md)，逐条状态与上游坐标见 [契约审计附注](moebooru-contract-notes.md)。
+* 只提供有 JSON 契约的端点：HTML / JS 页面、Atom/RSS 订阅源与合集 ZIP 都没有包装方法，
+  它们仍然有真实路由。其中 `help/api` 特殊——本库固定发 `Accept: application/json`，而该页只有 HTML
+  模板，所以 `request('GET', 'help/api')` 得到 404（`yande.re` 是它的 HTML 404 页，`konachan.com` /
+  `sakugabooru.com` 是空正文），换 `Accept: text/html` 就是 200。完整排除项见附注。
+* 方法存在 ≠ 目标站点启用了该能力：相似图服务、异步任务后端、站点自行关闭的功能都可能缺失，
+  由服务端决定结果，本库不做本地补丁或替代实现。
 
 相关文档：[客户端用法](moebooru.md) · [能力总览](moebooru-capabilities.md) ·
-[错误与状态码](errors.md) · [分页](pagination.md)。
+[契约审计附注](moebooru-contract-notes.md) · [错误与状态码](errors.md) · [分页](pagination.md)。
