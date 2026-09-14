@@ -24,3 +24,13 @@ def encode_params(params):
     if params is None:
         return None
     return [pair for key, value in params.items() for pair in items(key, value)]
+
+
+def json_params(value):
+    """Omit unspecified values without dropping explicit empty collections."""
+    if isinstance(value, dict):
+        return {key: json_params(item) for key, item in value.items()
+                if item is not None}
+    if isinstance(value, (list, tuple)):
+        return [json_params(item) for item in value if item is not None]
+    return value
