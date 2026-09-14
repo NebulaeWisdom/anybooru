@@ -3,7 +3,7 @@
 """
 Pybooru
 
-Pybooru is a API client written in Python for Danbooru and Moebooru based sites.
+Pybooru is an API client for Danbooru, Moebooru and Serika based sites.
 
 Pybooru requires "requests" package to work.
 
@@ -11,8 +11,10 @@ Pybooru modules:
     pybooru -- Main module of Pybooru, contains Pybooru class.
     moebooru -- Contains Moebooru main class.
     danbooru -- Contains Danbooru main class.
+    serika -- Contains Serika main class.
     api_moebooru -- Contains all Moebooru API functions.
     api_danbooru -- Contains all Danbooru API functions.
+    api_serika -- Contains official v1 and internal Serika API functions.
     exceptions -- Manages and builds Pybooru errors messages.
     resources -- Contains all resources for Pybooru.
 """
@@ -25,4 +27,5 @@ __author__ = "Daniel Luque <danielluque14[at]gmail[dot]com>"
 # pybooru imports
 from .moebooru import Moebooru
 from .danbooru import Danbooru
+from .serika import Serika
 from .exceptions import (PybooruError, PybooruAPIError, PybooruHTTPError)
