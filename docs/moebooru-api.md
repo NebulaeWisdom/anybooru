@@ -298,6 +298,7 @@ HTTP 错误（`PybooruHTTPError`），只有 2xx 非 JSON 正文才抛 `PybooruA
 | `inline/create`、`add_image`、`update`、`edit`、`crop`、`delete_image`（`routes.rb:96-103`） | 重定向或 HTML/JS；update 为 POST/PUT，delete_image 为 POST/DELETE，其余 GET/POST。仅暴露有 JSON 的 inline_list / inline_copy / inline_delete |
 | `user/*` 的界面路由 | `user/show(/:id)`（`routes.rb:240`，HTML 且需登录）、`edit`（232）/ `change_email`（229）/ `change_password`（230）/ `home`（233）/ `login`（235）/ `signup`（242）/ `invites`（234）/ `block(/:id)`（228）/ `unblock`（243）/ `set_avatar(/:id)`（239）/ `remove_avatar/:id`（248）/ `show_blocked_users`（241）：HTML 表单或 `302` |
 | `GET\|POST user_record`、`user_record/index`、`user_record/create(/:id)`（`routes.rb:254-256`） | 索引只有 HTML；创建是表单重定向 |
+| `GET help(/:page)`（`routes.rb:86`） | 帮助页只有 HTML 模板（`app/views/help/`）。本库固定发 `Accept: application/json`，因此 `request('GET', 'help/api')` 落到兜底路由得到 `404`：`yande.re` 回它自己的 HTML 404 页，`konachan.com` / `sakugabooru.com` 回空正文。换 `Accept: text/html` 就是 `200`——**这不是路由不存在**。各站 `help/api` 正是站点自述 API 版本与加盐模板的来源 |
 
 ### 仅重定向
 

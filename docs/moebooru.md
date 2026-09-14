@@ -1,12 +1,25 @@
 # Moebooru 客户端
 
-`Moebooru` 类负责 Moebooru 引擎系站点（yande.re、konachan、lolibooru 等）的访问：读取根配置、
+`Moebooru` 类负责 Moebooru 引擎系站点（yande.re、konachan、sakugabooru 等）的访问：读取根配置、
 构造请求、附加 `password_hash` 认证、把服务端 JSON 原样返回。
 
 契约以本地只读的上游源码 `moebooru/`（HEAD `206455e1`）为准：路由看 `config/routes.rb`，
 参数与权限看 `app/controllers/` 下各控制器（`ApplicationController`）。官方 `help/api` 页还在仓库里
 （`app/views/help/api.en.html.erb`），但它的部分条目已经过期（例如仍在写 `post[file]` 可替换文件、
 `post_show` 可用、`+/-1` 投票），**以当前路由与控制器为准**。
+
+## 站点
+
+根样例 `pybooru.json` 的 `sites` 段里，Moebooru 系条目都做过匿名线上探测，除注明外
+均为「页脚显示运行 Moebooru、`help/api` 自述 API 版本、各只读列表端点返回 JSON」：
+
+| 键 | 地址 | 站点自述 API 版本 | 备注 |
+| :--- | :--- | :--- | :--- |
+| `yandere` | `https://yande.re` | `1.13.0+update.3` | 上游项目的参考部署 |
+| `konachan` | `https://konachan.com` | `1.13.0+update.3` | `.net` 是同站的**过滤镜像**（会少掉部分帖子），需要完整内容时用 `.com` |
+| `sakugabooru` | `https://sakugabooru.com` | `1.13.0+update.3` | 动画作画片段站（视频向 fork），标签体系与图片站不同 |
+| `lolibooru` | `https://lolibooru.moe` | — | 样例中保留的历史条目；当前探测**不可达**，见 [verification.md](verification.md) |
+
 
 > **验证状态**：接口契约已按上游源码对齐；部分匿名只读场景已在 yande.re 实际执行，
 > 逐条结果见 [verification.md](verification.md)。全部写动作和账号认证仍**未实测**，
