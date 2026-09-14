@@ -117,6 +117,7 @@ Moebooru 面的 API 文件本轮未重写，只同步了共享配置用法；其
 | 文档 | 内容 |
 | :--- | :--- |
 | [docs/index.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/index.md) | 文档索引与设计立场 |
+| [docs/danbooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-capabilities.md) | 能做什么、匿名能做什么、想做某件事该用哪个方法 |
 | [docs/installation.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/installation.md) | 安装、环境要求、配置文件放哪 |
 | [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md) | 根配置文件 `pybooru.json` 完整样例 |
 | [docs/authentication.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/authentication.md) | 认证与权限 |

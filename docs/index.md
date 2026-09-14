@@ -8,6 +8,7 @@ Danbooru 与 Moebooru 是被大量图站采用的引擎模板，所以本库对�
 
 | 文档 | 内容 |
 | :--- | :--- |
+| [danbooru-capabilities.md](danbooru-capabilities.md) | 不知道有哪些 API？按目的找入口、区分匿名/登录能力、浏览全部原生方法 |
 | [installation.md](installation.md) | 环境要求、源码/PyPI 安装、目录结构 |
 | [configuration.md](configuration.md) | 根配置文件 `pybooru.json` 的完整结构与加载规则 |
 | [authentication.md](authentication.md) | HTTP Basic（Danbooru）与 `password_hash`（Moebooru） |
