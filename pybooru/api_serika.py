@@ -14,7 +14,7 @@ of the 16 exported handlers and disagrees with the controllers about the image
 
 The unversioned in-site routes of the same application are frontend internals
 with no compatibility promise; the client exposes them with an ``internal_*``
-prefix and return their original JSON bodies, without envelope normalization.
+prefix; these return original JSON bodies without envelope normalization.
 
 Shared v1 facts:
     * Envelope: ``{"success": true, "data": ..., "meta": {...}}``. Methods
@@ -42,10 +42,10 @@ Shared v1 facts:
       sequential ID is the separate ``sequential_id`` column, returned as
       ``post_id``. Both appear in responses and are not interchangeable; this
       client sends whatever ID the caller passes.
-    * Pagination lives in ``meta.pagination`` (``page``, ``limit``,
-      ``total``, ``pages`` and, except for ``/api/v1/users``, ``has_next`` /
-      ``has_prev``). Server-side clamps are documented per method; no value is
-      clamped, validated or replaced locally.
+    * List pagination lives in ``meta.pagination`` (``page``, ``limit``,
+      ``total``, ``pages``; ``has_next`` / ``has_prev`` depend on the route
+      and early-return branch). Server-side clamps are documented per method;
+      no value is clamped, validated or replaced locally.
     * CSV parameters (``tags``, ``ratings``, ``exclude_tags``) are plain
       strings, sent exactly as given: the server splits on commas itself and
       never parses a Rails-style array.
@@ -438,7 +438,7 @@ class SerikaApi_Mixin(object):
         ``pages``, without ``has_next``/``has_prev``).
 
         Auto-generated ``user_<6 alphanumerics>`` placeholder accounts are
-        excluded, so this count is lower than ``stats()['totals']['users']``.
+        excluded; this can make the count lower than stats' total user count.
         Each entry is ``{"_id", "id", "username", "avatarUrl", "rank",
         "createdAt", "uploadCount"}`` — note the camelCase names, which the
         rest of the v1 surface does not use.
@@ -646,7 +646,7 @@ class SerikaApi_Mixin(object):
         (``[{_id, id, name, type, count}]``).
 
         Unversioned private station API; anonymous read. Live status in
-        docs/verification.md (200 recorded before this refactor).
+        docs/verification.md (anonymous 200 exercised through this client).
         """
         params = {
             "page": page,
@@ -682,7 +682,7 @@ class SerikaApi_Mixin(object):
         is the site's own counter and is not a session write.
 
         Unversioned private station API; anonymous read. Live status in
-        docs/verification.md (200 recorded before this refactor).
+        docs/verification.md (anonymous 200 exercised through this client).
         """
         path = "api/images/{0}".format(_segment(image_id))
         return self.request("GET", path)
@@ -729,7 +729,7 @@ class SerikaApi_Mixin(object):
         same rows bucketed by type.
 
         Unversioned private station API; anonymous read. Live status in
-        docs/verification.md (200 recorded before this refactor).
+        docs/verification.md (anonymous 200 exercised through this client).
         """
         params = {"q": query, "limit": limit, "type": type}
         return self.request("GET", "api/tags", params=params)
@@ -819,7 +819,7 @@ class SerikaApi_Mixin(object):
         ``postCount`` and ``createdAt``.
 
         Unversioned private station API; anonymous read. Live status in
-        docs/verification.md (200 recorded before this refactor).
+        docs/verification.md (anonymous 200 exercised through this client).
         """
         params = {"page": page, "limit": limit}
         return self.request("GET", "api/artists", params=params)
