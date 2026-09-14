@@ -118,6 +118,11 @@
   确认为 Danbooru 引擎；同轮取得两引擎判别式（`/posts.json` 对 `/post.json`）。
   库不做引擎自动识别，选哪个类由调用者决定，见
   [docs/configuration.md](docs/configuration.md#sites-段)。
+- 按用户要求复核架构报告里「Danbooru 系」一栏：只有 `danbooru.donmai.us` 是 Danbooru 引擎
+  （9 个 REST 读路径全部 `200`）；Gelbooru 与 TBIB 自述 `Running Gelbooru 0.2`，Danbooru REST 路径
+  全部 `404`，库内用 `Danbooru(site_url=...)` 调用均得到 `PybooruHTTPError 404`，其自身的
+  `index.php?page=dapi` 是另一套字段集（Gelbooru 匿名 `401`，TBIB 匿名 `200`）——因此不进入
+  `sites` 清单，报告里的「Danbooru 系」是血缘归类而非 API 兼容。
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 ## Pybooru 4.2.2 - (2020-10-17)

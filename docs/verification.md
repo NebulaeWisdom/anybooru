@@ -318,8 +318,8 @@ JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:4
   `ProxyError: Tunnel connection failed: 502 Bad Gateway`，经 `proxy-host:port` 得到
   未做 DNS 层面确认。**用户确认后已从样例清单移除**（`pybooru.json`、`configuration.md`、
   `moebooru.md` 同步删除），本节保留上面那次探测的事实，不改成「站点已关闭」这类未验证结论。
-- 报告中归入「Danbooru 系」的 Gelbooru、TBIB 实际运行 Gelbooru 引擎，不在本库两个引擎契约内，
-  未做探测；「都不属于」的站点同理。
+- 报告中归入「Danbooru 系」的 Gelbooru、TBIB 实际运行 Gelbooru 引擎，不在本库两个引擎契约内；
+  用户要求后已单独复核，见下方「「Danbooru 系」候选站点复核」。「都不属于」的站点未做探测。
 
 #### Safebooru 与引擎判别式（同轮追加）
 
@@ -340,3 +340,127 @@ JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:4
 同属 donmai 部署，匿名只读可用。同一组探测也说明**库不自动识别引擎**：判别依据是路径形态、
 页脚/`help/api` 自述或认证方式，选哪个类由调用者决定；
 这一节已写进 [configuration.md](configuration.md#怎么判断一个站点该用哪个类)。
+
+## Serika：2026-09-15 实现后的匿名调用
+
+本节只计**新增客户端实际发出的 8 个请求**，全部 HTTP `200`。未重跑先前评估中的需 key `401`
+请求，也未向需 key 的任何 v1 路由发请求。使用根 `pybooru.json`，`sites.serika.api_key` 为空，
+
+实际导入命令退出 `0`，输出 `Serika Danbooru Moebooru`：
+
+```bash
+.venv/Scripts/python.exe -c "import pybooru; from pybooru import Serika, Danbooru, Moebooru; print(Serika.__name__, Danbooru.__name__, Moebooru.__name__)"
+```
+
+通过临时编排脚本 `.venv/Scripts/python.exe temp/run_serika_examples.py --config pybooru.json`
+依 `verification.serika.scripts` 逐一启动下面三条真实命令（不是 mock，也不是替代示例的测试函数）：
+
+```bash
+.venv/Scripts/python.exe examples/serika/service_info.py --config pybooru.json
+.venv/Scripts/python.exe examples/serika/browse.py --config pybooru.json
+.venv/Scripts/python.exe examples/serika/random_image.py --config pybooru.json
+```
+
+三条命令均退出 `0`，stderr 均为空。查询输入取自 `examples.serika`；脚本间隔取自
+`verification.serika.pause_seconds`（1 秒），同一示例内部没有额外 sleep 或自动重试。
+执行时先把每条进程的 stdout / stderr / returncode 落到配置指定的临时证据文件，
+持久证据转录如下；临时 runner、片段与证据用后删除，均未提交。
+
+### 官方 v1：实际匿名成功
+
+基址全部为 `https://serika.art`。
+
+| 客户端方法 | 实际 GET 路径 | HTTP | 真实响应/消费结果 |
+| :--- | :--- | :--- | :--- |
+| `api_index()` | `/api/v1` | 200 | 裸对象 `name: SerikaART API`，`version: 1.0.0` |
+| `stats()` | `/api/v1/stats` | 200 | 拆封后的 `totals`: images **4237843**、tags **730851**、users **3058**；meta.timestamp `2026-09-14T22:18:21.628Z` |
+| `user_list(...)` | `/api/v1/users?page=1&limit=1&sort=newest` | 200 | 返回 1 个用户 `Giru`；users 特殊信封被拆成数组，`last_call.meta.pagination`: page=1、limit=1、total=3058、pages=3058 |
+| `random_image(...)` | `/api/v1/random/400/400/image.png?fit=cover&format=png&ratings=safe` | 200 | Python 类型 **bytes**，**81224 字节**；响应 `Content-Type: image/png`；没有 JSON 解码 |
+
+统计按评级分组：safe **3499663**、questionable **324774**、explicit **413406**；
+AI 图 **14195**、非 AI 图 **4223648**、最近 24h 上传 **0**。用户目录与 stats 的用户总数本次恰好相同，
+不能从源码的占位账号排除规则推断它们每次必定不同。
+
+二进制响应的实际元数据头：`x-image-id` / `x-dbid` 均为 **2796776**，`x-post-id` 为 **1416106**，
+`x-original-width: 1168`、`x-original-height: 2057`、`x-rating: safe`；
+`Date: Mon, 14 Sep 2026 22:18:36 GMT`、`cf-cache-status: MISS`。
+这些标识是服务器本次随机选择的图片，不能要求再次调用得到同一值；本轮未另做图片解码或视觉检查。
+
+### 站内非版本化私有面：实际匿名成功
+
+| 客户端方法 | 实际 GET 路径 | HTTP | 真实响应/消费结果 |
+| :--- | :--- | :--- | :--- |
+| `internal_image_list(...)` | `/api/images?page=1&limit=3&ratings=safe&sort=newest` | 200 | 3 张 safe 图；内部 id **7323837 / 7323836 / 7323835**，对应 post_id **4237836 / 4237835 / 4237834**；pagination.total=3499663、pages=1166555、has_next=true |
+| `internal_image_show(...)` | `/api/images/4237836` | 200 | 从上一步首图取 **post_id** 发请求，返回内部 id **7323837**、post_id **4237836**、rating=safe，与列表相同资源 |
+| `internal_tag_list(...)` | `/api/tags?limit=3` | 200 | `highres: 3402288`、`1girl: 3223922`、`solo: 2597729` |
+| `internal_artist_list(...)` | `/api/artists?page=1&limit=3` | 200 | `dairi: 17186`、`inoino: 4265`、`nyantcha: 2785`（tagName/postCount） |
+
+首图列表与详情返回的相同 URL：
+`https://cdn.serika.art/uploads/1788013605888-1788013605888-1q2b2g-danbooru-12074741.png`。
+这条链验证了站内详情的顺序号语义；**没有**调用需 key 的 v1 图片详情来做 ID 对照。
+
+### 只做源码对齐，不能当作已验证
+
+* 官方需 key 的 **12 个方法**：`image_list`、`image_show`、`image_delete`、`image_similar`、
+  `image_batch`、`random_list`、`tag_list`、`tag_show`、`user_show`、`search`、`trending`、`upload`。
+  用户没有且不申请 API key；本轮没有向这些端点发请求，认证成功、权限、限流、JSON 批量读取、multipart
+  上传、删除、其成功信封/字段及参数边界都**未实测**。
+* 站内非版本化的另外 **10 个方法**：`internal_image_comments`、`internal_tag_show`、
+  `internal_tag_autocomplete`、`internal_tag_complementary`、`internal_artist_show`、
+  `internal_artist_wiki`、`internal_artist_reviews`、`internal_user_list`、`internal_user_show`、
+  `internal_user_activity`。只核对源码中匿名可读分支，没有线上执行。
+* 源码与既有错误类可知 `PybooruHTTPError.data['code']` 可达，HTTP 状态及正文并存；本轮**未跑错误请求**，
+  不宣称实际覆盖了 401/403/404/429、PNG 错误占位或二进制错误状态。
+* 未实现站内 cookie 登录、私有交互与资源写操作；没有验证其他自托管部署。
+* 未新增测试文件，未运行 formatter、lint、项目级测试套件、构建或发布流程。
+
+### 与旧评估的关系
+
+`HANDOFF.md` 的“Serika.art 评估”保留了改造前的匿名边界事实：上面的 4 个 v1 公开路由与 4 个站内路由
+已有匿名 200；另外 8 个需 key 的 GET（images 列表/详情、tags 列表/详情、trending、search、random、users 详情）
+有匿名 401 记录。它们**不计入本节的 8 次新客户端请求**，不被当作需 key 方法的成功验证。
+控制器中 ID、未知标签、限流错误码和 PNG 标签过滤与说明文字的差异见
+[serika-api.md](serika-api.md#文档与源码矛盾)；仅按源码纠正，不另发探测。
+
+## 「Danbooru 系」候选站点复核（2026-09-15 追加）
+
+同一份架构报告把 Danbooru、Gelbooru、TBIB 归入「Danbooru 系」。用户要求把这栏也测一遍，
+以判断能否进入根配置 `sites` 清单。脚本 `temp/probe_danbooru_family.py`，原始输出
+`temp/danbooru-family-probe.json`；匿名 `GET`，代理 `http://proxy-host:port`。
+
+### Danbooru 引擎路径（复数资源 + `wiki_pages`）
+
+| 路径 | `danbooru.donmai.us` | `gelbooru.com` | `tbib.org` |
+| :--- | :--- | :--- | :--- |
+| `/posts.json?limit=1` | `200` `list[1]` | `404`（Gelbooru 404 页） | `404`（nginx 404） |
+| `/tags.json?limit=1` | `200` | `404` | `404` |
+| `/artists.json?limit=1` | `200` | `404` | `404` |
+| `/comments.json?limit=1` | `200` | `404` | `404` |
+| `/wiki_pages.json?limit=1` | `200` | `404` | `404` |
+| `/pools.json?limit=1` | `200` | `404` | `404` |
+| `/users.json?limit=1` | `200` | `404` | `404` |
+| `/related_tag.json?query=touhou` | `200`（`related_tags` 等键） | `404` | `404` |
+| `/autocomplete.json?search[query]=touhou` | `200` `list[0]` | `404` | `404` |
+| Gelbooru 自身 API：`/index.php?page=dapi&s=post&q=index&json=1&limit=1` | `404` | `401`（空正文） | `200` |
+
+### 库内实调
+
+| 调用 | 结果 |
+| :--- | :--- |
+| `Danbooru(site_url='https://gelbooru.com').post_list(limit=1)` | `PybooruHTTPError` `404`，`body` 是它的 HTML 404 页 |
+| `Danbooru(site_url='https://tbib.org').post_list(limit=1)` | `PybooruHTTPError` `404`，`body` 是其 nginx 404 页 |
+| `Danbooru('safebooru').post_list(limit=2)` | `200`，返回 `[12194055, 12194053]` |
+
+### 结论
+
+- 报告里的「Danbooru 系」是**血缘/概念**归类，不是 API 兼容：Gelbooru 与 TBIB 页脚/关于页
+  自述 `Running Gelbooru 0.2` 并把 Danbooru 标为原始概念来源，它们暴露的是
+  `index.php?page=dapi&s=post&q=index&json=1` 这种 PHP 老 API，Danbooru 的 REST 路径全部 `404`。
+- TBIB 的 `dapi` 匿名可用，但返回的是 Gelbooru 自己的字段集
+  （`id`、`tags`、`rating`、`parent_id`、`width`、`height`、`sample`、`sample_height`、`sample_width`、
+  `score`、`hash`、`directory`、`image`、`owner`、`change`），与 Danbooru 的 post 结构不同。
+- Gelbooru 的 `dapi` 匿名 `401`、空正文（该站要求 key 身份），本轮不申请凭据、不实测需要 key 的调用。
+- **因此三者都没有进入 `sites` 清单**：本库实现 Danbooru 引擎、Moebooru 引擎与 Serika 契约，
+  不为 Gelbooru 的 `dapi` 提供客户端；把 Gelbooru/TBIB 当 Danbooru 站点调用会稳定得到 `404`。
+- 本次也复核了 `danbooru.donmai.us` 的读路径（上表 9 个路径全部 `200`），与既有 Danbooru 验证记录一致，
+  不替换此前那 15 次请求的证据。
