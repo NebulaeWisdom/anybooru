@@ -1,12 +1,12 @@
-# Pybooru - Danbooru / Moebooru 图站 API 客户端
+# Pybooru - Danbooru / Moebooru / Serika 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/LuqueDaniel/pybooru/master/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/Pybooru.svg?style=flat-square)](https://pypi.python.org/pypi/Pybooru/)
 
-**Pybooru** 是用 Python 访问 Danbooru 系与 Moebooru 系图站 API 的客户端库。
+**Pybooru** 是用 Python 访问 Danbooru、Moebooru 与 Serika 三类引擎图站 API 的客户端库。
 
-Danbooru 与 Moebooru 是被大量图站采用的引擎模板，因此本库对齐的是这两套引擎的公共契约，而不是某两个
-具体站点的私有行为。
+本库按对应引擎的路由与控制器对齐契约，适用于运行相同引擎的实例，不只支持几个固定站点。
+Serika 是独立的 Next.js 引擎；其官方 v1 与前端私有的非版本化 API 分开标注，不混同 Rails 两家。
 
 - 版本：**5.0.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
@@ -66,7 +66,7 @@ pip install --user Pybooru
 可以直接用 `site_url`（Moebooru 另需 `api_version`）接入，见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md#sites-段)。
 
-完整的根样例（含 Moebooru 站点、`examples`、`verification` 段）见
+完整的根样例（含三类引擎站点、`examples`、`verification` 段）见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md)。
 
 ### 2. Danbooru 系站点
@@ -118,6 +118,25 @@ Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生�
 需要登录的写接口只做源码对齐、未做线上实测。完整清单见
 [docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md)。
 
+### 4. Serika 系站点（serika.art 及自托管实例）
+
+```python
+from pybooru import Serika
+
+with Serika('serika', config_file='pybooru.json') as client:
+    example = client.config['examples']['serika']
+    print(client.stats())  # 官方 v1，匿名可达；返回 data，meta 留在 last_call
+    result = client.internal_image_list(**example['image_query'])
+    for image in result['images']:  # 站内非版本化私有契约，原始 JSON 信封
+        print(image['id'], image['post_id'], image['url'])
+```
+
+模块 `pybooru.serika` 的 `Serika` 类与 `api_serika` 的方法集覆盖 **16 个官方 v1 方法**及
+**14 个站内匿名读方法**。官方需 key 的 12 个方法仅源码对齐，未实测；根配置 key 留空，
+不实现站内 cookie 登录。随机图片方法返回原始 `bytes`，不会按 JSON 解析。
+v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不能互换。
+使用方式见 [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md)。
+
 ## 文档
 
 文档全部为 `docs/` 下的中文 Markdown：
@@ -136,6 +155,9 @@ Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生�
 | [docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md) | Moebooru 客户端与 `request()` 通用入口 |
 | [docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md) | Moebooru 各 API 面与端点清单 |
 | [docs/moebooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-capabilities.md) | Moebooru 能做什么、想做某件事该用哪个方法 |
+| [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md) | Serika 客户端、信封拆封与二进制响应 |
+| [docs/serika-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-api.md) | 官方 v1 路由、参数、权限与文档矛盾 |
+| [docs/serika-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-capabilities.md) | 两层能力、站内私有匿名读取与未实测边界 |
 | [docs/migration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
 | [docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
@@ -145,6 +167,8 @@ Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生�
 - `examples/moebooru/`：Moebooru 系站点的五个匿名只读示例（`list_posts.py`、`list_tags.py`、
   `wiki_list.py`、`list_comments.py`、`related_tags.py`），默认站点取自 `examples.moebooru.site`（当前为
   yande.re），不发写请求。
+- `examples/serika/`：`service_info.py`（官方匿名信息）、`browse.py`（站内匿名浏览）、
+  `random_image.py`（官方匿名图片字节），参数从 `examples.serika` 读取，不调用需 key 路由。
 
 示例中的关键词、ID 等参数一律从根配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
 分页。
