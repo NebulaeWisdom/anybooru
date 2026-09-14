@@ -59,6 +59,13 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
       "api_version": "1.13.0+update.3",
       "hash_string": "choujin-steiner--{0}--"
     },
+    "sakugabooru": {
+      "url": "https://sakugabooru.com",
+      "username": "",
+      "password": "",
+      "api_version": "1.13.0+update.3",
+      "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
+    },
     "lolibooru": {
       "url": "https://lolibooru.moe",
       "username": "",

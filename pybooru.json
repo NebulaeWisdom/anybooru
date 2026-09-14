@@ -8,6 +8,10 @@
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
+    "serika": {
+      "url": "https://serika.art",
+      "api_key": ""
+    },
     "danbooru": {
       "url": "https://danbooru.donmai.us",
       "username": "",
@@ -32,6 +36,13 @@
       "api_version": "1.13.0+update.3",
       "hash_string": "choujin-steiner--{0}--"
     },
+    "sakugabooru": {
+      "url": "https://sakugabooru.com",
+      "username": "",
+      "password": "",
+      "api_version": "1.13.0+update.3",
+      "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
+    },
     "lolibooru": {
       "url": "https://lolibooru.moe",
       "username": "",
@@ -42,6 +53,15 @@
     }
   },
   "examples": {
+    "serika": {
+      "site": "serika",
+      "image_query": {"page": 1, "limit": 3, "ratings": "safe", "sort": "newest"},
+      "user_query": {"page": 1, "limit": 1, "sort": "newest"},
+      "tag_query": {"limit": 3},
+      "artist_query": {"page": 1, "limit": 3},
+      "random_size": {"width": 400, "height": 400},
+      "random_query": {"ratings": "safe", "format": "png", "fit": "cover"}
+    },
     "danbooru": {
       "site": "danbooru",
       "tags": "rating:g",
@@ -73,6 +93,15 @@
     }
   },
   "verification": {
+    "serika": {
+      "scripts": [
+        "examples/serika/service_info.py",
+        "examples/serika/browse.py",
+        "examples/serika/random_image.py"
+      ],
+      "pause_seconds": 1,
+      "evidence_file": "temp/serika-examples-evidence.json"
+    },
     "site": "danbooru",
     "limit": 2,
     "pause_seconds": 1,
