@@ -5,6 +5,15 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Serika 第三引擎
+
+- 新增 `Serika` 导出、Bearer 认证与官方 `data` / `meta` 信封拆封；users 目录的特殊信封单独处理。
+- 官方 v1 覆盖 15 个路由文件的全部 16 个动词；站内非版本化私有面提供 14 个匿名读方法，使用 `internal_` 前缀。
+- 共享传输新增独立 bytes 通路，随机图片原样返回字节；Danbooru / Moebooru 的 JSON 解码与 HTTP 错误处理保持原逻辑。
+- 根配置新增 `sites.serika`（key 为空）、`examples.serika` 与 `verification.serika`；不实现站内 cookie 登录。
+- 三个匿名示例实际运行退出 0，共 8 个 HTTP 200；所有需 key 的 v1 方法仅源码对齐，未实测成功路径。
+- 文档区分官方 v1 / 站内私有 / 需 key 未实测，并记录内部 id 与 post_id、未知标签分支、限流 code 与 PNG 占位响应等契约差异。
+
 ### 需求范围纠正
 
 - 移除由个人猴子补丁展示延伸出的专用工作流示例、文档章节与三个示例配置键；画师查询只保留上游通用契约说明。
