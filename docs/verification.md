@@ -106,3 +106,112 @@ JSON 响应。因此对重定向类端点只能说“跟随重定向，最终格
 
 参数来自 `pybooru.json` 的 `verification` 段（站点、关键词、样本规模、间隔秒数，
 以及用于触发错误的 `missing_post_id`、`invalid_page`、`invalid_tags`）。
+
+## Moebooru：2026-09-15 追加记录
+
+本节是独立的新记录。上方“Moebooru 全部未验证”属于此前 Danbooru 阶段的历史快照，
+保留原文；**当前 Moebooru 的已执行范围以本节为准**，不把源码实现当成线上通过。
+
+### 环境、命令与一次中断
+
+- 主站：根配置 `sites.yandere` 的 `https://yande.re`，用户名与密码均为空，匿名只读。
+- 解释器：项目 `.venv/Scripts/python.exe`；代理取根配置 `http://proxy-host:port`；未发送任何写请求。
+- 参数：`pybooru.json` 的 `verification.moebooru`；每次请求间隔 1 秒，没有客户端自动重试。
+- 先执行以下命令；导入成功、退出码 0。验证脚本在 15 个 `200` 后遇到代理断连，退出码 1：
+
+```bash
+.venv/Scripts/python.exe -c "import pybooru; from pybooru import Moebooru"
+.venv/Scripts/python.exe temp/verify_moebooru.py --config pybooru.json
+```
+
+断连发生于 `comment_show(0)`：`requests.exceptions.ProxyError`，底层
+`RemoteDisconnected: Remote end closed connection without response`，**没有 HTTP 状态码**。
+因此不能把它记成 `404`，当时的非法日期场景也还没有执行。
+首次脚本原本在结束时才保存完整响应，断连使该保存语句未到达；
+`temp/moebooru-live-first-pass.json` 是根据实际终端输出保留的**摘要**，不是完整原始响应。
+没有重跑此前已经成功的 15 个请求。
+
+随后仅继续评论查询及未完成的两个错误场景，命令退出码 0：
+
+```bash
+.venv/Scripts/python.exe temp/verify_moebooru_remaining.py --config pybooru.json
+```
+
+这三次请求逐次保存到 `temp/moebooru-live-continuation.json`，包含实际 URL、状态、响应头、
+JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:48:27Z`
+（本地 2026-09-15 01:48）。临时脚本和响应均不提交。
+
+两段合计 **19 次请求尝试：16 次 `200`、1 次 `404`、1 次 `400`，另 1 次代理错误未收到 HTTP 响应**。
+以下调用中的具体值来自本次根配置或前一个响应，不是库内置默认值。
+
+### 已执行：匿名读取
+
+| 场景 | 实际调用 | 观察结果 |
+| :--- | :--- | :--- |
+| 帖子列表 | `post_list(limit=2)` | `200`，2 条，首条 ID `1268798` |
+| 帖子搜索 | `post_list(tags='rating:s', page=1, limit=2)` | `200`，2 条，首条 ID `1268790` |
+| 编号翻页 | 同搜索，`page=2` | `200`，2 条，首条 ID `1268785`，与第一页不同 |
+| 标签搜索 | `tag_list(name='touhou', limit=2)` | `200`，`elis_(touhou)`、`gouki_(touhou)`；名称查询不是精确相等 |
+| 相关标签 | `tag_related(tags='touhou', type='general')` | `200`，按 `touhou` 分组的 25 个名称/计数对；首项 `thighhighs / 5286` |
+| 画师 | `artist_list(name='fuzichoco')` | `200`，1 条，ID `50315`、名称 `fuzichoco` |
+| 评论列表（未指定帖子） | `comment_list()` | `200`，`[]`。源码将缺失 `post_id` 转为 `0`；这不是全站最新评论接口 |
+| 评论搜索 | `comment_search(query='')` | 续跑 `200`，实际 `[]`；**没有取得非空评论正文，不宣称已验证非空评论结果** |
+| Wiki 搜索 | `wiki_list(query='touhou', limit=2)` | `200`，2 条，首条 `alphes`，ID `833` |
+| Wiki 历史 | `wiki_history(title='alphes')` | `200`，2 条，版本 `2`、`1` |
+| 笔记 | `note_list()` | `200`，22 条，首条 ID `7781`；这里没有声称 `limit=2` 生效 |
+| 笔记历史 | `note_history()` | `200`，25 条 |
+| 合集列表 | `pool_list()` | `200`，20 条，首条 ID `99411` |
+| 合集及帖子 | `pool_show(99411)` | `200`，一个合集对象，内含 2 个帖子，不是顶层帖子数组 |
+| 用户搜索 | `user_list(name='admin')` | `200`，20 条，首条 `adminale / 546937`；用户 JSON 为名称与 ID |
+| 论坛 | `forum_list()` | `200`，30 条，首条主题 ID `10470` |
+
+### 已执行：错误响应
+
+| 场景 | 实际 URL | 状态与异常 | 保留的响应 |
+| :--- | :--- | :--- | :--- |
+| 不存在的评论（续跑） | `https://yande.re/comment/show.json?id=0` | `404`，`PybooruHTTPError` | 550 字节 HTML，含 `Requested page does not exist`；`.data is None`，`.body` 保留原文 |
+| 非法日期参数 | `https://yande.re/post/popular_by_day.json?year=2026&month=13&day=1` | `400`，`PybooruHTTPError` | 空正文；`.data is None`，`.body == ''` |
+
+这次错误响应**不是 JSON**，与上方 Danbooru 的 JSON 错误体证据不同。
+库没有吞掉代理异常、没有把空正文伪造成 JSON，也没有把 HTML `404` 判成 JSON 解码错误。
+
+### 已执行：全部 Moebooru 示例
+
+以下五个命令按顺序以 `&&` 连接执行，整体退出码 0；每个脚本都有真实终端输出。
+输入取 `examples.moebooru`，均匿名、同一代理；`temp/moebooru-examples-evidence.json` 保存输出摘要。
+
+```bash
+.venv/Scripts/python.exe examples/moebooru/list_posts.py --config pybooru.json
+.venv/Scripts/python.exe examples/moebooru/list_tags.py --config pybooru.json
+.venv/Scripts/python.exe examples/moebooru/wiki_list.py --config pybooru.json
+.venv/Scripts/python.exe examples/moebooru/list_comments.py --config pybooru.json
+.venv/Scripts/python.exe examples/moebooru/related_tags.py --config pybooru.json
+```
+
+| 脚本 | 实际输出摘要 |
+| :--- | :--- |
+| `list_posts.py` | page 1：`1268790 / 1268789 / 1268785`；page 2：`1268781 / 1268779 / 1268755`，各自附文件 URL |
+| `list_tags.py` | 3 个标签与计数，首项 `thighhighs 264282` |
+| `wiki_list.py` | `alphes`、`alstroemeria_records`、`azur_lane` |
+| `list_comments.py` | `comments: 0`；空结果如实输出，不填充示例评论 |
+| `related_tags.py` | `tag: touhou`，输出前 3 个相关名称/计数对，首项 `thighhighs 5286` |
+
+原 `comment_create.py` 会真实写入且需要账号，已替换为只读 `list_comments.py`，
+不是对写操作加一个模拟成功或安全护栏。写接口用法仍在 API 文档中，标注未实测。
+
+### 站点选择与未验证项
+
+- 沿用本轮已有站点探测结果（`temp/moebooru-site-probe.json`，本次未重跑）：
+  `konachan.com` 的 24/24 请求被 Cloudflare JS 挑战拦截，`403`、`Just a moment...`。
+  这是**该域名经本代理的网络限制**，不能推断引擎没有对应路由。
+- Main 另行实测 `https://konachan.net/post.json?limit=1` 同代理匿名 `200`、Moebooru 风格 JSON；
+  这是已提供的单端点事实，**不是本重构在 Konachan 上完成了验证矩阵**。
+  Sakugabooru 为视频向 fork，已有基本探测可用，但没有用它代替主站 yande.re 的契约判据。
+- **全部写动作、账号/密码认证、上传文件及 source-only 上传、权限等级、审核与删除均未实测**；
+  包括源码允许匿名进入的修改型动作，也没有执行。实现依据是上游路由/控制器/模型。
+- 未运行的具名读接口仍仅源码对齐：例如相似图、其余热门查询、补全/标签摘要/别名/蕴含、
+  论坛详情/搜索、指定帖子的非空评论等。笔记与 Wiki 历史这两个已列明场景例外，确已运行；
+  它们不代表验证了不存在的通用 archive API。
+- 旧路径版本的真实部署、下游站点差异、写操作重定向后的结果、异步任务后端没有实测。
+  方法存在不等于目标站点启用了相应能力；路由存在也不意味着提供 JSON。
+- 未新增或执行测试、格式化、lint、发布 workflow 或分发包构建；没有修改或提交两份上游仓库。
