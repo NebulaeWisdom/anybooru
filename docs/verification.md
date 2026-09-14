@@ -314,8 +314,29 @@ JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:4
 
 - 新增 `sakugabooru` → `https://sakugabooru.com`，`api_version` 与 `hash_string` 取站点自述值；
   样例配置与 [configuration.md](configuration.md)、[moebooru.md](moebooru.md) 已同步。
-- `lolibooru`（样例中既有的历史条目）**当前不可达**：经 `proxy-host:port` 得到
+- `lolibooru`（样例中既有的历史条目）**不可达**：经 `proxy-host:port` 得到
   `ProxyError: Tunnel connection failed: 502 Bad Gateway`，经 `proxy-host:port` 得到
-  未做 DNS 层面确认，是否从样例清单移除由用户决定，本轮不动它。
+  未做 DNS 层面确认。**用户确认后已从样例清单移除**（`pybooru.json`、`configuration.md`、
+  `moebooru.md` 同步删除），本节保留上面那次探测的事实，不改成「站点已关闭」这类未验证结论。
 - 报告中归入「Danbooru 系」的 Gelbooru、TBIB 实际运行 Gelbooru 引擎，不在本库两个引擎契约内，
   未做探测；「都不属于」的站点同理。
+
+#### Safebooru 与引擎判别式（同轮追加）
+
+用户追问「清单里的站点是否都测过」后补测了此前只被登记、未被验证的 `safebooru`，并顺手取得
+两个 Rails 引擎的判别式（同一台机器、同一代理 `http://proxy-host:port`、匿名 `GET`）：
+
+| 探测 | `safebooru.donmai.us` | `yande.re` |
+| :--- | :--- | :--- |
+| `/posts.json?limit=1` | `200`，`list[1]` | `404`（`Server: freenginx`） |
+| `/post.json?limit=1` | `404` | `200`，`list[1]` |
+| `/tags.json?limit=1` | `200` | — |
+| `/artists.json?limit=1` | `200` | — |
+| `/comments.json?limit=1` | `200` | — |
+| `/wiki_pages.json?limit=1` | `200` | — |
+| `/pools.json?limit=1` | `200` | — |
+
+结论：`safebooru` 是 Danbooru 引擎（复数 `posts` 存在、单数 `post` 不存在），与 `danbooru`
+同属 donmai 部署，匿名只读可用。同一组探测也说明**库不自动识别引擎**：判别依据是路径形态、
+页脚/`help/api` 自述或认证方式，选哪个类由调用者决定；
+这一节已写进 [configuration.md](configuration.md#怎么判断一个站点该用哪个类)。

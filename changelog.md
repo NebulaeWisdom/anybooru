@@ -19,6 +19,8 @@
 - 删除 `resources.SITE_LIST` 与 `HTTP_STATUS_CODE`（站点清单改由配置提供）。
 - `sites` 样例新增 Moebooru 系站点 `sakugabooru`（`https://sakugabooru.com`）：API 版本与
   加盐模板取自该站 `help/api` 自述，匿名只读端点已实测。
+- `sites` 样例移除已失效的 `lolibooru`（`https://lolibooru.moe`）：两个出口都只能拿到
+  `502`/SSL 层错误，没有任何 HTTP 响应；清单是样例而非支持边界，删掉不影响同引擎站点接入。
 - 新增 `client.config`（解析后的配置）、`last_call` 记录每次请求的最终 URL 与状态。
 - 认证改为按 “`username` 或 `api_key` 任一非空” 自动附加 HTTP Basic，缺项为空串；
   两项都空才匿名，凭据不完整由服务端返回 `401`，不再静默降级。
@@ -112,6 +114,10 @@
 - 按用户提供的架构报告复核归属 Moebooru 的 Konachan / Sakugabooru / Yande.re：三站页脚自述
   `Running Moebooru 6.0.0`、`help/api` 自述 API 版本 `1.13.0+update.3`，12 个只读列表端点在
   全部 `200`；`konachan.com` 的可达性取决于网络环境（被 Cloudflare 挑战时会得到 `403`），
+- 补测此前只登记未验证的 `safebooru`：6 个 Danbooru 路径全部 `200`，`/post.json` 为 `404`，
+  确认为 Danbooru 引擎；同轮取得两引擎判别式（`/posts.json` 对 `/post.json`）。
+  库不做引擎自动识别，选哪个类由调用者决定，见
+  [docs/configuration.md](docs/configuration.md#sites-段)。
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 ## Pybooru 4.2.2 - (2020-10-17)
