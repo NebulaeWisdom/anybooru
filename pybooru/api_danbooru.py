@@ -347,21 +347,23 @@ class DanbooruApi_Mixin(object):
         """
         return self.request("GET", "post_replacements/{0}.json".format(replacement_id))
 
-    def post_replacement_create(self, post_id, **attributes):
-        """Replace a post's file (requires login; source-aligned, untested).
+    def post_replacement_create(self, post_id, replacement_file=None, **attributes):
+        """Replace a post's file (requires moderator; source-aligned, untested).
 
         Parameters:
             post_id (int): The post to replace (top-level).
+            replacement_file (file): Open binary file owned by the caller.
 
         Attributes:
             replacement_url (str): URL of the new file.
-            replacement_file (file): The new file, as an upload.
             final_source (str): The source of the replacement.
             tags (str): Tags to add to the post.
         """
+        files = (None if replacement_file is None else
+                 {"post_replacement[replacement_file]": replacement_file})
         return self.request("POST", "post_replacements.json",
                             data=dict(_model("post_replacement", attributes),
-                                      post_id=post_id))
+                                      post_id=post_id), files=files)
 
     def post_replacement_update(self, replacement_id, **attributes):
         """Update a post replacement (requires login; source-aligned, untested).
