@@ -35,7 +35,10 @@
     "lolibooru": {
       "url": "https://lolibooru.moe",
       "username": "",
-      "api_key": ""
+      "api_key": "",
+      "password": "",
+      "api_version": "1.13.0+update.3",
+      "hash_string": null
     }
   },
   "examples": {
@@ -43,6 +46,9 @@
       "site": "danbooru",
       "tags": "rating:g",
       "limit": 3,
+      "pages": [1, 2],
+      "tag_search": {"order": "count"},
+      "preview_chars": 200,
       "post_id": 1,
       "artist_url": "https://www.pixiv.net/users/27517",
       "pixiv_id": 27517,
@@ -75,7 +81,7 @@
       "is_deleted": false,
       "is_banned": false,
       "has_tag": true,
-      "order": "id"
+      "order": "name"
     },
     "related_search": {
       "query": "touhou",
@@ -85,7 +91,9 @@
       "tag_sample_size": 100
     },
     "wiki_search": {"title": "help:api"},
+    "comment_group_by": "comment",
+    "invalid_tags": "touhou 1girl solo",
     "missing_post_id": 0,
-    "invalid_page": "invalid"
+    "invalid_page": 1001
   }
 }

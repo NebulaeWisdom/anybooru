@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""列出标签。
+"""先列一页帖子，再用列表里的 id 取详情。
 
-搜索条件放在 search 字典里（会编码成 search[...]），limit 是顶层参数。
+不直接使用 examples 段里的 post_id，避免依赖一个可能不存在的固定 ID。
 """
 
 import argparse
@@ -11,7 +11,7 @@ from pybooru import Danbooru
 
 
 def main():
-    parser = argparse.ArgumentParser(description='列出 Danbooru 系站点的标签')
+    parser = argparse.ArgumentParser(description='取一个帖子的详情')
     parser.add_argument('--config', default='pybooru.json',
                         help='根配置文件路径（默认 pybooru.json）')
     parser.add_argument('--site', default='', help='站点名，留空则取 examples.danbooru.site')
@@ -22,9 +22,10 @@ def main():
 
     with Danbooru(site, config_file=args.config) as client:
         example = client.config['examples']['danbooru']
-        tags = client.tag_list(search=example['tag_search'], limit=example['limit'])
-        for tag in tags:
-            print(tag['name'], tag['post_count'])
+        posts = client.post_list(tags=example['tags'], limit=example['limit'])
+
+        post = client.post_show(posts[0]['id'])
+        print(post['id'], post['rating'], post['tag_string'])
 
 
 if __name__ == '__main__':

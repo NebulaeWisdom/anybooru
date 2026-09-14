@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""列出标签。
+"""列出 Danbooru 系站点的帖子。
 
-搜索条件放在 search 字典里（会编码成 search[...]），limit 是顶层参数。
+站点名、关键词、数量等参数全部来自根配置文件 pybooru.json 的 examples 段，
+可以用 --config / --site 覆盖，不使用环境变量。
 """
 
 import argparse
@@ -11,7 +12,7 @@ from pybooru import Danbooru
 
 
 def main():
-    parser = argparse.ArgumentParser(description='列出 Danbooru 系站点的标签')
+    parser = argparse.ArgumentParser(description='列出 Danbooru 系站点的帖子')
     parser.add_argument('--config', default='pybooru.json',
                         help='根配置文件路径（默认 pybooru.json）')
     parser.add_argument('--site', default='', help='站点名，留空则取 examples.danbooru.site')
@@ -22,9 +23,9 @@ def main():
 
     with Danbooru(site, config_file=args.config) as client:
         example = client.config['examples']['danbooru']
-        tags = client.tag_list(search=example['tag_search'], limit=example['limit'])
-        for tag in tags:
-            print(tag['name'], tag['post_count'])
+        posts = client.post_list(tags=example['tags'], limit=example['limit'])
+        for post in posts:
+            print(post['id'], post['rating'], post['tag_string'])
 
 
 if __name__ == '__main__':
