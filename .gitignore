@@ -18,9 +18,10 @@ venv/
 .idea
 
 # reference sources of the upstream sites (independent clones, not part of the package)
-# anchored to the repository root so that examples/danbooru/ and examples/moebooru/ stay tracked
+# anchored to the repository root so family example directories stay tracked
 /danbooru/
 /moebooru/
+/Serika.art/
 
 # scratch/process files (temporary work products, never committed)
 temp/
