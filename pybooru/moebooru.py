@@ -24,17 +24,10 @@ from .exceptions import PybooruError
 class Moebooru(_Pybooru, MoebooruApi_Mixin):
     """Moebooru class (inherits: Pybooru and MoebooruApi_Mixin).
 
-    To initialize Pybooru, you need to specify one of these two
-    parameters: 'site_name' or 'site_url'. If you specify 'site_name', Pybooru
-    checks whether there is in the list of default sites (You can get list
-    of sites in the 'resources' module).
-
-    To specify a site that isn't in list of default sites, you need use
-    'site_url' parameter and specify url.
-
-    Some actions may require you to log in. always specify three parameters to
-    log in: 'hash_string', 'username' and 'password'. Default sites has an
-    associate hash string.
+    Named sites and request settings come from the explicit JSON config_file.
+    To use an unlisted site, provide site_url and api_version. Authentication
+    uses username, password and the site's hash_string. Explicit constructor
+    arguments override the matching configuration values.
 
     Attributes:
         site_name (str): Get or set site name set.
@@ -62,8 +55,10 @@ class Moebooru(_Pybooru, MoebooruApi_Mixin):
                              functions that modify the content).
             password (str): Your user password in plain text (Required only
                             for functions that modify the content).
-            proxies (dict): Your proxies to connect to the danbooru site
-                            (Required only when your network is blocked).
+            config_file (str): Project JSON parameter file.
+            timeout (float or tuple): Request timeout override.
+            user_agent (str): HTTP User-Agent override.
+            proxies (dict): Explicit requests proxy mapping override.
         """
         super(Moebooru, self).__init__(
             site_name, site_url, username, proxies, config_file=config_file,
