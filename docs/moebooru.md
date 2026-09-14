@@ -22,7 +22,6 @@
 | `yandere` | `https://yande.re` | `1.13.0+update.3` | 上游项目的参考部署 |
 | `konachan` | `https://konachan.com` | `1.13.0+update.3` | `.net` 是同站的**过滤镜像**（会少掉部分帖子），需要完整内容时用 `.com` |
 | `sakugabooru` | `https://sakugabooru.com` | `1.13.0+update.3` | 动画作画片段站（视频向 fork），标签体系与图片站不同 |
-| `lolibooru` | `https://lolibooru.moe` | — | 样例中保留的历史条目；当前探测**不可达**，见 [verification.md](verification.md) |
 
 
 > **验证状态**：接口契约已按上游源码对齐；部分匿名只读场景已在 yande.re 实际执行，
@@ -157,7 +156,7 @@ password_hash = SHA1(hash_string.format(password))
 ```
 
 * 匿名只读请求不带登录字段；`password_hash` 在构造时算好，不参与后续每次请求的重新计算；
-* `hash_string` 为 `null`（如样例里的 `lolibooru`）且要登录时，必须显式传 `hash_string`；
+* `hash_string` 为 `null`（站点条目没有内置模板）且要登录时，必须显式传 `hash_string`；
 * 服务端还接受 `username` + `api_key` 查询参数、会话 Cookie、`user[name]` + `user[password]` 明文等
   方式，本库只实现 `password_hash` 一种；`api_key` 身份受 `limit_api` 限制，只有 `json` / `xml` / `zip`
   格式被放行，所以这类客户端必须请求 `.json`。

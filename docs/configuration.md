@@ -66,13 +66,6 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
       "password": "",
       "api_version": "1.13.0+update.3",
       "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
-    },
-    "lolibooru": {
-      "url": "https://lolibooru.moe",
-      "username": "",
-      "password": "",
-      "api_version": "1.13.0+update.3",
-      "hash_string": null
     }
   },
   "examples": {
@@ -185,6 +178,45 @@ Serika 不使用 `username`、`password`、`hash_string` 或客户端路径版�
 站内 cookie 登录不实现，详见 [authentication.md](authentication.md#serika-系站点)。
 
 同一个站点名在 Danbooru、Moebooru、Serika 客户端中都表示 `sites` 段的键，选择哪个类由调用者决定。
+
+### 样例清单里各条的实际状态
+
+清单是**样例**：每条的状态如下，别把「在清单里」等同于「支持」或「已测」。
+支持范围由引擎契约决定（[danbooru-api.md](danbooru-api.md)、[moebooru-api.md](moebooru-api.md)）。
+
+| 键 | 引擎 | 本轮线上状态 |
+| :--- | :--- | :--- |
+| `danbooru` | Danbooru | 匿名只读已实测（12 成功 + 3 预期错误） |
+| `safebooru` | Danbooru | 匿名只读已实测（`posts` / `tags` / `artists` / `comments` / `wiki_pages` / `pools` 均 `200`）；它与 `danbooru` 同属 donmai 部署，`safebooru.donmai.us/post.json` 为 `404`，路径形态确认是 Danbooru 引擎而非 Moebooru |
+| `konachan` | Moebooru | 匿名只读已实测（12 个列表端点 `200`；该站对部分网络会给 Cloudflare `403`，见 [verification.md](verification.md)） |
+| `yandere` | Moebooru | 匿名只读已实测（同上） |
+| `sakugabooru` | Moebooru | 匿名只读已实测（同上）；`api_version` 与 `hash_string` 取该站 `help/api` 自述 |
+| `serika` | Serika | 见 [serika.md](serika.md) 与 [verification.md](verification.md) |
+
+原样例里的 `lolibooru`（`https://lolibooru.moe`）在本次复核中经两个出口都拿不到 HTTP 响应
+（隧道 `502` 与 SSL 层 `UNEXPECTED_EOF_WHILE_READING`），已从清单移除。
+
+### 怎么判断一个站点该用哪个类
+
+**库不做自动识别**，也没有探测引擎的代码路径：`Danbooru`、`Moebooru`、`Serika` 是三个并列的类，
+各自的传输、认证与参数编码按引擎写死，选错类不会有降级或回退。判断依据是你自己持有的信息——
+引擎来源（站点页脚、仓库、上游路由）或一次探测。
+
+两个 Rails 引擎的路径形态可以直接区分，实测结果：
+
+| 探测 | Danbooru 引擎（`safebooru.donmai.us`） | Moebooru 引擎（`yande.re`） |
+| :--- | :--- | :--- |
+| `GET /posts.json?limit=1` | `200` | `404` |
+| `GET /post.json?limit=1` | `404` | `200` |
+
+即：复数 `posts` 是 Danbooru，单数 `post` 是 Moebooru。另外 Moebooru 站点通常能在
+页脚看到 `Running Moebooru <版本>`、在 `/help/api`（需要 `Accept: text/html`）读到自述 API 版本与
+加盐模板；Danbooru 用 `username` + `api_key` 走 HTTP Basic，Moebooru 用 `login` + `password_hash`
+表单字段，从认证方式上也能反推。
+
+选错类的表现是普通的 HTTP 错误，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
+`404`（路径不存在），拿 Moebooru 客户端请求 Danbooru 站点同样 `404`；凭据形态不匹配时是
+`401`。这些都在 [errors.md](errors.md) 的异常模型里。
 
 ## `examples` 段
 
