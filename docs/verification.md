@@ -221,10 +221,11 @@ JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:4
 
 - 沿用本轮已有站点探测结果（`temp/moebooru-site-probe.json`，本次未重跑）：
   `konachan.com` 的 24/24 请求被 Cloudflare JS 挑战拦截，`403`、`Just a moment...`。
-  这是**该域名经本代理的网络限制**，不能推断引擎没有对应路由。
+  正常返回 JSON（见下方「架构报告驱动的候选站点复核」）。无论哪种情况都不能推断引擎没有对应路由。
 - Main 另行实测 `https://konachan.net/post.json?limit=1` 同代理匿名 `200`、Moebooru 风格 JSON；
-  这是已提供的单端点事实，**不是本重构在 Konachan 上完成了验证矩阵**。
-  Sakugabooru 为视频向 fork，已有基本探测可用，但没有用它代替主站 yande.re 的契约判据。
+  后续复核确认 `.net` 是**同站的过滤镜像**（会少掉部分帖子），因此不作为完整内容站点，
+  也没有用它代替主站 yande.re 的契约判据（见下方复核小节）。
+  Sakugabooru 已由复核补齐引擎证据与只读端点覆盖，但它**不是**本轮契约判据的主站。
 - **全部写动作、账号/密码认证、上传文件及 source-only 上传、权限等级、审核与删除均未实测**；
   包括源码允许匿名进入的修改型动作，也没有执行。实现依据是上游路由/控制器/模型。
 - 未运行的具名读接口仍仅源码对齐：例如相似图、其余热门查询、补全/标签摘要/别名/蕴含、
@@ -235,3 +236,86 @@ JSON/正文与异常类型。客户端时间为 `2026-09-14T17:48:23Z` 至 `17:4
 - 现役 Moebooru 站点普遍有反爬与限流（yande.re 偏重）：中途被关闭连接、拿不到 HTTP 响应可能发生，
   且**不得**把这种中断记成 HTTP 错误码或库的行为，也不要预先断言限流阈值。
 - 未新增或执行测试、格式化、lint、发布 workflow 或分发包构建；没有修改或提交两份上游仓库。
+
+### 架构报告驱动的候选站点复核（2026-09-15 追加）
+
+用户提供 `temp/image-sites-architecture-report.md`（调查日期 2026-09-14），其中归属 Moebooru 的
+只有 Konachan、Sakugabooru、Yande.re 三站。本节按「先证明引擎身份，再证明可用」复核这三站，
+把确认可用者加入根配置 `sites`；脚本 `temp/probe_moebooru_candidates.py`（临时，不入库），
+原始输出 `temp/moebooru-candidates.json`，全部匿名 GET。
+
+#### 引擎身份：站点自述
+
+| 站点 | `GET /` 页脚 | `GET /help/api` |
+| :--- | :--- | :--- |
+| `konachan.com` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3`，正文自述 Moebooru |
+| `konachan.net` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3` |
+| `sakugabooru.com` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3` |
+| `yande.re` | —（根路径按 `Accept` 返 JSON） | `Help: API 1.13.0+update.3`，正文自述 Moebooru |
+
+报告对 Konachan 的「页脚直接显示运行 Moebooru 6.0.0」在本环境复现成功。
+报告对 Sakugabooru 的中高置信度判断也落实为页脚级证据：`Running Moebooru 6.0.0`。
+
+#### 加盐模板：站点自述值
+
+`help/api` 原文形如 `The actual string that is hashed is "<盐>--<em>your-password</em>--"`，
+`{0}` 即密码位；三站都自述 API 版本 `1.13.0+update.3`：
+
+| 站点 | `hash_string` |
+| :--- | :--- |
+| `yande.re` | `choujin-steiner--{0}--` |
+| `konachan.com` / `konachan.net` | `So-I-Heard-You-Like-Mupkids-?--{0}--` |
+| `sakugabooru.com` | `er@!$rjiajd0$!dkaopc350!Y%)--{0}--` |
+
+前两项与原配置一致；`sakugabooru` 的模板来自其站点自述，仅用于构造 `password_hash`，
+**没有发登录请求、未验证服务端是否接受**。
+
+#### 匿名只读端点覆盖（12/12 通过）
+
+`/post.json`、`/post/index.json`、`/tag.json`、`/artist.json`、`/comment.json`、`/wiki.json`、
+`/note.json`、`/pool.json`、`/forum.json`、`/user.json`、`/tag/related.json`（`tags=touhou`）、
+`/post/popular_by_day.json` 在 `konachan.com`（经 `proxy-host:port`）、`konachan.net`、
+`sakugabooru.com`、`yande.re` 上均返回 `200` 与 JSON。每站返回条数随站点数据不同
+（如 `note.json`：konachan `list[114]`、sakugabooru `list[82]`、yande.re `list[22]`），这是数据差异。
+
+
+
+| 出口 | 结果 |
+| :--- | :--- |
+| `http://proxy-host:port` | 13/13 请求 `403`、`Server: cloudflare`、`Just a moment...` |
+| `http://proxy-host:port` | 14/14 请求 `200`（含 `/`、`/help/api` 与上表全部端点） |
+
+域名与站点本身正常；这也解释了后来 `konachan.net` 反而是先能用上的那个域名。
+
+#### `konachan.net` 是同站的过滤镜像
+
+同一时刻取两域名的最新 5 帖：
+
+| 域名 | `/post.json?limit=5` 的 ID |
+| :--- | :--- |
+| `konachan.com` | `408456, 408455, 408454, 408453, 408452` |
+| `konachan.net` | `408453, 408452, 408451, 408450, 408449` |
+
+两域名同引擎、同 API 版本、同一加盐模板，但可见帖子不一致（`.net` 少掉最新的 3 条）。
+结论：`.net` **不能**当作 `.com` 的等价备份，配置里保留 `.com`。
+
+#### `help/api` 的 `Accept` 伪影
+
+| 请求头 | `yande.re` | `konachan.com` | `sakugabooru.com` |
+| :--- | :--- | :--- | :--- |
+| `Accept: application/json` | `404` HTML 404 页（550 B） | `404` 空正文 | `404` 空正文 |
+| `Accept: text/html,application/xhtml+xml` | `200`（42930 B） | `200`（44403 B） | `200`（44166 B） |
+
+本轮早先一次把 `/help/api` 记为 `404` 就是只发了 `Accept: application/json`：
+本库固定发这个头，帮助页只有 HTML 模板，于是落到兜底路由。**这不是站点缺页面，也不是路由不存在**；
+该行为已补进 [moebooru-api.md](moebooru-api.md) 的 HTML-only 清单。
+
+#### 清单变更与未采用的站
+
+- 新增 `sakugabooru` → `https://sakugabooru.com`，`api_version` 与 `hash_string` 取站点自述值；
+  样例配置与 [configuration.md](configuration.md)、[moebooru.md](moebooru.md) 已同步。
+- `lolibooru`（样例中既有的历史条目）**当前不可达**：经 `proxy-host:port` 得到
+  `ProxyError: Tunnel connection failed: 502 Bad Gateway`，经 `proxy-host:port` 得到
+  未做 DNS 层面确认，是否从样例清单移除由用户决定，本轮不动它。
+- 报告中归入「Danbooru 系」的 Gelbooru、TBIB 实际运行 Gelbooru 引擎，不在本库两个引擎契约内，
+  未做探测；「都不属于」的站点同理。

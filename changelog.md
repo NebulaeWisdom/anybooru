@@ -17,6 +17,8 @@
   `config_file` 默认为当前工作目录下的该文件，缺失时抛 `FileNotFoundError`；
   不搜索安装目录、不读环境变量、没有内置站点后备。
 - 删除 `resources.SITE_LIST` 与 `HTTP_STATUS_CODE`（站点清单改由配置提供）。
+- `sites` 样例新增 Moebooru 系站点 `sakugabooru`（`https://sakugabooru.com`）：API 版本与
+  加盐模板取自该站 `help/api` 自述，匿名只读端点已实测。
 - 新增 `client.config`（解析后的配置）、`last_call` 记录每次请求的最终 URL 与状态。
 - 认证改为按 “`username` 或 `api_key` 任一非空” 自动附加 HTTP Basic，缺项为空串；
   两项都空才匿名，凭据不完整由服务端返回 `401`，不再静默降级。
@@ -107,6 +109,9 @@
 - 所有需要登录的写接口仅做到源码对齐，**未做线上实测**；
 - Moebooru 面的匿名只读端点由维护者按同样方式记录在 [docs/verification.md](docs/verification.md)，
   本文不重复其结果；Moebooru 的写接口与账号动作未实测；
+- 按用户提供的架构报告复核归属 Moebooru 的 Konachan / Sakugabooru / Yande.re：三站页脚自述
+  `Running Moebooru 6.0.0`、`help/api` 自述 API 版本 `1.13.0+update.3`，12 个只读列表端点在
+  全部 `200`；`konachan.com` 的可达性取决于网络环境（被 Cloudflare 挑战时会得到 `403`），
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 ## Pybooru 4.2.2 - (2020-10-17)
