@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """列出 Moebooru 系站点的帖子。
 
-Moebooru 面的方法签名保持旧版不变，参数直接作为顶层参数发送。
-其线上可用性尚未验证，详见 docs/moebooru.md。
+搜索与分页参数按顶层参数发送；页码和样本数量从根配置读取。
 """
 
 import argparse
@@ -23,9 +22,12 @@ def main():
 
     with Moebooru(site, config_file=args.config) as client:
         example = client.config['examples']['moebooru']
-        posts = client.post_list(tags=example['tags'], limit=example['limit'])
-        for post in posts:
-            print(post['id'], post['file_url'])
+        for page in example['pages']:
+            posts = client.post_list(tags=example['tags'], page=page,
+                                     limit=example['limit'])
+            print('page:', page)
+            for post in posts:
+                print(post['id'], post['file_url'])
 
 
 if __name__ == '__main__':

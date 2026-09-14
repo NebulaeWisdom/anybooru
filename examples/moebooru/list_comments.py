@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""列出 Moebooru 系站点的标签。
-
-Moebooru 面的参数是顶层参数（不像 Danbooru 面那样有 search[...] 字典）。
-"""
+"""匿名读取 Moebooru 的最新评论；不发送写请求。"""
 
 import argparse
 import json
@@ -11,7 +8,7 @@ from pybooru import Moebooru
 
 
 def main():
-    parser = argparse.ArgumentParser(description='列出 Moebooru 系站点的标签')
+    parser = argparse.ArgumentParser(description='列出 Moebooru 评论')
     parser.add_argument('--config', default='pybooru.json',
                         help='根配置文件路径（默认 pybooru.json）')
     parser.add_argument('--site', default='', help='站点名，留空则取 examples.moebooru.site')
@@ -22,9 +19,11 @@ def main():
 
     with Moebooru(site, config_file=args.config) as client:
         example = client.config['examples']['moebooru']
-        for tag in client.tag_list(limit=example['limit'],
-                                   order=example['tag_order']):
-            print(tag['name'], tag['count'])
+        comments = client.comment_search(example['comment_query'])
+        print('comments:', len(comments))
+        for comment in comments[:example['limit']]:
+            print(comment['id'], comment['post_id'],
+                  comment['body'][:example['preview_chars']])
 
 
 if __name__ == '__main__':

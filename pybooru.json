@@ -60,11 +60,16 @@
       "comment_body": "示例评论"
     },
     "moebooru": {
-      "site": "konachan",
+      "site": "yandere",
       "tags": "rating:s",
       "limit": 3,
-      "post_id": 1,
-      "comment_body": "示例评论"
+      "pages": [1, 2],
+      "tag_order": "count",
+      "comment_query": "",
+      "wiki_query": "touhou",
+      "related_tags": "touhou",
+      "related_type": "general",
+      "preview_chars": 120
     }
   },
   "verification": {
@@ -91,6 +96,22 @@
     "comment_group_by": "comment",
     "invalid_tags": "touhou 1girl solo",
     "missing_post_id": 0,
-    "invalid_page": 1001
+    "invalid_page": 1001,
+    "moebooru": {
+      "site": "yandere",
+      "limit": 2,
+      "pages": [1, 2],
+      "pause_seconds": 1,
+      "post_tags": "rating:s",
+      "tag_name": "touhou",
+      "related_tags": "touhou",
+      "related_type": "general",
+      "artist_name": "fuzichoco",
+      "comment_query": "",
+      "wiki_query": "touhou",
+      "user_name": "admin",
+      "missing_comment_id": 0,
+      "invalid_date": {"year": 2026, "month": 13, "day": 1}
+    }
   }
 }

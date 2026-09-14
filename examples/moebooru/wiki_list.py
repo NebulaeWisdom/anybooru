@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """列出 Moebooru 系站点的 wiki 页面。
 
-Moebooru 面未重写，只迁移了共享配置用法；未做线上验证。
+query 是顶层标题搜索参数，不使用 Danbooru 的 search 字典。
 """
 
 import argparse
@@ -22,7 +22,8 @@ def main():
 
     with Moebooru(site, config_file=args.config) as client:
         example = client.config['examples']['moebooru']
-        for page in client.wiki_list(limit=example['limit']):
+        for page in client.wiki_list(query=example['wiki_query'],
+                                     limit=example['limit']):
             print(page['title'])
 
 
