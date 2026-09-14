@@ -594,255 +594,696 @@ class MoebooruApi_Mixin(object):
         return self.request("POST", "dmail/mark_all_read",
                             data={"commit": "Yes"})
 
-    def tag_list(self, **params):
-        """Get a list of tags.
-
-        Parameters:
-            name (str): The exact name of the tag.
-            id (int): The id number of the tag.
-            limit (int): How many tags to retrieve. Setting this to 0 will
-                         return every tag (Default value: 0).
-            page (int): The page number.
-            order (str): Can be 'date', 'name' or 'count'.
-            after_id (int): Return all tags that have an id number greater
-                            than this.
-        """
-        return self.request('GET', 'tag', params=params)
-
-    def tag_update(self, name=None, tag_type=None, is_ambiguous=None):
-        """Action to lets you update tag (Requires login) (UNTESTED).
-
-        Parameters:
-            name (str): The name of the tag to update.
-            tag_type (int):
-                * General: 0.
-                * artist: 1.
-                * copyright: 3.
-                * character: 4.
-            is_ambiguous (int): Whether or not this tag is ambiguous. Use 1
-                                for True and 0 for False.
-        """
-        params = {
-            'name': name,
-            'tag[tag_type]': tag_type,
-            'tag[is_ambiguous]': is_ambiguous
-            }
-        return self.request('PUT', 'tag/update', data=params)
-
-    def tag_related(self, **params):
-        """Get a list of related tags.
-
-        Parameters:
-            tags (str): The tag names to query.
-            type (str): Restrict results to this tag type. Can be general,
-                        artist, copyright, or character.
-        """
-        return self.request('GET', 'tag/related', params=params)
+    # ------------------------------------------------------------------
+    # Artists
+    # ------------------------------------------------------------------
 
     def artist_list(self, **params):
-        """Get a list of artists.
+        """Get a list of artists (anonymous).
 
         Parameters:
-            name (str): The name (or a fragment of the name) of the artist.
-            order (str): Can be date or name.
-            page (int): The page number.
-        """
-        return self.request('GET', 'artist', params=params)
+            name (str): Name prefix filter.
+            url (str): Filter by one of the artist's URLs.
+            order (str): ``name`` (default) or ``date``.
+            page (int): Page number (25 per page, 50 when filtering by name or
+                url).
 
-    def artist_create(self, name, urls=None, alias=None, group=None):
-        """Function to create an artist (Requires login) (UNTESTED).
+        Rows are ``{id, name, alias_id, group_id, urls}``; the controller does
+        not read ``limit``.
+        """
+        return self.request("GET", "artist", params=params)
+
+    def artist_create(self, name, **attributes):
+        """Create an artist (requires login; member level).
 
         Parameters:
-            name (str): The artist's name.
-            urls (str): A list of URLs associated with the artist, whitespace
-                        delimited.
-            alias (str): The artist that this artist is an alias for. Simply
-                         enter the alias artist's name.
-            group (str): The group or cicle that this artist is a member of.
-                         Simply:param  enter the group's name.
+            name (str): The artist name.
+
+        Attributes:
+            alias_name (str): Name of the artist this one is an alias of.
+            alias_names (str): Space-separated other names.
+            member_names (str): Space-separated group members.
+            urls (str): Whitespace-separated URLs.
+            notes (str): Free-form notes.
+
+        ``artist[alias]`` and ``artist[group]`` are not permitted keys. The
+        reply is ``{success: true}``; validation answers 420.
         """
-        params = {
-            'artist[name]': name,
-            'artist[urls]': urls,
-            'artist[alias]': alias,
-            'artist[group]': group
-            }
-        return self.request('POST', 'artist/create', data=params)
+        return self.request("POST", "artist/create",
+                            data=_model("artist", dict(attributes, name=name)))
 
-    def artist_update(self, artist_id, name=None, urls=None, alias=None,
-                      group=None):
-        """Function to update artists (Requires Login) (UNTESTED).
-
-        Only the artist_id parameter is required. The other parameters are
-        optional.
+    def artist_update(self, artist_id, **attributes):
+        """Update an artist (requires login; member level).
 
         Parameters:
-            artist_id (int): The id of thr artist to update (Type: INT).
-            name (str): The artist's name.
-            urls (str): A list of URLs associated with the artist, whitespace
-                        delimited.
-            alias (str): The artist that this artist is an alias for. Simply
-                         enter the alias artist's name.
-            group (str): The group or cicle that this artist is a member of.
-                         Simply enter the group's name.
+            artist_id (int): The artist id.
+
+        Attributes: the same permitted set as :meth:`artist_create` plus
+        ``name``. The reply is ``{success: true}``.
         """
-        params = {
-            'id': artist_id,
-            'artist[name]': name,
-            'artist[urls]': urls,
-            'artist[alias]': alias,
-            'artist[group]': group
-            }
-        return self.request('PUT', 'artist/update', data=params)
+        return self.request("POST", "artist/update",
+                            data=dict(_model("artist", attributes),
+                                      id=artist_id))
 
     def artist_destroy(self, artist_id):
-        """Action to lets you remove artist (Requires login) (UNTESTED).
+        """Delete an artist (privileged level; POST).
 
         Parameters:
-            artist_id (int): The id of the artist to destroy.
+            artist_id (int): The artist id.
+
+        The confirmation selector ``commit='Yes'`` is part of the endpoint:
+        without it the action redirects to the artist index without deleting.
         """
-        return self.request('POST', 'artist/destroy', data={'id': artist_id})
+        return self.request("POST", "artist/destroy",
+                            data={"id": artist_id, "commit": "Yes"})
+
+    # ------------------------------------------------------------------
+    # Tags
+    # ------------------------------------------------------------------
+
+    def tag_list(self, **params):
+        """Get a list of tags (anonymous).
+
+        Parameters:
+            name (str): Substring match; ``*`` makes it a raw SQL pattern.
+            id (int): Exact tag id.
+            type (int): Tag type (0 general, 1 artist, 3 copyright,
+                4 character).
+            after_id (int): Tags with an id greater than or equal to this.
+            order (str): ``name`` (default), ``date`` or ``count``.
+            limit (int): Tags per page (default 50); ``0`` returns every tag.
+            page (int): Page number.
+
+        Rows are ``{id, name, count, type, ambiguous}``. The ``name_pattern``
+        parameter of the old help page is not implemented by the controller.
+        """
+        return self.request("GET", "tag", params=params)
+
+    def tag_related(self, **params):
+        """Get tags that co-occur with the given tags (anonymous).
+
+        Parameters:
+            tags (str): Whitespace-separated tags; ``%``, ``/`` and ``*`` are
+                stripped and names are lowercased by the controller.
+            type (str): Restrict to one tag type from the site configuration.
+
+        Returns the object ``{'tag': [[name, count], ...]}`` capped at 25
+        entries; there is no limit parameter.
+        """
+        return self.request("GET", "tag/related", params=params)
+
+    def tag_update(self, name, **attributes):
+        """Update a tag (requires login; member level; POST only).
+
+        Parameters:
+            name (str): Tag name, sent as ``tag[name]`` (a top-level ``name``
+                would be ignored; ``PUT /tag/update`` is not routed).
+
+        Attributes:
+            tag_type (int), is_ambiguous (str): ``'1'`` marks the tag
+                ambiguous.
+
+        The reply is ``{success: true}``; an unknown tag answers 404.
+        """
+        return self.request("POST", "tag/update",
+                            data=_model("tag", dict(attributes, name=name)))
+
+    def tag_autocomplete_name(self, term):
+        """Autocomplete tag names (anonymous; JSON only).
+
+        Parameters:
+            term (str): Substring to match.
+
+        Returns up to 20 names ordered by length then alphabetically.
+        """
+        return self.request("GET", "tag/autocomplete_name",
+                            params={"term": term})
+
+    def tag_summary(self, **params):
+        """Get the cached tag summary (anonymous; JSON only).
+
+        Parameters:
+            version (int): Previously received summary version; when it is
+                still current the reply is ``{version, unchanged: true}``.
+
+        Otherwise the reply carries the summary data.
+        """
+        return self.request("GET", "tag/summary", params=params)
+
+    def tag_mass_edit(self, start, result):
+        """Rename one tag to another everywhere (moderator level; POST only).
+
+        Parameters:
+            start (str): Tag to replace.
+            result (str): Replacement tag.
+
+        The JSON contract exists only on sites with asynchronous tasks
+        enabled, where the work is queued and answered with
+        ``{success: true}``; the synchronous branch has no JSON response and
+        fails with a format error instead. An empty ``start`` answers 424.
+        """
+        return self.request("POST", "tag/mass_edit",
+                            data={"start": start, "result": result})
+
+    def tag_alias_list(self, **params):
+        """Get tag aliases (anonymous).
+
+        Parameters:
+            query (str): Match against alias names and their targets.
+            page (int): Page number (20 per page).
+            commit (str): ``'Search Implications'`` redirects to the
+                implication list with the same query.
+
+        Rows are ``{id, name, alias_id, pending}``.
+        """
+        return self.request("GET", "tag_alias", params=params)
+
+    def tag_alias_create(self, name, alias_name, reason=None):
+        """Create a tag alias (requires login; POST only).
+
+        Parameters:
+            name (str): The alias name, sent as ``tag_alias[name]``.
+            alias_name (str): The target tag, sent as ``tag_alias[alias]``;
+                named ``alias_name`` here because ``alias`` is a Python
+                keyword.
+            reason (str): Reason shown to moderators.
+
+        The action redirects to the alias list, which the client follows; the
+        final GET is not a write confirmation.
+        """
+        return self.request("POST", "tag_alias/create",
+                            data=_model("tag_alias", {"name": name,
+                                                      "alias": alias_name,
+                                                      "reason": reason}))
+
+    def tag_alias_update(self, aliases, commit, reason=None):
+        """Approve or delete tag aliases (moderator level, or the creator of a
+        pending alias when deleting).
+
+        Parameters:
+            aliases (dict): Alias id -> any value mapping, sent as
+                ``aliases[<id>]``; only the keys are read.
+            commit (str): ``'Delete'`` or ``'Approve'``; any other value
+                answers 400.
+            reason (str): Reason passed to the deletion notification.
+
+        ``'Delete'`` redirects to the alias list, which the client follows.
+        ``'Approve'`` redirects to the HTML-only job task page, so following it
+        raises a format error (406) *even when the approval jobs were created*:
+        do not retry the call blindly, verify with :meth:`tag_alias_list`.
+        """
+        return self.request("POST", "tag_alias/update",
+                            data={"aliases": aliases, "commit": commit,
+                                  "reason": reason})
+
+    def tag_implication_list(self, **params):
+        """Get tag implications (anonymous).
+
+        Parameters:
+            query (str): Match against the predicate and consequent names.
+            page (int): Page number (20 per page).
+            commit (str): ``'Search Aliases'`` redirects to the alias list
+                with the same query.
+
+        Rows are ``{id, consequent_id, predicate_id, pending}``.
+        """
+        return self.request("GET", "tag_implication", params=params)
+
+    def tag_implication_create(self, predicate, consequent, reason=None):
+        """Create a tag implication (requires login; POST only).
+
+        Parameters:
+            predicate (str), consequent (str): Sent as
+                ``tag_implication[predicate]`` and
+                ``tag_implication[consequent]``.
+            reason (str): Reason shown to moderators.
+
+        The action redirects to the implication list, which the client follows;
+        the final GET is not a write confirmation.
+        """
+        return self.request("POST", "tag_implication/create",
+                            data=_model("tag_implication",
+                                        {"predicate": predicate,
+                                         "consequent": consequent,
+                                         "reason": reason}))
+
+    def tag_implication_update(self, implications, commit, reason=None):
+        """Approve or delete tag implications (moderator level, or the creator
+        of a pending implication when deleting).
+
+        Parameters:
+            implications (dict): Implication id -> any value mapping, sent as
+                ``implications[<id>]``.
+            commit (str): ``'Delete'`` or ``'Approve'``; any other value
+                answers 400.
+            reason (str): Reason passed to the deletion notification.
+
+        ``'Delete'`` redirects to the implication list. ``'Approve'`` redirects
+        to the HTML-only job task page, so following it raises a format error
+        (406) even when the approval jobs were created; verify the result
+        instead of retrying blindly.
+        """
+        return self.request("POST", "tag_implication/update",
+                            data={"implications": implications,
+                                  "commit": commit, "reason": reason})
+
+    # ------------------------------------------------------------------
+    # Comments
+    # ------------------------------------------------------------------
+
+    def comment_list(self, **params):
+        """Get comments (anonymous).
+
+        Parameters:
+            post_id (int): Restrict to one post; otherwise all comments are
+                listed.
+            page (int): Page number (25 per page; ``limit`` is ignored by the
+                controller).
+
+        The route needs the explicit ``.json`` suffix, which the client always
+        sends: the controller chooses JSON by format parameter, not by the
+        Accept header, so an HTML request would be returned otherwise.
+        """
+        return self.request("GET", "comment", params=params)
+
+    def comment_search(self, query, **params):
+        """Full-text search over comment bodies (anonymous).
+
+        Parameters:
+            query (str): Search phrase; ``user:<name>`` narrows it to one
+                author.
+            page (int): Page number (30 per page).
+        """
+        return self.request("GET", "comment/search",
+                            params=dict(params, query=query))
 
     def comment_show(self, comment_id):
-        """Get a specific comment.
+        """Get one comment (anonymous).
 
         Parameters:
-            comment_id (str): The id number of the comment to retrieve.
+            comment_id (int): The comment id; unknown ids answer 404.
         """
-        return self.request('GET', 'comment/show', params={'id': comment_id})
+        return self.request("GET", "comment/show", params={"id": comment_id})
 
-    def comment_create(self, post_id, comment_body, anonymous=None):
-        """Action to lets you create a comment (Requires login).
+    def comment_create(self, post_id, body):
+        """Post a comment (requires login; member level; POST only).
 
         Parameters:
-            post_id (int): The post id number to which you are responding.
-            comment_body (str): The body of the comment.
-            anonymous (int): Set to 1 if you want to post this comment
-                             anonymously.
+            post_id (int): The post to comment on, sent as
+                ``comment[post_id]``.
+            body (str): Comment text, sent as ``comment[body]``.
+
+        ``comment[anonymous]`` is not a permitted key. The hourly member limit
+        answers 421 and validation 420.
         """
-        params = {
-            'comment[post_id]': post_id,
-            'comment[body]': comment_body,
-            'comment[anonymous]': anonymous
-            }
-        return self.request('POST', 'comment/create', data=params)
+        return self.request("POST", "comment/create",
+                            data=_model("comment", {"post_id": post_id,
+                                                    "body": body}))
+
+    def comment_update(self, comment_id, **attributes):
+        """Edit a comment (requires login; author or moderator).
+
+        Parameters:
+            comment_id (int): The comment id.
+
+        Attributes:
+            body (str), post_id (int).
+
+        The server answers 403 without edit permission.
+        """
+        return self.request("POST", "comment/update",
+                            data=dict(_model("comment", attributes),
+                                      id=comment_id))
 
     def comment_destroy(self, comment_id):
-        """Remove a specific comment (Requires login).
+        """Delete a comment (requires login; author or moderator).
 
         Parameters:
-            comment_id (int): The id number of the comment to remove.
+            comment_id (int): The comment id. The server answers 403 without
+                permission.
         """
-        return self.request('DELETE', 'comment/destroy', data={'id': comment_id})
+        return self.request("POST", "comment/destroy", data={"id": comment_id})
+
+    def comment_mark_as_spam(self, comment_id):
+        """Flag a comment as spam (POST only).
+
+        Parameters:
+            comment_id (int): The comment id.
+
+        This route carries no login or permission filter in the controller, so
+        an anonymous client can call it. The comment is only marked; the reply
+        is ``{success: true}``.
+        """
+        return self.request("POST", "comment/mark_as_spam",
+                            data={"id": comment_id})
+
+    # ------------------------------------------------------------------
+    # Wiki pages
+    # ------------------------------------------------------------------
 
     def wiki_list(self, **params):
-        """Function to retrieves a list of every wiki page.
+        """Get wiki pages (anonymous).
 
         Parameters:
-            query (str): A word or phrase to search for (Default: None).
-            order (str): Can be: title, date (Default: title).
-            limit (int): The number of pages to retrieve (Default: 100).
-            page (int): The page number.
+            query (str): Title search; a ``title:`` prefix drops the body
+                search.
+            order (str): ``title`` (default) or ``date``.
+            limit (int): Pages per response (default 25).
+            page (int): Page number.
+
+        Rows are ``{id, created_at, updated_at, title, body, updater_id,
+        locked, version}``.
         """
-        return self.request('GET', 'wiki', params=params)
+        return self.request("GET", "wiki", params=params)
+
+    def wiki_history(self, title=None, **params):
+        """Get the versions of a wiki page (anonymous).
+
+        Parameters:
+            title (str): Page title.
+            params: ``id`` selects the page by id when ``title`` is omitted.
+
+        Returns every version, newest first, without pagination.
+        """
+        return self.request("GET", "wiki/history",
+                            params=dict(params, title=title))
+
+    def wiki_recent_changes(self, **params):
+        """Get recently changed wiki pages (anonymous).
+
+        Parameters:
+            user_id (int): Restrict to one editor.
+            per_page (int): Pages per response (default 25).
+            page (int): Page number.
+        """
+        return self.request("GET", "wiki/recent_changes", params=params)
 
     def wiki_create(self, title, body):
-        """Action to lets you create a wiki page (Requires login) (UNTESTED).
+        """Create a wiki page (requires login; member level; POST only).
 
         Parameters:
-            title (str): The title of the wiki page.
-            body (str): The body of the wiki page.
-        """
-        params = {'wiki_page[title]': title, 'wiki_page[body]': body}
-        return self.request('POST', 'wiki/create', data=params)
+            title (str), body (str): Sent as ``wiki_page[title]`` and
+                ``wiki_page[body]``.
 
-    def wiki_update(self, title, new_title=None, page_body=None):
-        """Action to lets you update a wiki page (Requires login) (UNTESTED).
+        Returns ``{success: true, location}``; validation answers 420.
+        """
+        return self.request("POST", "wiki/create",
+                            data=_model("wiki_page", {"title": title,
+                                                      "body": body}))
+
+    def wiki_update(self, title, **attributes):
+        """Update a wiki page (requires login; member level; POST only).
 
         Parameters:
-            title (str): The title of the wiki page to update.
-            new_title (str): The new title of the wiki page.
-            page_body (str): The new body of the wiki page.
-        """
-        params = {
-            'title': title,
-            'wiki_page[title]': new_title,
-            'wiki_page[body]': page_body
-            }
-        return self.request('PUT', 'wiki/update', data=params)
+            title (str): Top-level selector for the page to update.
 
-    def wiki_show(self, **params):
-        """Get a specific wiki page.
+        Attributes:
+            title (str): New title (a rename).
+            body (str): New body.
 
-        Parameters:
-            title (str): The title of the wiki page to retrieve.
-            version (int): The version of the page to retrieve.
+        At least one ``wiki_page[...]`` key must be sent: the controller
+        requires the nested hash and answers 400 when it is missing. A locked
+        page answers 422.
         """
-        return self.request('GET', 'wiki/show', params=params)
+        return self.request("POST", "wiki/update",
+                            data=dict(_model("wiki_page", attributes),
+                                      title=title))
 
     def wiki_destroy(self, title):
-        """Function to delete a specific wiki page (Requires login)
-        (Only moderators) (UNTESTED).
+        """Delete a wiki page (moderator level).
 
         Parameters:
-            title (str): The title of the page to delete.
+            title (str): Page title.
         """
-        return self.request('DELETE', 'wiki/destroy', data={'title': title})
+        return self.request("POST", "wiki/destroy", data={"title": title})
 
     def wiki_lock(self, title):
-        """Function to lock a specific wiki page (Requires login)
-        (Only moderators) (UNTESTED).
+        """Lock a wiki page (moderator level).
 
         Parameters:
-            title (str): The title of the page to lock.
+            title (str): Page title; an unknown title answers 500.
         """
-        return self.request('POST', 'wiki/lock', data={'title': title})
+        return self.request("POST", "wiki/lock", data={"title": title})
 
     def wiki_unlock(self, title):
-        """Function to unlock a specific wiki page (Requires login)
-        (Only moderators) (UNTESTED).
+        """Unlock a wiki page (moderator level).
 
         Parameters:
-            title (str): The title of the page to unlock.
+            title (str): Page title.
         """
-        return self.request('POST', 'wiki/unlock', data={'title': title})
+        return self.request("POST", "wiki/unlock", data={"title": title})
 
     def wiki_revert(self, title, version):
-        """Function to revert a specific wiki page (Requires login) (UNTESTED).
+        """Revert a wiki page to a previous version (requires login).
 
         Parameters:
-            title (str): The title of the wiki page to update.
-            version (int): The version to revert to.
+            title (str): Page title.
+            version (int): ``wiki_page_versions`` version to restore.
+
+        A locked page answers 422. The HTML-only ``wiki/show`` page of the
+        API's earlier help file is not a JSON route, so it is not wrapped here.
         """
-        params = {'title': title, 'version': version}
-        return self.request('PUT', 'wiki/revert', data=params)
+        return self.request("POST", "wiki/revert",
+                            data={"title": title, "version": version})
 
-    def wiki_history(self, title):
-        """Get history of specific wiki page.
-
-        Parameters:
-            title (str): The title of the wiki page to retrieve versions for.
-        """
-        return self.request('GET', 'wiki/history', params={'title': title})
-
-    def user_search(self, **params):
-        """Search users.
-
-        If you don't specify any parameters you'll _get a listing of all users.
-
-        Parameters:
-            id (int): The id number of the user.
-            name (str): The name of the user.
-        """
-        return self.request('GET', 'user', params=params)
+    # ------------------------------------------------------------------
+    # Forum
+    # ------------------------------------------------------------------
 
     def forum_list(self, **params):
-        """Function to get forum posts.
-
-        If you don't specify any parameters you'll _get a listing of all users.
+        """Get forum posts (anonymous).
 
         Parameters:
-            parent_id (int): The parent ID number. You'll return all the
-                             responses to that forum post.
+            parent_id (int): Replies of one topic (100 per page).
+            latest (str): The ten latest posts.
+            page (int): Page number (30 topics per page).
+
+        Rows are ``{id, parent_id, title, body, creator, creator_id,
+        updated_at, pages}``.
         """
-        return self.request('GET', 'forum', params=params)
+        return self.request("GET", "forum", params=params)
+
+    def forum_show(self, forum_id, **params):
+        """Get one forum post (anonymous).
+
+        Parameters:
+            forum_id (int): The post id.
+            params: ``page`` paginates the replies in the HTML view only.
+
+        Returns one forum post object.
+        """
+        return self.request("GET", "forum/show",
+                            params=dict(params, id=forum_id))
+
+    def forum_search(self, query, **params):
+        """Full-text search over forum posts (anonymous).
+
+        Parameters:
+            query (str): Search phrase.
+            page (int): Page number (30 per page).
+        """
+        return self.request("GET", "forum/search",
+                            params=dict(params, query=query))
+
+    def forum_create(self, title, body, **attributes):
+        """Start a forum topic or reply to one (requires login; POST only).
+
+        Parameters:
+            title (str), body (str): Sent as ``forum_post[title]`` and
+                ``forum_post[body]``.
+
+        Attributes:
+            parent_id (int): Post to reply to; ``0`` or omitted starts a new
+                topic.
+
+        The action redirects to the topic, whose JSON page the client follows;
+        the final GET is not a write confirmation.
+        """
+        return self.request("POST", "forum/create",
+                            data=_model("forum_post",
+                                        dict(attributes, title=title,
+                                             body=body)))
+
+    def forum_update(self, forum_id, **attributes):
+        """Edit a forum post (requires login; creator or moderator).
+
+        Parameters:
+            forum_id (int): The post id.
+
+        Attributes:
+            title (str), body (str), parent_id (int).
+
+        The action redirects to the topic; the server answers 403 without edit
+        permission.
+        """
+        return self.request("POST", "forum/update",
+                            data=dict(_model("forum_post", attributes),
+                                      id=forum_id))
+
+    def forum_destroy(self, forum_id):
+        """Delete a forum post or topic (requires login; creator or moderator).
+
+        Parameters:
+            forum_id (int): The post id.
+        """
+        return self.request("POST", "forum/destroy", data={"id": forum_id})
+
+    def forum_lock(self, forum_id):
+        """Lock a forum topic (moderator level).
+
+        Parameters:
+            forum_id (int): The topic id, read from the body for this route.
+        """
+        return self.request("POST", "forum/lock", data={"id": forum_id})
+
+    def forum_unlock(self, forum_id):
+        """Unlock a forum topic (moderator level).
+
+        Parameters:
+            forum_id (int): The topic id.
+        """
+        return self.request("POST", "forum/unlock", data={"id": forum_id})
+
+    def forum_stick(self, forum_id):
+        """Pin a forum topic (moderator level).
+
+        Parameters:
+            forum_id (int): The topic id.
+        """
+        return self.request("POST", "forum/stick", data={"id": forum_id})
+
+    def forum_unstick(self, forum_id):
+        """Unpin a forum topic (moderator level).
+
+        Parameters:
+            forum_id (int): The topic id.
+        """
+        return self.request("POST", "forum/unstick", data={"id": forum_id})
+
+    def forum_mark_all_read(self):
+        """Mark every forum post as read (requires login).
+
+        The endpoint answers an empty 204, so the client returns ``None``.
+        """
+        return self.request("POST", "forum/mark_all_read")
+
+    # ------------------------------------------------------------------
+    # Users
+    # ------------------------------------------------------------------
+
+    def user_list(self, **params):
+        """Get a list of users (anonymous).
+
+        Parameters:
+            name (str): Substring match on the name.
+            level (int): Exact user level.
+            id (int): Exact user id.
+            order (str): Result order.
+            page (int): Page number.
+
+        Rows carry only ``{name, id}``.
+        """
+        return self.request("GET", "user", params=params)
+
+    def user_autocomplete_name(self, term):
+        """Autocomplete user names (anonymous; JSON only).
+
+        Parameters:
+            term (str): Substring to match; shorter than two characters, the
+                server returns an empty list.
+        """
+        return self.request("GET", "user/autocomplete_name",
+                            params={"term": term})
+
+    def user_check(self, username, password):
+        """Check a username and password (POST only).
+
+        Parameters:
+            username (str), password (str): Sent in clear text as top-level
+                fields; this distinct endpoint expects the plain password, not
+                the configured password hash.
+
+        Returns the login helper payload ``{response, exists, name, id,
+        no_email, pass_hash, user_info}``. Source-aligned only; not exercised
+        against a live site.
+        """
+        return self.request("POST", "user/check",
+                            data={"username": username, "password": password})
+
+    def user_create(self, name, password, password_confirmation, **attributes):
+        """Register a user (anonymous; POST only).
+
+        Parameters:
+            name (str), password (str), password_confirmation (str): Sent as
+                ``user[name]``, ``user[password]`` and
+                ``user[password_confirmation]``.
+
+        Attributes: the remaining ``user[...]`` settings (``email``,
+        ``blacklisted_tags`` and the display switches).
+
+        Registration answers 200 even when it fails:
+        ``{response: 'success' | 'error', errors: [...]}``. Source-aligned only;
+        not exercised against a live site.
+        """
+        user = {"name": name, "password": password,
+                "password_confirmation": password_confirmation}
+        return self.request("POST", "user/create",
+                            data=_model("user", dict(attributes, **user)))
+
+    def user_update(self, **attributes):
+        """Update the logged-in user's settings (requires login; POST).
+
+        Attributes: ``email``, ``current_password``, ``password``,
+        ``password_confirmation``, ``blacklisted_tags``,
+        ``always_resize_images``, ``receive_dmails``, ``show_samples``,
+        ``use_browser``, ``show_advanced_editing`` and ``pool_browse_mode``.
+
+        The reply is ``{success: true}``; validation answers 420.
+        """
+        return self.request("POST", "user/update", data=_model("user", attributes))
+
+    def user_authenticate(self, **params):
+        """Re-authenticate the current session (requires login).
+
+        Parameters:
+            url (str): Site-relative path to return to; other values are
+                ignored by the controller.
+        """
+        return self.request("POST", "user/authenticate", data=params)
+
+    def user_modify_blacklist(self, add=None, remove=None):
+        """Add to and remove from the logged-in user's tag blacklist (requires
+        login).
+
+        Parameters:
+            add (list): Tags to append, sent as repeated ``add[]`` fields.
+            remove (list): Tags to drop, sent as repeated ``remove[]`` fields.
+
+        Returns ``{success: true, result: [...]}`` with the new blacklist.
+        """
+        return self.request("POST", "user/modify_blacklist",
+                            data={"add": add, "remove": remove})
+
+    def user_reset_password(self, name, email):
+        """Request a password reset mail (anonymous; POST).
+
+        Parameters:
+            name (str), email (str): Sent as ``user[name]`` and
+                ``user[email]``; both must match the same account.
+
+        Returns ``{result: 'success'}``, or answers 500 with ``result`` set to
+        ``'unknown-user'``, ``'no-email'`` or ``'wrong-email'``. Source-aligned
+        only; not exercised against a live site.
+        """
+        return self.request("POST", "user/reset_password",
+                            data=_model("user", {"name": name, "email": email}))
+
+    def user_record_destroy(self, user_record_id):
+        """Delete a user record (privileged level, and moderator or reporter).
+
+        Parameters:
+            user_record_id (int): The record id; the server answers 403
+                without permission.
+        """
+        return self.request("POST", "user_record/destroy",
+                            data={"id": user_record_id})
