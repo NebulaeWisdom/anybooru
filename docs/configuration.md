@@ -136,6 +136,19 @@ Serika 示例使用根样例中的 `examples.serika`，不与 Rails 两家的搜
 
 每个键是一个站点名，值是**同一个名称**在客户端构造函数中引用到的配置。
 
+这一段是**样例 / 起始清单，不是支持边界**：
+
+* 库不读任何内置站点表，也不对站点名做白名单校验——`site_name` 在 `sites` 里查不到就
+  直接 `KeyError`，不会回落到别的地址（`resources.py` 只做 `json.load`，`pybooru.py` 只做一次字典取值）；
+* 名单外的站点只要跑同一套引擎，就能直接用：构造时传 `site_url`（Moebooru 还必须同时传
+  `api_version`），完全绕开本段；
+* 反过来，名单里的站点**不保证每个能力都可用**：站点自己会关闭部分功能、按权限裁剪返回内容，
+  网络侧也可能只挡住你这条线路（例如 `konachan.com` 在某些网络上得到 Cloudflare 挑战页）。
+
+支持范围由**引擎契约**决定，而不是由这份清单决定：Danbooru 引擎看
+[danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)。
+按需增删站点键是正常用法，把清单当成“只支持这些站”会误判。
+
 Danbooru 系站点（Danbooru 引擎）：
 
 | 键 | 类型 | 说明 |

@@ -62,7 +62,9 @@ pip install --user Pybooru
 
 `config_file` 默认为**当前工作目录**下的 `pybooru.json`：把它复制到你的应用工作目录，或用
 `config_file` 显式指向别处。库不会去安装目录里找它，文件不存在时直接抛 `FileNotFoundError`，
-也没有内置站点作为后备。
+也没有内置站点作为后备。`sites` 段是**样例 / 起始清单，不是支持边界**：名单外的同引擎站点
+可以直接用 `site_url`（Moebooru 另需 `api_version`）接入，见
+[docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md#sites-段)。
 
 完整的根样例（含 Moebooru 站点、`examples`、`verification` 段）见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md)。

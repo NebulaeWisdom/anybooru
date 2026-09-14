@@ -11,7 +11,11 @@
 ## 站点
 
 根样例 `pybooru.json` 的 `sites` 段里，Moebooru 系条目都做过匿名线上探测，除注明外
-均为「页脚显示运行 Moebooru、`help/api` 自述 API 版本、各只读列表端点返回 JSON」：
+均为「页脚显示运行 Moebooru、`help/api` 自述 API 版本、各只读列表端点返回 JSON」。
+**下表是样例清单，不是支持边界**：任何跑 Moebooru 引擎的站点都可以用
+`Moebooru(site_url=..., api_version=...)` 直接接入，不必先在配置里登记；反过来，
+列在这里也不保证每个能力都可用（站点会自行关闭部分功能）。清单语义见
+[configuration.md](configuration.md#sites-段)。
 
 | 键 | 地址 | 站点自述 API 版本 | 备注 |
 | :--- | :--- | :--- | :--- |
