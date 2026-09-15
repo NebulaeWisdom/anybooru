@@ -75,6 +75,15 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
     "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
   },
   "examples": {
+    "serika": {
+      "site": "serika",
+      "image_query": {"page": 1, "limit": 3, "ratings": "safe", "sort": "newest"},
+      "user_query": {"page": 1, "limit": 1, "sort": "newest"},
+      "tag_query": {"limit": 3},
+      "artist_query": {"page": 1, "limit": 3},
+      "random_size": {"width": 400, "height": 400},
+      "random_query": {"ratings": "safe", "format": "png", "fit": "cover"}
+    },
     "danbooru": {
       "site": "danbooru",
       "tags": "rating:g",
