@@ -16,7 +16,7 @@ Pybooru modules:
     api_danbooru -- Contains all Danbooru API functions.
     api_serika -- Contains official v1 and internal Serika API functions.
     exceptions -- Manages and builds Pybooru errors messages.
-    resources -- Contains all resources for Pybooru.
+    resources -- Packaged default parameters (DEFAULT_CONFIG_FILE) and encoding.
 """
 
 __version__ = "5.0.0.dev1"
@@ -29,3 +29,4 @@ from .moebooru import Moebooru
 from .danbooru import Danbooru
 from .serika import Serika
 from .exceptions import (PybooruError, PybooruAPIError, PybooruHTTPError)
+from .resources import DEFAULT_CONFIG_FILE

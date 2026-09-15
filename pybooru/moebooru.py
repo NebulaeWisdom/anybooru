@@ -11,7 +11,7 @@ class Moebooru(_Pybooru, MoebooruApi_Mixin):
 
     def __init__(self, site_name=None, site_url=None, username=None, password=None,
                  hash_string=None, api_version=None, proxies=None, *,
-                 config_file="pybooru.json", timeout=None, user_agent=None):
+                 config_file=None, timeout=None, user_agent=None):
         super().__init__(site_name, site_url, username, proxies,
                          config_file=config_file, timeout=timeout,
                          user_agent=user_agent)

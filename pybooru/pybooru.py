@@ -7,10 +7,14 @@ from .resources import encode_params, load_config
 
 
 class _Pybooru:
-    """Load one explicit parameter file and own one requests session."""
+    """Load one parameter file and own one requests session.
+
+    `config_file=None` selects the `pybooru.json` installed inside this
+    package; any other value is used as the path of the file to load.
+    """
 
     def __init__(self, site_name=None, site_url=None, username=None, proxies=None,
-                 *, config_file="pybooru.json", timeout=None, user_agent=None):
+                 *, config_file=None, timeout=None, user_agent=None):
         self.config = load_config(config_file)
         self.site_settings = self.config["sites"][site_name] if site_name else {}
         settings = self.config["request"]

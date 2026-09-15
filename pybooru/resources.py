@@ -1,11 +1,16 @@
-"""Explicit project configuration and Rails parameter encoding."""
+"""Default parameters shipped with the package and Rails parameter encoding."""
 
 import json
+import os
+
+DEFAULT_CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "pybooru.json")
 
 
-def load_config(path):
-    """Read a JSON parameter file; paths are relative to the working directory."""
-    with open(path, encoding="utf-8") as config_file:
+def load_config(path=None):
+    """Read a JSON parameter file; None selects the packaged default."""
+    with open(DEFAULT_CONFIG_FILE if path is None else path,
+              encoding="utf-8") as config_file:
         return json.load(config_file)
 
 

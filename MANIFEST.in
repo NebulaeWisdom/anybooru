@@ -1,4 +1,4 @@
-include pybooru.json
+include pybooru/pybooru.json
 include changelog.md
 include CONTRIBUTING.md
 recursive-include docs *.md

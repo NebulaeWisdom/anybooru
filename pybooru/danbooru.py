@@ -9,7 +9,7 @@ class Danbooru(_Pybooru, DanbooruApi_Mixin):
     """Access Danbooru routes with Rails parameters and HTTP Basic API auth."""
 
     def __init__(self, site_name=None, site_url=None, username=None, api_key=None,
-                 proxies=None, *, config_file="pybooru.json", timeout=None,
+                 proxies=None, *, config_file=None, timeout=None,
                  user_agent=None):
         super().__init__(site_name, site_url, username, proxies,
                          config_file=config_file, timeout=timeout,
