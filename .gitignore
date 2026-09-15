@@ -23,6 +23,7 @@ venv/
 /danbooru/
 /moebooru/
 /Serika.art/
+/e621ng/
 
 # scratch/process files (temporary work products, never committed)
 temp/
