@@ -16,12 +16,14 @@
 | S1：Serika 客户端示例 | 2026-09-15；`https://serika.art`，`sites.serika.api_key` 为空 | 维护者本机 runner 依次运行三个现有示例 | 8×200；三进程均退出 0、stderr 为空；临时 runner、片段、stdout/stderr/returncode 证据转录后已删除 |
 | D3：Danbooru 候选读路径复核 | 2026-09-15，匿名 GET | 维护者本机脚本；证据文件 | `danbooru.donmai.us` 的 9 个 REST 读路径（含 `users.json` / `autocomplete.json`）全 `200` |
 | D4：Safebooru 客户端复测 | 2026-09-15，匿名 GET | 维护者本机脚本；证据文件 | 16 个客户端方法全 `200`，返回形态与 `danbooru.donmai.us` 一致 |
+| E1：e621ng 示例与形态复核 | 2026-09-15；`https://e621.net` 与 `https://e926.net`，`sites.e621` / `sites.e926`，username/api_key 均空 | 三个现有示例各站跑一遍 + 一轮返回形态复核；两者都保存逐调用记录 | 37 次匿名 GET：36×200、1×403（`related_tag` 匿名拒绝）；6 条示例命令均退出 0 |
 
 | 共享设置 | 实际值 |
 | :--- | :--- |
 | D1 参数 | 根 `verification` 段：站点、关键词、样本规模、间隔，以及 `missing_post_id` / `invalid_page` / `invalid_tags` |
 | M1/M2 参数 | 根 `verification.moebooru`，间隔 1 秒，无客户端自动重试；续跑没有重跑已成功的 15 次 |
 | S1 参数 | 根 `examples.serika`、`verification.serika.scripts`、`verification.serika.pause_seconds=1`；只在示例之间等待，示例内部不额外 sleep / 重试 |
+| E1 参数 | 根 `examples.e621`（示例输入）、`verification.e621`（站点列表、脚本、间隔、形态复核输入）；示例之间 sleep 1 秒，库不重试、不做本地分页 |
 | 本地导入（Moebooru） | `.venv/Scripts/python.exe -c "import pybooru; from pybooru import Moebooru"`，退出 0 |
 | 本地导入（三家族） | `.venv/Scripts/python.exe -c "import pybooru; from pybooru import Serika, Danbooru, Moebooru"`，退出 0，输出 `Serika Danbooru Moebooru` |
 
@@ -238,6 +240,44 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 列表首图与详情 URL 相同：`https://cdn.serika.art/uploads/1788013605888-1788013605888-1q2b2g-danbooru-12074741.png`。
 这验证站内详情的顺序号语义；没有用需 key 的 v1 详情做 ID 对照。控制器、官方文档与实际字段的差异见 [Serika 契约审计附注](serika-contract-notes.md)。
 
+## e621ng：2026-09-15 实现后的匿名调用
+
+E1 是本轮新增客户端后的真实执行：**37 次匿名 GET**，其中 30 次来自三个示例在 e621.net 与 e926.net
+各跑一遍（6 条命令，每条分别为 3、10 或 2 次调用），7 次是返回形态与权限分支的单独复核。除下表标明的 `403`
+外全部 `200`。基址为 `https://e621.net` 与 `https://e926.net`，`sites.e621` / `sites.e926` 的
+`username` 与 `api_key` 都是空串。示例输出只保留摘要：文件走尺寸/大小/md5，标签走计数，评论与笔记
+正文只报长度，不打印媒体 URL 与正文。
+
+### 三个匿名示例
+
+六条命令都不带 `--config`（读包内默认配置），用 `--site` 显式指定站点；六条都退出 0、stderr 为空。
+
+| 站 | 实际命令 | 输出摘要 |
+| :--- | :--- | :--- |
+| e621 | `.venv/Scripts/python.exe examples/e621/list_posts.py --site e621` | `post_list` `/posts.json?tags=rating%3As&limit=2`：2 帖，`6709455`（jpg 2370×2423，score 0）与 `6709449`（png 1817×2832，score 2），均 `rating=s`，各含 `file` 的 ext/size/宽高/md5 与 9 类 `tags` 计数；`post_show(6709455)` 同帖；`post_random` 命中 `1434546`（png 1275×1650，score 32） |
+| e621 | `.venv/Scripts/python.exe examples/e621/browse_resources.py --site e621` | 10 次调用全 `200`：`tag_list(limit=2)` → `anthro`(`7115`,4464327) / `mammal`(`12054`,4398445)；`tag_show(7115)`；`artist_list(limit=2)` → `miindfang`(`126653`) / `weirdmichelle69`(`126652`)，各带 `urls`；`artist_show(126653)`；`comment_list(group_by=comment,limit=2)` → `10071234` / `10071233`；`comment_show(10071234)`；`pool_list(limit=2)` → `58878`(collection) / `59177`(series)；`pool_show(58878)`；`note_list(limit=2)` → `506555` / `506554`；`note_show(506555)` |
+| e621 | `.venv/Scripts/python.exe examples/e621/wiki_pages.py --site e621` | `wiki_page_list(limit=2)` → `rusty_seas`(`112045`) / `buckteeth`(`8473`)；`wiki_page_show('help:api')` 命中 `/wiki_pages/help%3Aapi.json`，返回 `11224`、`is_locked=true` |
+| e926 | `.venv/Scripts/python.exe examples/e621/list_posts.py --site e926` | 3 次调用全 `200`；`post_list` 首帖与 `post_show` 同为 `6709455`；`post_random` 命中 `3065213`（webm 1280×720，score 614） |
+| e926 | `.venv/Scripts/python.exe examples/e621/browse_resources.py --site e926` | 10 次调用全 `200`；标签 `7115`、画师 `126653`、评论 `10071234`、合集 `58878`、笔记 `506555` 的列表首项与详情相符，各列表同样返回 2 条 |
+| e926 | `.venv/Scripts/python.exe examples/e621/wiki_pages.py --site e926` | 2 次调用全 `200`；列表 `112045` / `8473`，`wiki_page_show('help:api')` 返回 `11224` |
+
+### 返回形态与权限分支
+
+| 调用 | 实际请求路径 | HTTP | 真实摘要 |
+| :--- | :--- | :--- | :--- |
+| `post_count(tags='rating:s')` | `/posts/count.json?tags=rating%3As` | 200 | `{"count": 240001, "capped": true}`；e621 与 e926 同值，说明该批次搜索触到分页上限，`count` 是下限 |
+| `request('GET', 'posts', params={'tags': 'rating:s', 'limit': 1})` | `/posts.json?tags=rating%3As&limit=1` | 200 | 原始正文是 `{"posts": [...]}` 信封；首帖是 25 键 legacy 形态（`file` / `preview` / `sample` / `score` / `tags` / `flags` / `pools` / `sources` / `relationships` 等），无 `tag_string` / `file_url` / `media_asset` |
+| `post_list(md5='b37f8af2b4508efb57cfeb08ef2ef5a1')` | `/posts.json?md5=b37f8af2b4508efb57cfeb08ef2ef5a1` | 200 | 线上正文是 `{"post": {...}}`；方法按该分支拆封，返回**单个帖子对象**，字段与上一行同组 |
+| `post_list(tags='rating:s', limit=1, only='id,rating')` | `/posts.json?tags=rating%3As&limit=1&only=id%2Crating` | 200 | 返回数组、没有信封，但元素仍是完整 25 键 legacy 对象：`only` 只去掉信封，**不做字段筛选** |
+| `post_list(tags='rating:s', limit=1, v2=True)` | `/posts.json?tags=rating%3As&limit=1&v2=true` | 200 | 返回数组、没有信封，元素是 18 键 v2 形态：`files` 与 `stats` 为对象、`tags` 为字符串数组 |
+| `related_tag(search={'query': 'wolf', 'category_id': 0})` | `/related_tag.json?search%5Bquery%5D=wolf&search%5Bcategory_id%5D=0` | 403 | `PybooruHTTPError`，`.data` 为 `{"success": false, "reason": "Access Denied"}`，`.http_code` 为 `403` |
+
+这批复核的响应 `Date` 头落在 `Tue, 15 Sep 2026 16:27:20`–`16:27:32 GMT`；三个示例的执行记录同为
+2026-09-15，未记录到秒级时刻。`related_tag_bulk` 没有请求；`related_tag` 仅执行匿名拒绝，两个方法的
+成员成功路径均未实测。已实现只读方法的上游依据见 [e621ng 契约审计附注](e621-contract-notes.md)。
+
+交付中未增加或保留测试文件，未运行项目测试套件、formatter、lint 或构建；上面的数字全部来自真实 HTTP 响应。
+
 ## 边界与未实测
 
 | 范围 | 没有执行 / 不能据现有证据声称 |
@@ -251,8 +291,11 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 | Serika 官方需 key 的 12 方法 | `image_list`、`image_show`、`image_delete`、`image_similar`、`image_batch`、`random_list`、`tag_list`、`tag_show`、`user_show`、`search`、`trending`、`upload`；用户无 key 且不申请，S1 没有请求这些路径；成功响应/认证/权限/限流/批量 JSON/multipart/删除/参数边界没有实测 |
 | Serika 站内另外 10 方法 | `internal_image_comments`、`internal_tag_show`、`internal_tag_autocomplete`、`internal_tag_complementary`、`internal_artist_show`、`internal_artist_wiki`、`internal_artist_reviews`、`internal_user_list`、`internal_user_show`、`internal_user_activity`：只核对匿名可读源码 |
 | Serika 错误及部署 | S1 未发错误请求，不声称覆盖 401/403/404/429、PNG 占位或二进制错误；`.data['code']` 可读仅由源码确认；无其他自托管部署验证 |
-| 非能力范围 | 未实现 Serika cookie 登录、私有交互/资源写操作；未申请或实测需要 key 的候选站调用 |
-| 工程流程 | 未新增测试，未运行测试、formatter、lint、项目套件、发布 workflow、分发包构建；旧 workflow 不代表已在当前 GitHub runner/PyPI 验证；上游 clone 只读且未提交 |
+| e621ng 成员与写路径 | `related_tag` / `related_tag_bulk` 的成员成功响应、Basic 认证成功均仅源码对齐、未实测；没有实现原生写方法，没有请求上游写动作与 staff 路径 |
+| e621ng 其余返回分支 | `v2` 的 `mode=extended` / `thumbnail(s)`、`comment_list(group_by=post)`、`artist_show` 名字形式、请求级 `safe_mode`、旧式单数重定向没有本轮客户端实测；此前 `/help/api` 的 HelpPage 200 与 `/static/site_map` 的 406 属改造前探测，不计入 E1 |
+| e621ng 部署与返回上限 | 仅覆盖 e621.net 与 e926.net 两个站点；e926 的 HTML 路由被 Cloudflare 挑战，本轮只走 JSON；`limit` 的 320 上限与编号页 750 上限只在源码与 `410` 分支上核对，没有逐值探测边界 |
+| 非能力范围 | 未实现 Serika cookie 登录、私有交互/资源写操作；未申请或实测需要 key 的候选站调用；e621ng 面未包写方法与邻接只读路由 |
+| 工程流程 | 交付中未新增或保留测试文件；未运行项目测试套件、formatter、lint、发布 workflow、分发包构建；旧 workflow 不代表已在当前 GitHub runner/PyPI 验证；上游源码只读且未提交 |
 
 ## 历史记录
 
@@ -273,4 +316,4 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 | Serika 改造前匿名 401 | v1 images 列表/详情、tags 列表/详情、trending、search、random、users 详情，共 8 个 GET | 仅证明无 key 被拒绝，不证明成功字段；S1 没有重跑 |
 | Serika 说明矛盾纠正 | ID、未知标签、限流错误码、PNG 标签过滤等旧评估泛化 | 仅按源码纠正，见 [Serika 契约审计附注](serika-contract-notes.md)，没有另发探测 |
 
-[文档入口](index.md) · [Danbooru 审计](danbooru-contract-notes.md) · [Moebooru 审计](moebooru-contract-notes.md) · [Serika 审计](serika-contract-notes.md)
+[文档入口](index.md) · [Danbooru 审计](danbooru-contract-notes.md) · [Moebooru 审计](moebooru-contract-notes.md) · [Serika 审计](serika-contract-notes.md) · [e621ng 审计](e621-contract-notes.md)
