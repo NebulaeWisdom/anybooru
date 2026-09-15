@@ -99,9 +99,9 @@
   `uploader_name`、`description`（111）、`comment_count`（113-115）、`is_favorited`（117-119）、
   `vote`（121-123）、`has_notes`（125-127）、`duration`（129-131）。
 * `PostBlueprint`（`app/blueprints/post_blueprint.rb:6-154`，实测 v2 basic 18 键）：`files`（16-67）、
-  `stats`（73-83）、`flags`（85-94）、`has`（96-104）、`relationships`（106-111）、`pools`、`rating`、
+  `stats`（73-86）、`flags`（88-97）、`has`（99-107）、`relationships`（109-114）、`pools`、`rating`、
   `locked_tags`、`sources`、`description`，以及 `view :basic` 的 `tags`（136-140，标签名字符串数组）与
-  `view :extended` 的 `tags`（143-149，九类字典）。
+  `view :extended` 的 `tags`（143-151，九类字典）。
 * `PostThumbnailBlueprint`（`app/blueprints/post_thumbnail_blueprint.rb:5-63`）：扁平字段，
   `flags`/`pools`/`tags` 都是字符串。
 * `CommentBlueprint`（`app/blueprints/comment_blueprint.rb:6-26`，16 键）由控制器显式渲染
@@ -150,8 +150,9 @@
 
 ## 搜索字段（逐资源）
 
-列表方法的搜索键都在 `search[...]` 里；帖子三个查询方法用顶层 `tags`（`posts_controller.rb:57`、
-`posts#count` 的 `tag_query` 在 198-202）。**未知键被静默忽略**，表现为返回全集。
+列表方法的搜索键都在 `search[...]` 里；帖子三个查询方法的过滤条件走顶层 `tags`，解析在同一控制器的
+`@tag_query = tag_query`（`posts_controller.rb:22-23`）与 `tag_query`（`:198-202`：优先 `params[:tags]`，
+否则读嵌套 `post[tags]`）；`:57` 那处是渲染调用，不是解析处。**未知键被静默忽略**，表现为返回全集。
 
 | 资源 | 允许的搜索键 | 源码 |
 | :--- | :--- | :--- |
@@ -159,7 +160,7 @@
 | artists | `id`、`created_at`、`updated_at`、`name`、`group_name`、`any_name_matches`、`any_other_name_like`、`any_other_name_matches`、`any_name_or_url_matches`、`url_matches`、`creator_id` / `creator_name`、`linked_user_id` / `linked_user_name`、`has_tag`、`is_linked`、`order` | `app/models/artist.rb:455-514`（order 分支 502-511）；顶层 `name` 由控制器并进 `search[name]`（`artists_controller.rb:120-124`） |
 | comments | `id`、`created_at`、`updated_at`、`body_matches`、`post_id`、`creator_id` / `creator_name`、`poster_id` / `poster_name`、`post_note_updater_id` / `post_note_updater_name`、`is_sticky`、`do_not_bump_post`、`order`、`advanced_search`；成员另可 `post_tags_match`，staff 另可 `is_hidden`，admin 另可 `ip_addr` | 控制器白名单 `comments_controller.rb:162-168`；过滤实现 `app/models/comment.rb:103-182`（order 分支 161-175，`poster_*` 过滤在 177-181） |
 | pools | `id`、`created_at`、`updated_at`、`name_matches`、`description_matches`、`creator_id` / `creator_name`、`category`、`is_active`、`order` | `app/models/pool.rb:63-94`（order 分支 82-91） |
-| notes | `id`、`created_at`、`updated_at`、`body_matches`、`is_active`、`post_id`、`creator_id` / `creator_name`、`post_note_updater_id` / `post_note_updater_name`、`order`；成员另可 `post_tags_match` | 控制器白名单 `notes_controller.rb:66-72`；过滤实现 `app/models/note.rb:33-55` |
+| notes | `id`、`created_at`、`updated_at`、`body_matches`、`is_active`、`post_id`、`creator_id` / `creator_name`、`post_note_updater_id` / `post_note_updater_name`、`order`；成员另可 `post_tags_match` | 控制器白名单 `notes_controller.rb:66-72`；过滤实现 `app/models/note.rb:33-54` |
 | wiki_pages | `id`、`created_at`、`updated_at`、`title`、`body_matches`、`other_names_match`、`other_names_present`、`parent`、`creator_id` / `creator_name`、`is_locked`、`is_deleted`、`hide_deleted`、`order` | `app/models/wiki_page.rb:89-129`（order 分支 119-126）；顶层 `title` 由控制器搬进 `search[title]`（`wiki_pages_controller.rb:121-126`） |
 
 键的取值语义集中在 `ApplicationRecord` 的 `attribute_matches`（`app/models/application_record.rb:35-49`）：
@@ -192,7 +193,7 @@
   失败统一走 `access_denied`（219-240）。
 * **两条相关标签路径**整体 `member_only`（`related_tags_controller.rb:6`），所以 18 个方法里有 2 个匿名不可达；
   上游规格也断言匿名 `403`（`spec/requests/related_tags_controller_spec.rb`，27 与 102 行附近）。
-* **评论可见性**（`app/models/comment.rb`）：`accessible`（51-74）对匿名只保留 `is_hidden = false` 且
+* **评论可见性**（`app/models/comment.rb`）：`accessible`（51-77）对匿名只保留 `is_hidden = false` 且
   帖子未被关闭评论的记录；`is_accessible?`（205-219）是同一规则的单条版本；列表在未给 `search[id]` 时再套
   `above_threshold`（80-82）：`is_sticky = true OR score >= 用户阈值`。匿名账号的 `comment_threshold`
   默认是 `-2`（`db/structure.sql` 的 `users.comment_threshold`），所以这是真实过滤，不是装饰。
