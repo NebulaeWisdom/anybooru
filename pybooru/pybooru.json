@@ -1,10 +1,7 @@
 {
   "request": {
     "timeout": 30,
-    "proxies": {
-      "http": "http://proxy-host:port",
-      "https": "http://proxy-host:port"
-    },
+    "proxies": {},
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {

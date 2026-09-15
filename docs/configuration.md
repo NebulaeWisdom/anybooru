@@ -43,7 +43,7 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
 {
   "request": {
     "timeout": 30,
-    "proxies": { "http": "http://proxy.example:8080", "https": "http://proxy.example:8080" },
+    "proxies": {},
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
@@ -156,7 +156,7 @@ e621ng 示例使用 `examples.e621`，查询参数是 Rails 顶层参数与 `sea
 | 键 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `timeout` | number | 单次请求超时秒数，默认 `30`；写成数组时按 requests 的 (连接超时, 读取超时) 处理 |
-| `proxies` | object | 传给 requests 的代理字典，键为 `http` / `https` |
+| `proxies` | object | 传给 requests 的代理字典，键为 `http` / `https`；默认 `{}`，即不使用代理 |
 | `user_agent` | string | 请求头 `User-Agent` |
 
 ## `sites` 段

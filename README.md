@@ -50,7 +50,7 @@ pip install --user Pybooru
 {
   "request": {
     "timeout": 30,
-    "proxies": { "http": "http://proxy.example:8080", "https": "http://proxy.example:8080" },
+    "proxies": {},
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
@@ -66,7 +66,8 @@ pip install --user Pybooru
 ```
 
 要改站点、凭据或代理，复制那份包内文件改一份自己的，再把路径交给 `config_file`；当前工作目录里的
-同名文件**不会**被自动读取。
+同名文件**不会**被自动读取。包内默认 `request.proxies` 是空对象，即不使用代理；需要代理时把它填成
+`{"http": "http://proxy-host:port", "https": "http://proxy-host:port"}`。
 
 ```python
 import shutil
