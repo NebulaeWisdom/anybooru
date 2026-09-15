@@ -161,6 +161,35 @@ Moebooru 五命令按上述顺序以 `&&` 连接执行，整体退出 0；输入
 
 Safebooru 与 Danbooru 同属 donmai 部署，使用 Danbooru 引擎。路径形态、页脚/帮助页自述及认证方式共同用于判断；本库不自动识别，调用者选择类，见[如何选类](configuration.md#怎么判断一个站点该用哪个类)。
 
+### Safebooru：D4 用客户端复测的 16 个方法
+
+上面那一批是裸路径探测；D4 改用线上客户端（`Danbooru(site_url='https://safebooru.donmai.us')`）逐方法复测，
+post `12195666`、tag `2730264`、artist `683106`、comment `2630682`、pool `23200`。
+
+| 客户端方法 | 实际路径 | HTTP | 返回形态 |
+| :--- | :--- | :--- | :--- |
+| `post_list(limit=1)` | `/posts.json?limit=1` | 200 | `list[1]`，46 个 Danbooru post 字段（含 `tag_string` / `file_url` / `media_asset`） |
+| `post_show(12195666)` | `/posts/12195666.json` | 200 | `dict`，同一组字段 |
+| `post_random()` | `/posts/random.json` | 200 | `dict`，同一组字段 |
+| `tag_list(limit=1)` | `/tags.json?limit=1` | 200 | `list[1]` |
+| `tag_show(2730264)` | `/tags/2730264.json` | 200 | `dict` |
+| `artist_list(limit=1)` | `/artists.json?limit=1` | 200 | `list[1]` |
+| `artist_show(683106)` | `/artists/683106.json` | 200 | `dict` |
+| `comment_list(group_by='comment', limit=1)` | `/comments.json?group_by=comment&limit=1` | 200 | `list[1]` |
+| `comment_show(2630682)` | `/comments/2630682.json` | 200 | `dict` |
+| `pool_list(limit=1)` | `/pools.json?limit=1` | 200 | `list[1]` |
+| `pool_show(23200)` | `/pools/23200.json` | 200 | `dict` |
+| `wiki_page_list(limit=1)` | `/wiki_pages.json?limit=1` | 200 | `list[1]` |
+| `wiki_page_show('help:api')` | `/wiki_pages/help%3Aapi.json` | 200 | `dict` |
+| `related_tag(search={'query': 'rating:g'})` | `/related_tag.json?search%5Bquery%5D=rating%3Ag` | 200 | `dict`，含 `post_count` / `related_tags` / `wiki_page_tags` |
+| `counts_posts()` | `/counts/posts.json` | 200 | `dict`，键 `counts` |
+| `note_list(limit=1)` | `/notes.json?limit=1` | 200 | `list[1]` |
+
+16 次全 `200`，形态与 `danbooru.donmai.us` 相同；`sites.safebooru` 条目本轮没有改动。
+不带 `group_by` 时 `/comments.json` 返回的是帖子对象（本轮首测因此把 post id 当成 comment id，得到 404），
+这一层是服务端分组行为，不是站点差异。另有同一轮的首版探测用不存在的 ID 调用 `tag_show(1)` / `artist_show(1)`，
+Safebooru 得到 404 `ActiveRecord::RecordNotFound`，与 D1 记录的 `danbooru.donmai.us` `/posts/0.json` 同类。
+
 ### Gelbooru 与 TBIB：血缘不等于 API 兼容
 
 D3 的原始证据为 `temp/danbooru-family-probe.json`。
