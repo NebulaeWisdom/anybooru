@@ -278,6 +278,26 @@ E1 是本轮新增客户端后的真实执行：**37 次匿名 GET**，其中 30
 
 交付中未增加或保留测试文件，未运行项目测试套件、formatter、lint 或构建；上面的数字全部来自真实 HTTP 响应。
 
+## 文档修正后的示例复核（2026-09-16）
+
+### Danbooru 只读示例与写边界
+
+为核对 README 的示例清单，六个只读脚本各执行一次，均退出 `0`、stderr 为空。命令格式为
+`.venv/Scripts/python.exe examples/danbooru/<脚本> --config <配置文件>`；尖括号表示脚本名与覆盖配置路径，
+请求输入来自配置中的 `examples.danbooru`，站点为 `https://danbooru.donmai.us`。
+
+| 脚本 | 本次真实输出摘要 |
+| :--- | :--- |
+| `list_posts.py` | 三帖 `12198589` / `12198583` / `12198582`，均 `rating=g`，各打印标签串 |
+| `list_tags.py` | `1girl 8420422`、`highres 8166550`、`solo 7070952` |
+| `show_post.py` | 从列表取得首帖 `12198589`，打印评级与标签串 |
+| `paginate_posts.py` | page 1：`12198589 / 12198583 / 12198582`；page 2 与 before `12198582` 均为 `12198581 / 12198578 / 12198577` |
+| `related_tag.py` | `query: touhou posts: 1097086`；`1girl`、`solo`、`hat` |
+| `wiki_page.py` | `help:api`，正文摘要以 `Danbooru offers a REST-like API` 开始 |
+
+这些脚本不打印 HTTP 状态码，因此不把进程退出 `0` 记作逐请求的 `200` 证据。
+`comment_create.py` 是需凭据的真实 POST 写示例，保持未执行、未实测；本次没有发写请求。
+
 ## 边界与未实测
 
 | 范围 | 没有执行 / 不能据现有证据声称 |

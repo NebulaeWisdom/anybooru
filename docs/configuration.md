@@ -329,8 +329,8 @@ Serika 是另一个独立引擎，没有 Rails 的 `posts` 路径，只有自己
 | `tag_search` | Danbooru | 标签查询字典（Moebooru 面没有 `search[...]` 字典） |
 | `tag_order` | Moebooru | `tag_list` 的 `order` 值，如 `count` |
 | `comment_query` | Moebooru | 评论流查询词；空字符串表示不启用全文过滤 |
-| `post_id` | Danbooru | 帖子 ID（示例优先改用列表返回的首个 ID，见 [danbooru.md](danbooru.md)） |
-| `comment_body` | Danbooru | 评论正文示例 |
+| `post_id` | Danbooru | 帖子 ID；只读示例改用列表返回的首个 ID（见 [danbooru.md](danbooru.md)），该键本身只服务写示例 `examples/danbooru/comment_create.py` |
+| `comment_body` | Danbooru | 评论正文，同样只服务写示例 `examples/danbooru/comment_create.py`——它是**真实的 POST 写示例**，需要账号与 API key，本仓库不带凭据、**未执行、未实测** |
 | `wiki_query` | Danbooru / Moebooru | wiki 页面查询词 |
 | `wiki_title` | Danbooru / e621ng | wiki 页面标题（Moebooru 没有 JSON 的单页读取方法） |
 | `related_query` / `related_category` / `related_order` | Danbooru | 相关标签查询参数 |
@@ -355,7 +355,8 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（留空则取
-`examples.<段>.site`，e621 示例默认取 `examples.e621.site`）。两者都只用命令行参数，不使用环境变量。
+`examples.<段>.site`，e621 示例默认取 `examples.e621.site`）。
+两者都只用命令行参数，不使用环境变量。
 
 ## 显式覆盖
 

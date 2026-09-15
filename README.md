@@ -112,6 +112,9 @@ example = client.config['examples']['danbooru']
 client.comment_create(post_id=example['post_id'], body=example['comment_body'])
 ```
 
+这条写路径**未实测**：`comment_create` 只按上游源码对齐（评论接口要求登录），本仓库不带凭据，
+对应脚本 `examples/danbooru/comment_create.py` 未执行、未实测；要真正写入得自己填 `username` / `api_key`。
+
 画师查询的参数与上游匹配语义见
 [Danbooru API 契约](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md#artists)。
 
@@ -209,7 +212,10 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 
 可运行示例见 [examples/](https://github.com/LuqueDaniel/pybooru/tree/master/examples)：
 
-- `examples/danbooru/`：Danbooru 系站点的列表、详情、分页、相关标签、评论等示例；
+- `examples/danbooru/`：六个匿名只读示例（`list_posts.py`、`list_tags.py`、`show_post.py`、
+  `paginate_posts.py`、`related_tag.py`、`wiki_page.py`），默认站点取自 `examples.danbooru.site`；
+  另有 `comment_create.py`，它是**真实的 POST 写示例**（发表评论）：需要账号与 API key，本仓库不带
+  凭据，**未执行、未实测**，写路径只做了源码层面的上游对齐；
 - `examples/moebooru/`：Moebooru 系站点的五个匿名只读示例（`list_posts.py`、`list_tags.py`、
   `wiki_list.py`、`list_comments.py`、`related_tags.py`），默认站点取自 `examples.moebooru.site`（当前为
   yande.re），不发写请求。
