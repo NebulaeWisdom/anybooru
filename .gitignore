@@ -28,6 +28,7 @@ temp/
 
 # local agent handoff notes (kept on disk, never committed)
 /HANDOFF.md
+/AGENTS.md
 
 # ignore test file
 .pytest_cache
