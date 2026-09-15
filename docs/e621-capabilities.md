@@ -121,9 +121,11 @@
   用户、热门、论坛主题与帖子、标签别名与蕴含、画师主页记录、帖子集合、站点统计、帮助索引、日志等）
   用通用 `request()` 显式调用，不逐个包方法，见[附注的可用只读扩展](e621-contract-notes.md#sec-readonly-extensions)。
 - **不存在或不给 JSON 的路径**：Danbooru 的 `/counts/posts.json` 在 e621ng 没有对应路由（计数用
-  `post_count`）；`deleted_posts`、`comments/search`、`notes/search`、`wiki_pages/search`、
-  `artists/show_or_new` 等端点只提供 HTML，`.json` 会得到 `406`；登记了但没有动作的动词（如
-  `PUT /related_tag`）会落进错误页。
+  `post_count`）；`deleted_posts`、`comments/search`、`notes/search`、`wiki_pages/search` 等端点没有 JSON
+  实现或视图，`.json` 会得到 `406`；登记了但没有动作的动词（如 `PUT /related_tag`）会落进错误页。
+- **可以匿名读、但没有原生方法的 JSON 路由**：`artists/show_or_new` 提供 `html` 与 `json` 两种格式且匿名
+  可进；未知名称返回一个**未保存**的 `Artist` 对象（JSON），名称已存在则 `302` 到 `/artists/<id>`。本库不为
+  它提供原生方法，需要时用 `request()`；**仅源码对齐，未实测**。
 - **管理面与浏览器会话**：`/staff/**` 命名空间、后台任务、审核队列、OAuth/Doorkeeper 路由与所有
   浏览器 HTML 页面都不封。
 - **自动采集**：不自动翻页、不自动下载媒体、不自动重试、不做引擎自动识别，也不把单数 `/post.json`

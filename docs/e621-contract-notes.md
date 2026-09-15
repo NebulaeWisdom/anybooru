@@ -300,8 +300,15 @@
   `tags#update/destroy/preview`、投票、收藏、待删标记、上传、批量变更请求、举报与审核、站内信、API key、
   OAuth、登录会话。它们都需要登录与对应权限，本库不封方法、不做自动重试，也不替调用者补参数。
 * **没有动作或被登记错的动作**：`PUT /related_tag`（`routes.rb:382` 登记、控制器无 `update`）。
-* **没有相应 JSON 实现或视图**：`deleted_posts`、`comments/search`、`notes/search`、`wiki_pages/search`、
-  `artists/show_or_new` 等不作为 JSON 原生方法；具体格式失败由控制器响应分支与 Rails 视图协商决定。
+* **没有相应 JSON 实现或视图**：`deleted_posts`（`deleted_posts_controller.rb:4` 只 `respond_to :html`）、
+  `comments/search`、`notes/search`、`wiki_pages/search` 等不作为 JSON 原生方法；具体格式失败由控制器响应
+  分支与 Rails 视图协商决定。
+* **可以匿名读、但没有原生方法的 JSON 路由**：`artists/show_or_new` 走
+  `resources :artists` 的 collection（`config/routes.rb:211-215`），控制器 `respond_to :html, :json`
+  （`artists_controller.rb:6`）且 `member_only` 例外含 `show_or_new`（`:7`）；未知名称返回未保存的
+  `Artist` 对象（`artists_controller.rb:97-107` 的 `respond_with(@artist)`），名称已存在则 `redirect_to
+  artist_path`（`:101`，`302`，目标不带 `.json`）。它与 `artists#show` 的"未知名称 JSON 404"不同，也不在
+  18 个原生方法里；需要时用 `request()`，本路线**仅源码对齐、未实测**。
 * **不存在的路由**：`/counts/*`（Danbooru 的形状）在上游没有对应路由；`/post` 系列单数路径在源码里是 `302`
   重定向（`routes.rb:569`、`578-583`），目标多数不带 `.json`，不可当作契约入口。
 * **管理面**：`namespace :staff`（`routes.rb:22-`）下的文件、wiki、automod、用户清理、封锁等动作，以及
