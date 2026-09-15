@@ -220,9 +220,6 @@ Serika 不使用 `username`、`password`、`hash_string` 或客户端路径版�
 | `sakugabooru` | Moebooru | 匿名只读已实测（同上）；`api_version` 与 `hash_string` 取该站 `help/api` 自述 |
 | `serika` | Serika | 见 [serika.md](serika.md) 与 [verification.md](verification.md) |
 
-原样例里的 `lolibooru`（`https://lolibooru.moe`）在本次复核中经两个出口都拿不到 HTTP 响应
-（隧道 `502` 与 SSL 层 `UNEXPECTED_EOF_WHILE_READING`），已从清单移除。
-
 ### 怎么判断一个站点该用哪个类
 
 **库不做自动识别**，也没有探测引擎的代码路径：`Danbooru`、`Moebooru`、`Serika` 是三个并列的类，

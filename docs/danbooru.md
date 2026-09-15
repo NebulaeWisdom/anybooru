@@ -115,6 +115,6 @@ client.last_call  # {'API': 'posts.json', 'status_code': 200, 'status': 'OK', 'h
 `danbooru.donmai.us` 的早期匿名验证共 15 次：12×200 与 404/410/422 各一次，另有画师重定向验证。
 读路径覆盖 `post_list`、`post_show`、`tag_list`、`artist_list`、`artist_show_or_new`、`related_tag`、
 `wiki_page_list`、`wiki_page_show`、`comment_list`、`pool_list`；写路径、上传媒体与可选服务仍未实测。
-同族站点另有独立探测：Safebooru 匿名可用且为 Danbooru；Gelbooru/TBIB 实为 Gelbooru 引擎，不能混用。
+同族站点另有独立探测：Safebooru 匿名可用且为 Danbooru。
 逐路径、身份与参数范围以 [verification.md](verification.md) 为准；本次重排没有新增网络请求。
 示例结束后用 `client.close()` 关闭非 `with` 方式建立的客户端。

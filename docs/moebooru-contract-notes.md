@@ -461,7 +461,6 @@
   方法存在不等于目标站点启用了相应能力（例如未开启 `enable_asynchronous_tasks` 时
   `tag_mass_edit` 没有同步 JSON 响应）。
 * `sakugabooru` 的加盐模板取自站点自述，**没有发登录请求**验证服务端是否接受。
-  经用户确认已从样例清单移除；事实原文见 [verification.md](verification.md)。
 * 现役 Moebooru 站点普遍有反爬与限流：中途被关闭连接、拿不到 HTTP 响应可能发生，
   但本轮未复现、也未观察到突发阈值，不能记成 HTTP 错误码或限流阈值。
 

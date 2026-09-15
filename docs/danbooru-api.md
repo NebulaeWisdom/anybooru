@@ -671,7 +671,7 @@ client.iqdb_query(url='https://example.com/a.jpg')
 
 **写接口、上传媒体、高权限/重新认证、写重定向及 archive/IQDB/推荐服务仍未做线上成功验证**。
 后续候选站复核另外访问过 `/users.json` 与 `/autocomplete.json` 等读路径，不能把早期覆盖清单当作全量当前状态。
-Safebooru 匿名可用且为 Danbooru；Gelbooru/TBIB 实为 Gelbooru 引擎，其 Danbooru 路径全 404。
+Safebooru 匿名可用且为 Danbooru。
 所有批次、路径与参数范围见 [verification.md](verification.md)，未列出的路由仍只有源码依据。
 本次文档重排没有新增网络请求；完整路由、参数、权限与上游出处见
 [契约审计附注](danbooru-contract-notes.md)。

@@ -359,7 +359,7 @@
 
 ## 边界与未实测
 
-早期 Danbooru 匿名验证为 15 次（12×200 与 404/410/422 各一次），另有画师重定向结果；后续候选站复核还访问过 users/autocomplete 等读路径。Safebooru 匿名可用且为 Danbooru，Gelbooru/TBIB 实为 Gelbooru 引擎而非兼容站。每个批次的具体路由与参数范围见 [verification.md](verification.md)，不把早期清单当作全量当前状态。全部写路径、上传媒体、高权限及可选服务成功路径仍未实测；本次总览重排没有新增网络请求。
+早期 Danbooru 匿名验证为 15 次（12×200 与 404/410/422 各一次），另有画师重定向结果；后续候选站复核还访问过 users/autocomplete 等读路径。Safebooru 匿名可用且为 Danbooru。每个批次的具体路由与参数范围见 [verification.md](verification.md)，不把早期清单当作全量当前状态。全部写路径、上传媒体、高权限及可选服务成功路径仍未实测；本次总览重排没有新增网络请求。
 
 `request()` 还能调到发现内容、指标、部分账号管理等没有原生方法的 JSON 路由，已有路由与非 JSON 排除项见[契约审计附注](danbooru-contract-notes.md)；它不是图片下载方法，也不会把 HTML 页面变成 JSON。客户端另有 `close()` 与 `with Danbooru(...) as client`，这两个是客户端操作，不计入上面的方法数。
 

@@ -13,7 +13,7 @@
 | M2：Moebooru 续跑 | 2026-09-14T17:48:23Z–17:48:27Z（本地 2026-09-15 01:48），同站同代理 | `.venv/Scripts/python.exe temp/verify_moebooru_remaining.py --config pybooru.json`；`temp/moebooru-live-continuation.json` | 200/404/400 各一次，退出 0；逐次保存 URL、状态、头、JSON/正文和异常类型 |
 | M4：候选站点复核 | 2026-09-15，全部匿名 GET | `temp/probe_moebooru_candidates.py`；`temp/moebooru-candidates.json` | 四域名各 12 个只读端点全部 200 JSON，差异见[站点复核](#站点复核) |
 | S1：Serika 客户端示例 | 2026-09-15；`https://serika.art`，`sites.serika.api_key` 为空 | `.venv/Scripts/python.exe temp/run_serika_examples.py --config pybooru.json` 编排三个现有示例 | 8×200；三进程均退出 0、stderr 为空；临时 runner、片段、stdout/stderr/returncode 证据转录后已删除 |
-| D3：Danbooru 血缘站点复核 | 2026-09-15，匿名 GET | `temp/probe_danbooru_family.py`；`temp/danbooru-family-probe.json` | Danbooru 9 个 REST 路径全 200；Gelbooru/TBIB 对应路径全 404 |
+| D3：Danbooru 候选读路径复核 | 2026-09-15，匿名 GET | `temp/probe_danbooru_family.py`；`temp/danbooru-family-probe.json` | `danbooru.donmai.us` 的 9 个 REST 读路径（含 `users.json` / `autocomplete.json`）全 `200` |
 
 | 共享设置 | 实际值 |
 | :--- | :--- |
@@ -190,34 +190,6 @@ post `12195666`、tag `2730264`、artist `683106`、comment `2630682`、pool `23
 这一层是服务端分组行为，不是站点差异。另有同一轮的首版探测用不存在的 ID 调用 `tag_show(1)` / `artist_show(1)`，
 Safebooru 得到 404 `ActiveRecord::RecordNotFound`，与 D1 记录的 `danbooru.donmai.us` `/posts/0.json` 同类。
 
-### Gelbooru 与 TBIB：血缘不等于 API 兼容
-
-D3 的原始证据为 `temp/danbooru-family-probe.json`。
-
-| 路径 | `danbooru.donmai.us` | `gelbooru.com` | `tbib.org` |
-| :--- | :--- | :--- | :--- |
-| `/posts.json?limit=1` | 200，list[1] | 404，Gelbooru HTML 页 | 404，nginx 页 |
-| `/tags.json?limit=1` | 200 | 404 | 404 |
-| `/artists.json?limit=1` | 200 | 404 | 404 |
-| `/comments.json?limit=1` | 200 | 404 | 404 |
-| `/wiki_pages.json?limit=1` | 200 | 404 | 404 |
-| `/pools.json?limit=1` | 200 | 404 | 404 |
-| `/users.json?limit=1` | 200 | 404 | 404 |
-| `/related_tag.json?query=touhou` | 200，含 related_tags 等键 | 404 | 404 |
-| `/autocomplete.json?search[query]=touhou` | 200，list[0] | 404 | 404 |
-| `/index.php?page=dapi&s=post&q=index&json=1&limit=1` | 404 | 401，空正文 | 200 |
-| `Danbooru(site_url='https://gelbooru.com').post_list(limit=1)` | — | `PybooruHTTPError` 404，body 为 HTML 404 页 | — |
-| `Danbooru(site_url='https://tbib.org').post_list(limit=1)` | — | — | `PybooruHTTPError` 404，body 为 nginx 404 页 |
-
-Gelbooru/TBIB 页脚或关于页自述 `Running Gelbooru 0.2`，把 Danbooru 标为原始概念来源；报告的“Danbooru 系”是血缘归类，不是 REST 兼容。
-TBIB 的 dapi 返回字段为 `id`、`tags`、`rating`、`parent_id`、`width`、`height`、`sample`、`sample_height`、`sample_width`、`score`、`hash`、`directory`、`image`、`owner`、`change`，与 Danbooru post 不同。Gelbooru dapi 要 key，匿名只取得 401 空正文。
-两个候选站均未加入 `sites`，本库不提供 Gelbooru dapi 客户端；Danbooru 原有条目保留，其 9 个 REST 成功请求独立于 D1 的 15 次记录。
-
-### 已移除的历史清单项
-
-| :--- | :--- | :--- | :--- |
-| `lolibooru` / `https://lolibooru.moe` | `ProxyError: Tunnel connection failed: 502 Bad Gateway` | `SSLError: UNEXPECTED_EOF_WHILE_READING` | 两边均未得到源站 HTTP 响应；未做 DNS 确认，不能断言关闭。用户确认后已从 `pybooru.json`、configuration/moebooru 样例清单移除 |
-
 ## Serika：2026-09-15 实现后的匿名调用
 
 S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。基址为 `https://serika.art`。
@@ -266,7 +238,7 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 | Serika 官方需 key 的 12 方法 | `image_list`、`image_show`、`image_delete`、`image_similar`、`image_batch`、`random_list`、`tag_list`、`tag_show`、`user_show`、`search`、`trending`、`upload`；用户无 key 且不申请，S1 没有请求这些路径；成功响应/认证/权限/限流/批量 JSON/multipart/删除/参数边界没有实测 |
 | Serika 站内另外 10 方法 | `internal_image_comments`、`internal_tag_show`、`internal_tag_autocomplete`、`internal_tag_complementary`、`internal_artist_show`、`internal_artist_wiki`、`internal_artist_reviews`、`internal_user_list`、`internal_user_show`、`internal_user_activity`：只核对匿名可读源码 |
 | Serika 错误及部署 | S1 未发错误请求，不声称覆盖 401/403/404/429、PNG 占位或二进制错误；`.data['code']` 可读仅由源码确认；无其他自托管部署验证 |
-| 非能力范围 | 未实现 Serika cookie 登录、私有交互/资源写操作，未实现 Gelbooru dapi；未申请或实测需要 key 的候选站调用 |
+| 非能力范围 | 未实现 Serika cookie 登录、私有交互/资源写操作；未申请或实测需要 key 的候选站调用 |
 | 工程流程 | 未新增测试，未运行测试、formatter、lint、项目套件、发布 workflow、分发包构建；旧 workflow 不代表已在当前 GitHub runner/PyPI 验证；上游 clone 只读且未提交 |
 
 ## 历史记录
