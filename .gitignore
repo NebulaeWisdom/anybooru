@@ -15,6 +15,7 @@ venv/
 # IDEs/Editors config files/folders
 *.nja
 .vscode
+.vs
 .idea
 
 # reference sources of the upstream sites (independent clones, not part of the package)
