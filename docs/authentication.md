@@ -118,7 +118,7 @@ e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danboo
 写请求：e621ng 面**没有原生写方法**。写路由的身份要求由各自控制器决定，不能概括为全部必须登录
 （例如注册只允许未登录用户）。启用 `api_check` 的控制器才对已登录的非 `GET` / `HEAD` 请求做令牌桶
 限流（超限回 `429`，响应头带 `X-Api-Limit`）；用户控制器显式跳过该检查。这些分支仅源码对齐、未实测，
-出处见[契约审计附注](e621-contract-notes.md#sec-permissions)。需要时用通用 `request()` 显式指定方法与路径，
+出处见附注的[写动作边界](e621-contract-notes.md#sec-exclusions)与[限流错误](e621-contract-notes.md#sec-errors)。需要时用通用 `request()` 显式指定方法与路径，
 本库不做自动重试、不替调用者补参数。
 
 `safe_mode` 由服务端决定（请求参数 `safe_mode`、账号设置或站点自己的部署配置），上游仓库默认值是关闭。

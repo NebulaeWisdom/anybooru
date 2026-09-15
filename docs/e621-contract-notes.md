@@ -59,6 +59,14 @@
 | `related_tag(search=None, **params)` | `related_tag.json` | 382 | `related_tags#show` 8-16 | **否** | 成员：`[{"name", "category_id"}]`；匿名 `403` |
 | `related_tag_bulk(query, category_id=None)` | `related_tag/bulk.json` | 383 | `related_tags#bulk` 18-24 | **否** | 成员：`{tag => [{"name", "count", "category_id"}]}`；匿名 `403` |
 
+名称查找的源码边界：`app/controllers/tags_controller.rb:14-21` 的数字分支用 `Tag.find`，名称分支直接
+`Tag.find_by!(name: params[:id])`，不调用归一化。列表搜索不同：`app/models/tag.rb:356-358` 的 `name` 与
+`app/models/tag.rb:341-343` 的 `name_matches` 会调用 `normalize_name`（`app/models/tag.rb:190-192`），
+`fuzzy_name_matches` 则原样传值（`app/models/tag.rb:337-339`）。画师名称查找走 `Artist.named`
+（`app/models/artist.rb:421-423`），由 `app/models/artist.rb:265-267` 小写化、去首尾空白并将空格转为下划线。
+这些名称分支仅源码对齐、未实测；`tag_show` 未命中由 `app/controllers/application_controller.rb:145-146`
+转入 `render_404`（`app/controllers/application_controller.rb:178-190`）。
+
 两条相关标签路径的 `member_only` 是控制器级全局过滤器（`related_tags_controller.rb:6`），所以失败先于参数
 解析。`routes.rb:382` 的 `resource :related_tag, only: %i[show update]` 另外登记了 `PUT /related_tag`，
 但控制器没有 `update` 动作，该动词只会落进错误页，属应排除的动词。`related_tag` 的动作直接索引
@@ -114,6 +122,8 @@
   `Artist` 的 JSON 由控制器 `include: [:urls]`（`artists_controller.rb:23-29`，该键在 26 行）与
   `methods: [:domains]`（55）补足。列集见 `db/structure.sql`（`tags` 9 列、`artists` 10 列、`comments` 15 列、
   `pools` 9 列、`notes` 13 列、`wiki_pages` 12 列、`help_pages` 7 列）。
+  画师还声明了非表列属性 `notes`（`app/models/artist.rb:37` 的 `attribute :notes, :string`），由上述
+  `app/models/application_record.rb:188-197` 的默认属性序列化一同返回；未填写时为 `null`。
 
 帖子负载与可见性强相关，而且要区分两条序列化路径：
 
