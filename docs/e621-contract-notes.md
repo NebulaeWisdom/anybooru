@@ -219,7 +219,7 @@
 | 标签过多/深度/非法、post 数超限、全文查询超时 | `422` | 同上 | 153-158 |
 | 该端点没有 JSON 视图 | `406` | HTML 错误页 | `render_unsupported_format` 192-194 |
 | 未匹配的动词/路由 | `405` | 错误页 | 147-148 |
-| 已登录的非 `GET`/`HEAD` 写请求被限流 | `429` | 同上 | `api_check` 107-116（响应头 `X-Api-Limit`） |
+| 已登录的非 `GET`/`HEAD` 请求在**启用 `api_check`** 的控制器上被限流 | `429` | 同上 | `application_controller.rb:107-116`（响应头 `X-Api-Limit`）；`comments_controller.rb:11`、`users_controller.rb:5` 用 `skip_before_action :api_check` 关掉它 |
 | 数据库不可用 | `503` | 错误页 | 161-162 |
 
 客户端侧：非 2xx 一律抛 `PybooruHTTPError`（`http_code`、`url`、`body`、`data`、`response`），
@@ -302,7 +302,9 @@
   `pools#create/update/destroy/revert`、`notes#create/update/destroy/revert`、
   `wiki_pages#create/update/destroy/revert`、`artists#create/update/destroy/revert`、
   `tags#update/destroy/preview`、投票、收藏、待删标记、上传、批量变更请求、举报与审核、站内信、API key、
-  OAuth、登录会话。它们都需要登录与对应权限，本库不封方法、不做自动重试，也不替调用者补参数。
+  OAuth、登录会话。这些动作的身份要求由各自控制器决定，**不能概括为全部必须登录**（例如注册只允许未登录
+  用户：`users_controller.rb:211-213`；限流也只对启用 `api_check` 的控制器生效），本库不封方法、不做
+  自动重试，也不替调用者补参数。
 * **没有动作或被登记错的动作**：`PUT /related_tag`（`routes.rb:382` 登记、控制器无 `update`）。
 * **没有相应 JSON 实现或视图**：`deleted_posts`（`deleted_posts_controller.rb:4` 只 `respond_to :html`）、
   `comments/search`、`notes/search`、`wiki_pages/search` 等不作为 JSON 原生方法；具体格式失败由控制器响应
