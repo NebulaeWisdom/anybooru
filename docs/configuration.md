@@ -133,8 +133,8 @@ Serika 示例使用默认配置中的 `examples.serika`，不与 Rails 两家的
 | `random_query` | 二进制图片的 `ratings` / `format` / `fit` 等查询值 |
 
 站内详情示例从实际列表响应取得 `post_id`，不硬编码图片 ID。三个匿名示例的命令见
-[serika.md](serika.md#可运行示例)。`verification.serika` 的 `scripts`、`pause_seconds`、
-`evidence_file` 指定本轮逐一运行哪些示例、调用间隔与临时证据位置；请求输入仍来自 `examples.serika`。
+[serika.md](serika.md#可运行示例)。`verification.serika` 的 `scripts` 与 `pause_seconds` 指定本轮逐一运行哪些示例与调用间隔；
+请求输入仍来自 `examples.serika`。证据文件由维护者留在本机，不入库。
 
 e621ng 示例使用 `examples.e621`，查询参数是 Rails 顶层参数与 `search[...]`，不是 Serika 的 CSV 风格：
 

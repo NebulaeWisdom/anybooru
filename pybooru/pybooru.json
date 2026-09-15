@@ -111,8 +111,7 @@
         "examples/serika/browse.py",
         "examples/serika/random_image.py"
       ],
-      "pause_seconds": 1,
-      "evidence_file": "temp/serika-examples-evidence.json"
+      "pause_seconds": 1
     },
     "site": "danbooru",
     "limit": 2,
