@@ -128,7 +128,8 @@ post_count 降序）。**不给 `hide_empty` 时上游默认只返回 `post_coun
 tag = client.tag_show(tags[0]['id'])                     # 实测 7115 → anthro
 by_name = client.tag_show(tags[0]['name'])               # 名称分支仅源码对齐
 ```
-纯数字路径段按 id 查，否则按名称查；名称会归一化（大小写、空格转下划线），未命中 `404`。
+纯数字路径段按 id 查，否则**按原样精确匹配名称**（`Tag.find_by!(name:)`，不做大小写或空格归一化；画师的
+`named` 与 wiki 的 `titled` 才会归一化，别把三者混为一谈），未命中 `404`。
 返回单个 tag 对象，字段同上。
 
 ## 画师（2 个方法）
