@@ -59,7 +59,7 @@
    .venv/bin/python -m pip install -e .                # Linux / macOS
    ```
 
-   示例脚本从根配置文件 `pybooru.json` 读取参数（见 [docs/configuration.md](docs/configuration.md)）。
+   示例脚本从配置文件读取参数（默认是包内 `pybooru/pybooru.json`，见 [docs/configuration.md](docs/configuration.md)）。
 
 ## 代码风格
 
@@ -68,7 +68,7 @@
 
 其他约定：
 
-* 站点地址、凭据、代理、超时、示例参数一律放在根配置文件 `pybooru.json`，禁止硬编码在代码里，
+* 站点地址、凭据、代理、超时、示例参数一律放在配置文件 `pybooru/pybooru.json`，禁止硬编码在代码里，
   也禁止用环境变量注入。
 * 不做隐式兜底、不自动重试、不猜站点上限；服务端返回什么就原样暴露什么。
 * 文档改动请同时更新 `docs/` 下对应的中文 Markdown。

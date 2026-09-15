@@ -86,7 +86,7 @@ Moebooru 面同样不做本地分页：`page` 就是页码（服务端把它夹�
 ```python
 from pybooru import Moebooru
 
-with Moebooru('yandere', config_file='pybooru.json') as client:
+with Moebooru('yandere') as client:
     example = client.config['examples']['moebooru']
 
     for page in example['pages']:

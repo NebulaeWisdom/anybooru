@@ -1,39 +1,43 @@
-# 根配置文件 `pybooru.json`
+# 配置文件 `pybooru.json`
 
 Pybooru 的所有可调参数——站点地址、凭据、代理、超时、User-Agent、示例参数——集中放在一份
 JSON 文件里。
 
-设计上只认这一份**显式文件**：
+设计上只有两个来源，都用**显式参数**决定：
 
-* 没有环境变量输入；
-* 没有隐藏的搜索路径：库**不会**去包安装目录、site-packages、用户目录或任何其他位置找它；
-* 没有内置站点后备，也不会因为站点名未知就悄悄换一个地址。
+* 默认：`config_file=None`，读**随包安装**的 `pybooru/pybooru.json`；
+* 覆盖：`config_file='<路径>'`，读指定的那一份（相对路径相对当前工作目录解析）。
+
+此外没有别的入口：没有环境变量输入、不去当前工作目录或用户目录猜一份同名文件、没有内置站点后备，
+也不会因为站点名未知就悄悄换一个地址。
 
 ## 文件放在哪里
 
-`config_file` 参数的默认值是**当前工作目录**下的 `pybooru.json`。因此有两种用法：
+`config_file` 默认 `None`，读的是安装包里那份 `pybooru.json`，所以 `pip install` 之后直接写
+`Danbooru('danbooru')` 就能用，不需要把任何东西复制到工作目录。
 
-1. **把 `pybooru.json` 复制到你自己的应用工作目录**（推荐，与脚本同级或在其启动目录下）；
-2. 或者用 `config_file` 显式指向任意路径。
+要改站点、凭据或代理，把那份文件复制成自己的，再把路径交给 `config_file`：
 
 ```python
-from pybooru import Danbooru
+from pybooru import Danbooru, DEFAULT_CONFIG_FILE
 
-client = Danbooru('danbooru')                                  # 读取当前工作目录的 pybooru.json
-client = Danbooru('danbooru', config_file='pybooru.json')      # 等价，显式写全
-client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
+print(DEFAULT_CONFIG_FILE)  # 包内默认配置的绝对路径
+client = Danbooru('danbooru')  # 读包内默认配置
+client = Danbooru('danbooru', config_file='config/sites.json')  # 读自己那份
+client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径亦可
 ```
 
-`pip install` 之后**不会**自动出现配置文件：sdist 里带了一份根样例 `pybooru.json`，你需要把它
-放到工作目录，或把它所在路径交给 `config_file`。文件不存在时构造函数直接抛出 `FileNotFoundError`。
+包内默认文件的绝对路径从 `pybooru.DEFAULT_CONFIG_FILE` 读（editable 安装时它就是仓库里的
+`pybooru/pybooru.json`，改动立即生效）。`config_file` 指到的文件不存在时构造函数直接抛出
+`FileNotFoundError`，**不会**退回到默认文件，也不会退回到内置站点。
 
 `Danbooru('danbooru')` 的第一个参数是 `sites` 段里的键名，不是 URL。
 
 ## 完整样例
 
-完整、可直接复制的内容见仓库根的 [`pybooru.json`](../pybooru.json)（sdist 里也会带这份样例）。
-它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是维护者验证脚本专用的，普通使用者
-可以省略）：
+完整、可直接复制的内容见包内的 [`pybooru/pybooru.json`](../pybooru/pybooru.json)（wheel 与 sdist
+都带这份文件）。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是维护者验证脚本
+专用的，普通使用者可以省略）：
 
 ```json
 {
@@ -102,7 +106,7 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 指向别处
 }
 ```
 
-Serika 示例使用根样例中的 `examples.serika`，不与 Rails 两家的搜索语法混用：
+Serika 示例使用默认配置中的 `examples.serika`，不与 Rails 两家的搜索语法混用：
 
 | 键 | 用途 |
 | :--- | :--- |
@@ -193,10 +197,10 @@ Serika 系站点（独立第三类引擎）：
 | 键 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `url` | string | `serika.art` 或相同引擎的自托管根地址；无内置站点后备 |
-| `api_key` | string | 非空时发送 `Authorization: Bearer <key>`；根样例为空，仅匿名访问 |
+| `api_key` | string | 非空时发送 `Authorization: Bearer <key>`；默认配置样例为空，仅匿名访问 |
 
 Serika 不使用 `username`、`password`、`hash_string` 或客户端路径版本开关。
-`Serika('serika', config_file='pybooru.json')` 读取上述两项；自托管实例在 `sites` 中新增同结构条目。
+`Serika('serika')` 读取上述两项；自托管实例在 `sites` 中新增同结构条目。
 官方 v1 的多数只读路由也需 key，空 key 不会被替换成占位符；本轮不申请凭据、不实测这些路由。
 站内 cookie 登录不实现，详见 [authentication.md](authentication.md#serika-系站点)。
 
@@ -273,11 +277,11 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
-.venv/Scripts/python.exe examples/danbooru/list_posts.py --config pybooru.json --site danbooru
+.venv/Scripts/python.exe examples/danbooru/list_posts.py --config temp/my-sites.json --site safebooru
 ```
 
-`--config` 指定配置文件路径，`--site` 显式覆盖站点名（留空则取 `examples.<段>.site`）。两者都只用
-命令行参数，不使用环境变量。
+`--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（留空则取
+`examples.<段>.site`）。两者都只用命令行参数，不使用环境变量。
 
 ## 显式覆盖
 
@@ -288,7 +292,7 @@ from pybooru import Danbooru
 
 client = Danbooru(
     'danbooru',
-    config_file='pybooru.json',
+    config_file='config/sites.json',
     site_url='https://safebooru.donmai.us',
     username='your-username',
     api_key='your-api-key',

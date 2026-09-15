@@ -8,13 +8,13 @@
 
 ## 共享前置
 
-下文的 `c` 都是这个已按根配置构造好的客户端（站点名与其余输入取自 `sites` / `examples.moebooru` 段；
+下文的 `c` 都是这个已按配置构造好的客户端（站点名与其余输入取自 `sites` / `examples.moebooru` 段；
 那份清单是样例，不是支持边界，任何跑 Moebooru 引擎的站点都可以 `site_url=` + `api_version=` 直接接入）：
 
 ```python
 from pybooru import Moebooru
 
-c = Moebooru('yandere', config_file='pybooru.json')
+c = Moebooru('yandere')
 ```
 
 片段里的 `post_id` / `pool_id` / `comment_id` / `note_id` / `artist_id` / `title` 等是**从读响应里取到的值**

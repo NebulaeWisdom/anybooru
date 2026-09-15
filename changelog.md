@@ -10,21 +10,26 @@
 - 新增 `Serika` 导出、Bearer 认证与官方 `data` / `meta` 信封拆封；users 目录的特殊信封单独处理。
 - 官方 v1 覆盖 15 个路由文件的全部 16 个动词；站内非版本化私有面提供 14 个匿名读方法，使用 `internal_` 前缀。
 - 共享传输新增独立 bytes 通路，随机图片原样返回字节；Danbooru / Moebooru 的 JSON 解码与 HTTP 错误处理保持原逻辑。
-- 根配置新增 `sites.serika`（key 为空）、`examples.serika` 与 `verification.serika`；不实现站内 cookie 登录。
+- 配置新增 `sites.serika`（key 为空）、`examples.serika` 与 `verification.serika`；不实现站内 cookie 登录。
 - 三个匿名示例实际运行退出 0，共 8 个 HTTP 200；所有需 key 的 v1 方法仅源码对齐，未实测成功路径。
 - 文档区分官方 v1 / 站内私有 / 需 key 未实测，并记录内部 id 与 post_id、未知标签分支、限流 code 与 PNG 占位响应等契约差异。
 
 ### 需求范围纠正
 
 - 移除由个人猴子补丁展示延伸出的专用工作流示例、文档章节与三个示例配置键；画师查询只保留上游通用契约说明。
-- 这一项只删除个人补丁延伸出的示例与配置键，不改变 Danbooru 面的实现与根配置结构（Moebooru 面的重写见下文）；
+- 这一项只删除个人补丁延伸出的示例与配置键，不改变 Danbooru 面的实现与配置结构（Moebooru 面的重写见下文）；
   此前真实执行的验证输入与结果仍按历史记录保留，不作为产品能力承诺。
 
 ### 配置与认证
 
-- 站点、凭据、代理、超时、User-Agent、示例参数集中到根配置文件 `pybooru.json`；
-  `config_file` 默认为当前工作目录下的该文件，缺失时抛 `FileNotFoundError`；
-  不搜索安装目录、不读环境变量、没有内置站点后备。
+- 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `pybooru.json`，随包安装
+  （`pybooru/pybooru.json`，`setup.cfg` 的 `package_data` + `MANIFEST.in` 同时覆盖 wheel 与 sdist）；
+  `config_file` 默认 `None` 即读这份包内文件，显式传路径才读别的文件，指到的文件缺失时抛
+  `FileNotFoundError`；不搜索当前工作目录、不读环境变量、没有内置站点后备。
+- 新增 `pybooru.DEFAULT_CONFIG_FILE`（包内默认配置的绝对路径，可直接当模板来源）；
+  `config_file` 默认值从字符串 `"pybooru.json"` 改为 `None`。
+- `examples/` 下 15 个脚本的 `--config` 默认值同步改为 `None`（默认读包内配置），
+  站点名改从 `resources.load_config` 读，不再自己 `open()` 一遍配置文件。
 - 删除 `resources.SITE_LIST` 与 `HTTP_STATUS_CODE`（站点清单改由配置提供）。
 - `sites` 样例新增 Moebooru 系站点 `sakugabooru`（`https://sakugabooru.com`）：API 版本与
   加盐模板取自该站 `help/api` 自述，匿名只读端点已实测。
@@ -96,10 +101,10 @@
 ### 文档
 
 - 删除 Sphinx 文档树（`docs/source/`、`docs/Makefile`、`docs/make.bat`）、预览脚本与 `setup.cfg`
-  的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、根配置、认证、分页、错误、
+  的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、配置、认证、分页、错误、
   各 Danbooru API 面、Moebooru 客户端/端点清单/能力总览、迁移）。
 - README、CONTRIBUTING 更新为中文并与 5.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
-- 示例重写为从根配置 `examples` 段取参数，不再硬编码站点、代理与分页；
+- 示例重写为从配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
 
 ### 工程整理
@@ -107,7 +112,8 @@
 - 删除历史 CI 配置（`.travis.yml`、`appveyor.yml`）与临时入口脚本 `provisional_test.py`；
   保留与旧流程无关的发布工作流。PyPI 发布工作流见 `.github/workflows/publish_to_pypi.yml`。
 - 删除只服务旧流程的工具脚本（`tools/`）。
-- 新增 `MANIFEST.in`，把根样例 `pybooru.json` 与 `docs/`、`examples/` 带入 sdist。
+- 新增 `MANIFEST.in`，把包内配置文件 `pybooru/pybooru.json` 与 `docs/`、`examples/` 带入 sdist；
+  `setup.cfg` 的 `[options.package_data]` 让 wheel 也带上该配置文件。
 - `setup.cfg` 移除过时的 Python 3.5 分类器与 `docs`/`all` extras（运行下限仍为 Python >= 3.6）。
 
 ### 验证

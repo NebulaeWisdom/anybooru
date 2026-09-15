@@ -1,12 +1,12 @@
 # Moebooru 客户端
 
-`Moebooru` 访问 Moebooru 引擎系站点（yande.re、konachan、sakugabooru 等）：读根配置、构造请求、
+`Moebooru` 访问 Moebooru 引擎系站点（yande.re、konachan、sakugabooru 等）：读配置、构造请求、
 附加 `password_hash`、把服务端 JSON 原样返回。契约以只读参考的上游源码 `moebooru/` 为准，
 逐条上游坐标、权限与排除项见[契约审计附注](moebooru-contract-notes.md)。
 
 ```python
 from pybooru import Moebooru
-with Moebooru('yandere', config_file='pybooru.json') as client:
+with Moebooru('yandere') as client:
     print(len(client.comment_search(query=client.config['examples']['moebooru']['comment_query'])))
 ```
 
@@ -18,17 +18,17 @@ with Moebooru('yandere', config_file='pybooru.json') as client:
 
 ## 构造
 
-`Moebooru(site_name=None, site_url=None, username=None, password=None, hash_string=None, api_version=None, proxies=None, *, config_file='pybooru.json', timeout=None, user_agent=None)`
+`Moebooru(site_name=None, site_url=None, username=None, password=None, hash_string=None, api_version=None, proxies=None, *, config_file=None, timeout=None, user_agent=None)`
 
 | 参数 | 说明 |
 | :--- | :--- |
-| `site_name` | 根配置 `sites` 段的键名（如 `'yandere'`）；条目里的 `url` / `username` / `password` / `hash_string` / `api_version` 按同名字段读入 |
+| `site_name` | 配置 `sites` 段的键名（如 `'yandere'`）；条目里的 `url` / `username` / `password` / `hash_string` / `api_version` 按同名字段读入 |
 | `site_url` | 显式覆盖地址；不用命名站点时必须同时给 `api_version`，否则构造失败 |
 | `username` / `password` | 显式覆盖登录凭据；匿名只读不必填 |
 | `hash_string` | 站点加盐模板（含 `{0}`）；站点条目里是 `null` 又需要登录时必须显式给 |
 | `api_version` | 决定**列表路径形态**（见下方「坑」）：旧版本把裸集合路径补成 `/index`，`1.13.0+update.3` 不补 |
-| `proxies` / `timeout` / `user_agent` | 覆盖根配置 `request` 段的同名项；会话关闭 `trust_env`，不读环境变量 |
-| `config_file` | 配置文件路径，默认当前工作目录的 `pybooru.json`；不去安装目录搜索 |
+| `proxies` / `timeout` / `user_agent` | 覆盖配置 `request` 段的同名项；会话关闭 `trust_env`，不读环境变量 |
+| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `pybooru/pybooru.json`，传路径才读别的文件 |
 
 显式参数优先于配置文件中的同名值；自定义站点写法 `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3', username='me', password='secret', hash_string='salt--{0}--')`。
 解析后的配置挂在 `c.config`，派生字段可读 `c.api_version` / `c.password_hash`（匿名时为 `None`）；每次请求后 `c.last_call` 是最新一次的 `API` 相对路径、最终 `url`（含查询串）、状态与响应头。
@@ -63,7 +63,7 @@ with Moebooru('yandere', config_file='pybooru.json') as client:
 ```python
 from pybooru import Moebooru
 
-with Moebooru('yandere', config_file='pybooru.json') as c:
+with Moebooru('yandere') as c:
     example = c.config['examples']['moebooru']
     posts = c.request('GET', 'post', params={'tags': example['tags'], 'limit': example['limit']})
     print([post['id'] for post in posts])
@@ -91,14 +91,14 @@ with Moebooru('yandere', config_file='pybooru.json') as c:
 
 ## 示例命令
 
-五个脚本都匿名只读，参数全部来自根配置 `examples.moebooru`（站点、标签、页码、条数等），不硬编码站点与代理；`--config` 指定配置，`--site` 覆盖站点名：
+五个脚本都匿名只读，参数全部来自配置 `examples.moebooru`（站点、标签、页码、条数等），不硬编码站点与代理；`--config` 指定配置（省略则读包内默认那份），`--site` 覆盖站点名：
 
 ```bash
-.venv/Scripts/python.exe examples/moebooru/list_posts.py --config pybooru.json
-.venv/Scripts/python.exe examples/moebooru/list_tags.py --config pybooru.json
-.venv/Scripts/python.exe examples/moebooru/wiki_list.py --config pybooru.json
-.venv/Scripts/python.exe examples/moebooru/list_comments.py --config pybooru.json
-.venv/Scripts/python.exe examples/moebooru/related_tags.py --config pybooru.json
+.venv/Scripts/python.exe examples/moebooru/list_posts.py
+.venv/Scripts/python.exe examples/moebooru/list_tags.py
+.venv/Scripts/python.exe examples/moebooru/wiki_list.py
+.venv/Scripts/python.exe examples/moebooru/list_comments.py
+.venv/Scripts/python.exe examples/moebooru/related_tags.py
 ```
 
 | 脚本 | 用途 |

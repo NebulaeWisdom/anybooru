@@ -28,7 +28,7 @@ Danbooru / Moebooru 是 Rails 引擎；Serika 是独立的 Next.js 引擎，提�
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | 环境要求、源码/PyPI 安装与目录结构 |
-| [配置](configuration.md) | 根 `pybooru.json` 的加载规则、站点、代理、超时和示例参数 |
+| [配置](configuration.md) | 默认配置来源、`config_file` 覆盖、站点、代理、超时和示例参数 |
 | [认证](authentication.md) | Danbooru Basic、Moebooru password_hash、Serika Bearer |
 | [分页](pagination.md) | page/limit 透传、编号页与 Danbooru 游标 |
 | [错误处理](errors.md) | HTTP 错误字段、网络异常、状态码与重定向 |
@@ -36,7 +36,8 @@ Danbooru / Moebooru 是 Rails 引擎；Serika 是独立的 Next.js 引擎，提�
 
 ## 客户端共同约定
 
-1. **显式配置**：当前目录的 `pybooru.json` 或明确的 `config_file` 是参数入口；没有环境变量注入、隐藏搜索目录或内置站点后备。站点键指向配置里的 `sites` 条目。
+1. **显式配置**：默认读随包安装的 `pybooru/pybooru.json`，`config_file` 指向其他文件时读那份；没有
+   环境变量注入、没有工作目录搜索、没有内置站点后备。站点键指向配置里的 `sites` 条目。
 2. **通用入口与原生方法**：三个客户端都有 `request()`；原生方法是其薄封装。服务端决定权限与参数含义，客户端不猜能力、不拦截未知搜索字段。
 3. **保留原响应语义**：不自动翻页、重试或降级；HTTP 错误保留状态和正文。Serika 官方信封拆为返回数据与 `last_call['meta']`，站内 JSON 原样返回，图片方法返回 bytes。
 4. **参数跟随引擎**：Rails 查询嵌套编码为 `a[b]` / `a[]`，布尔为 `true` / `false`，None 不发送；Danbooru 无文件写请求用 JSON，Moebooru 恒用表单。Serika 标签/评级为逗号分隔字符串，批量查询用 JSON，上传用 multipart。

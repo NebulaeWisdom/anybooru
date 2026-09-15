@@ -21,7 +21,7 @@
 
 ## 按目的找入口
 
-下表的 `c` 是按根配置创建的 `Serika` 客户端；查询取自 `examples.serika` 或应用自定配置，
+下表的 `c` 是按配置创建的 `Serika` 客户端；查询取自 `examples.serika` 或应用自定配置，
 `post_id`、`tag_name`、`username`、`user_id` 从实际响应取得，不是写死在库里的默认输入。
 
 | 我想做什么 | 能力与方法 | 最简调用形态 | 是否需要凭据 |

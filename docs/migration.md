@@ -5,7 +5,7 @@
 
 ## 一、破坏性变更总览
 
-### 1. 站点清单消失，改为根配置文件
+### 1. 站点清单消失，改为配置文件
 
 4.x 把默认站点硬编码在 `pybooru/resources.py` 的 `SITE_LIST` 里，并允许用 `site_url=` 传任意地址。
 5.x 删除 `SITE_LIST`，站点、凭据、代理、超时、User-Agent 全部来自 `pybooru.json`：
@@ -17,12 +17,13 @@ client = Danbooru('danbooru')
 client = Danbooru(site_url='https://danbooru.donmai.us')
 
 # 5.x
-client = Danbooru('danbooru')                       # sites 段的键名
-client = Danbooru('danbooru', config_file='pybooru.json')
+client = Danbooru('danbooru')                       # sites 段的键名，读包内默认 pybooru.json
+client = Danbooru('danbooru', config_file='config/sites.json')   # 换一份自己维护的配置
 client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可显式覆盖
 ```
 
-* 配置文件**必须存在**，否则抛 `FileNotFoundError`；没有内置站点后备，也不读环境变量；
+* 默认读的那份配置随包安装，缺不了；`config_file` 显式指到的文件不存在时抛 `FileNotFoundError`，
+  没有内置站点后备，也不读环境变量；
 * 文件放哪、怎么指向见 [configuration.md](configuration.md)。
 
 ### 2. 通用请求入口取代 `_get()`
@@ -281,7 +282,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ## 四、迁移检查清单
 
-1. 准备一份 `pybooru.json`（从仓库根样例复制），填好站点与凭据；
+1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`pybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
 2. 把 `Danbooru('danbooru')` 之外的站点构造改为 `sites` 段的键名，删掉对 `SITE_LIST` 的依赖；
 3. 除 `post_list(**params)` 与 `autocomplete_list(query, ...)` 外，列表过滤迁至 `search={...}`；分页保持顶层；
 4. 写接口改用 `**attributes` 形式，删掉 `auth=` 参数；

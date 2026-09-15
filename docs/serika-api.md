@@ -31,13 +31,13 @@ Serika 客户端共 **30 个原生方法**，分两面：官方版本化 `/api/v
 ```python
 from pybooru import Serika
 
-client = Serika('serika', config_file='pybooru.json')
+client = Serika('serika')
 example = client.config['examples']['serika']
 ```
 
-每个片段都用这个 `client`，参数从 `example`（根配置 `examples.serika`）取，不硬编码；
+每个片段都用这个 `client`，参数从 `example`（配置 `examples.serika`）取，不硬编码；
 片段之间可以独立接续运行，全部结束后调用 `client.close()`。想一次性用完即关，也可以写
-`with Serika('serika', config_file='pybooru.json') as client:`。
+`with Serika('serika') as client:`。
 
 ### 索引、统计、用户目录（常用）
 

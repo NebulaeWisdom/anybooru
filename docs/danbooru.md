@@ -2,7 +2,7 @@
 
 ```python
 from pybooru import Danbooru
-with Danbooru('danbooru') as client:                       # 读取当前目录的 pybooru.json
+with Danbooru('danbooru') as client:                       # 读包内默认 pybooru.json
     print(client.wiki_page_show(client.config['examples']['danbooru']['wiki_title'])['title'])
 ```
 
@@ -15,7 +15,7 @@ help:api
 另一次执行 `examples/danbooru/related_tag.py` 得到 `query: touhou posts: 1096795` 与
 `1girl`、`solo`、`hat`，逐条见 [verification.md](verification.md)。
 
-`Danbooru` 类负责 Danbooru 引擎系站点的全部访问：读根配置、构造请求、附加认证、把服务端 JSON
+`Danbooru` 类负责 Danbooru 引擎系站点的全部访问：读配置、构造请求、附加认证、把服务端 JSON
 原样返回。方法清单见 [方法参考](danbooru-api.md)，按目的找入口见
 [能力入口](danbooru-capabilities.md)，逐条路由与上游出处见 [契约审计附注](danbooru-contract-notes.md)。
 
@@ -23,12 +23,13 @@ help:api
 
 ```python
 Danbooru(site_name=None, site_url=None, username=None, api_key=None, proxies=None,
-         *, config_file='pybooru.json', timeout=None, user_agent=None)
+         *, config_file=None, timeout=None, user_agent=None)
 ```
 
 `site_name` 是 `sites` 段的键名（如 `'danbooru'`、`'safebooru'`），同时决定读取哪个站点的
-`api_key`；`config_file` 指向配置文件，默认当前工作目录的 `pybooru.json`，文件不存在直接抛
-`FileNotFoundError` 而不回落到内置站点；其余参数显式覆盖配置文件同名值。见 [configuration.md](configuration.md)。
+`api_key`；`config_file` 默认 `None`，即读随包安装的 `pybooru/pybooru.json`
+（`pybooru.DEFAULT_CONFIG_FILE`），显式传路径才读别的文件，指到的文件不存在直接抛
+`FileNotFoundError` 而不回落到默认文件或内置站点；其余参数显式覆盖配置文件同名值。见 [configuration.md](configuration.md)。
 
 解析后的配置挂在公开属性 `config` 上：`config['request']['timeout']`（`30`）、
 `config['sites']['danbooru']['url']`、`config['examples']['danbooru']['tags']`（`rating:g`）；

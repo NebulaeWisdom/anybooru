@@ -36,13 +36,14 @@ pip install --user Pybooru
 
 > 本次重构尚未发布；普通 PyPI 安装不保证包含这里的新接口。要使用本轮实现，请从包含这些提交的源码安装。
 
-安装不会自动创建配置文件；无论哪种方式，都要自己准备一份 `pybooru.json`。
+安装后不需要额外准备配置文件：包内自带一份可用的 `pybooru.json`，构造函数默认就读它。
 
 ## 快速开始
 
-### 1. 准备根配置文件
+### 1. 配置文件
 
-所有站点、凭据、代理、超时等参数集中放在一份 JSON 文件里，不在调用处硬编码，也不用环境变量注入：
+所有站点、凭据、代理、超时等参数集中放在一份 JSON 文件里，不在调用处硬编码，也不用环境变量注入。
+这份文件**随包安装**，`Danbooru('danbooru')` 这类调用默认读它：
 
 ```json
 {
@@ -60,13 +61,26 @@ pip install --user Pybooru
 }
 ```
 
-`config_file` 默认为**当前工作目录**下的 `pybooru.json`：把它复制到你的应用工作目录，或用
-`config_file` 显式指向别处。库不会去安装目录里找它，文件不存在时直接抛 `FileNotFoundError`，
-也没有内置站点作为后备。`sites` 段是**样例 / 起始清单，不是支持边界**：名单外的同引擎站点
-可以直接用 `site_url`（Moebooru 另需 `api_version`）接入，见
+要改站点、凭据或代理，复制那份包内文件改一份自己的，再把路径交给 `config_file`；当前工作目录里的
+同名文件**不会**被自动读取。
+
+```python
+import shutil
+from pybooru import Danbooru, DEFAULT_CONFIG_FILE
+
+print(DEFAULT_CONFIG_FILE)                                     # 包内默认配置的绝对路径
+shutil.copy(DEFAULT_CONFIG_FILE, 'config/sites.json')          # 拿它当模板
+
+client = Danbooru('danbooru')                                  # 读包内默认配置
+client = Danbooru('danbooru', config_file='config/sites.json') # 读自己那份
+```
+
+`config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会退回到默认文件。`sites` 段是
+**样例 / 起始清单，不是支持边界**：名单外的同引擎站点可以直接用 `site_url`（Moebooru 另需
+`api_version`）接入，见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md#sites-段)。
 
-完整的根样例（含三类引擎站点、`examples`、`verification` 段）见
+完整的默认配置样例（含三类引擎站点、`examples`、`verification` 段）见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md)。
 
 ### 2. Danbooru 系站点
@@ -74,8 +88,8 @@ pip install --user Pybooru
 ```python
 from pybooru import Danbooru
 
-# 'danbooru' 是 pybooru.json 中 sites 段的键名；URL、代理、超时、凭据都来自根配置。
-client = Danbooru('danbooru', config_file='pybooru.json')
+# 'danbooru' 是 pybooru.json 中 sites 段的键名；URL、代理、超时、凭据都来自配置。
+client = Danbooru('danbooru')
 example = client.config['examples']['danbooru']
 
 posts = client.post_list(tags=example['tags'], limit=example['limit'])
@@ -88,7 +102,7 @@ client.close()
 需要登录的写接口在配置了 `username` / `api_key` 后自动使用 HTTP Basic 认证：
 
 ```python
-client = Danbooru('danbooru', config_file='pybooru.json')
+client = Danbooru('danbooru')
 example = client.config['examples']['danbooru']
 client.comment_create(post_id=example['post_id'], body=example['comment_body'])
 ```
@@ -103,7 +117,7 @@ from pybooru import Moebooru
 
 # 'yandere' 是 pybooru.json 中 sites 段的键名；Moebooru 面没有 search 字典，
 # 过滤条件（tags、limit、page 等）就是顶层参数。
-client = Moebooru('yandere', config_file='pybooru.json')
+client = Moebooru('yandere')
 example = client.config['examples']['moebooru']
 
 for post in client.post_list(tags=example['tags'], limit=example['limit']):
@@ -123,7 +137,7 @@ Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生�
 ```python
 from pybooru import Serika
 
-with Serika('serika', config_file='pybooru.json') as client:
+with Serika('serika') as client:
     example = client.config['examples']['serika']
     print(client.stats())  # 官方 v1，匿名可达；返回 data，meta 留在 last_call
     result = client.internal_image_list(**example['image_query'])
@@ -132,7 +146,7 @@ with Serika('serika', config_file='pybooru.json') as client:
 ```
 
 模块 `pybooru.serika` 的 `Serika` 类与 `api_serika` 的方法集覆盖 **16 个官方 v1 方法**及
-**14 个站内匿名读方法**。官方需 key 的 12 个方法仅源码对齐，未实测；根配置 key 留空，
+**14 个站内匿名读方法**。官方需 key 的 12 个方法仅源码对齐，未实测；配置 key 留空，
 不实现站内 cookie 登录。随机图片方法返回原始 `bytes`，不会按 JSON 解析。
 v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不能互换。
 使用方式见 [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md)。
@@ -146,7 +160,7 @@ v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不�
 | [docs/index.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/index.md) | 文档索引与设计立场 |
 | [docs/danbooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-capabilities.md) | 能做什么、匿名能做什么、想做某件事该用哪个方法 |
 | [docs/installation.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/installation.md) | 安装、环境要求、配置文件放哪 |
-| [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md) | 根配置文件 `pybooru.json` 完整样例 |
+| [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md) | 默认配置来源、`config_file` 覆盖与 `pybooru.json` 完整样例 |
 | [docs/authentication.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/authentication.md) | 认证与权限 |
 | [docs/pagination.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/pagination.md) | 分页与游标 |
 | [docs/errors.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/errors.md) | 异常与状态码 |
@@ -170,8 +184,8 @@ v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不�
 - `examples/serika/`：`service_info.py`（官方匿名信息）、`browse.py`（站内匿名浏览）、
   `random_image.py`（官方匿名图片字节），参数从 `examples.serika` 读取，不调用需 key 路由。
 
-示例中的关键词、ID 等参数一律从根配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
-分页。
+示例中的关键词、ID 等参数一律从配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
+分页。脚本默认读包内那份 `pybooru.json`，用 `--config` 可指向别处。
 
 ## 贡献
 

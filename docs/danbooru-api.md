@@ -10,14 +10,14 @@
 
 ## 共用前置
 
-本页所有片段都接着这段前置写：`client` 已构造好，`example` 是根配置里的样例输入。每个片段自己把用到的
+本页所有片段都接着这段前置写：`client` 已构造好，`example` 是配置里的样例输入。每个片段自己把用到的
 id 读出来或赋值（例如从 `post_list` 的响应取 `post_id`），本库不代取；结束后调用 `client.close()`，
 也可以把整段放入 `with Danbooru(...) as client:`，见 [客户端用法](danbooru.md)。
 
 ```python
 from pybooru import Danbooru
 
-client = Danbooru('danbooru')                     # 读取当前目录的 pybooru.json
+client = Danbooru('danbooru')                     # 读包内默认 pybooru.json
 example = client.config['examples']['danbooru']   # 样例输入：站点、关键词、条数等
 ```
 

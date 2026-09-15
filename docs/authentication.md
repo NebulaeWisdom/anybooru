@@ -4,7 +4,7 @@
 
 Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用户名，API key 作为 Basic 密码。
 
-凭据来自根配置文件的 `sites` 段（见 [configuration.md](configuration.md)）：
+凭据来自配置文件的 `sites` 段（见 [configuration.md](configuration.md)）：
 
 ```json
 "sites": {
@@ -47,7 +47,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 `GET` / `HEAD` 请求把这两个字段放进**查询串**，其他动词放进**表单体**（客户端按方法自动选择）。
 `hash_string` 是该站点 `help/api` 页面约定的加盐模板（含 `{0}` 占位符），`password` 是明文密码。
-两者都来自根配置文件的站点条目：
+两者都来自配置文件的站点条目：
 
 ```json
 "sites": {
@@ -70,7 +70,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 ## Serika 系站点
 
 Serika 是独立第三类引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
-`Authorization: Bearer <key>`；根样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
+`Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `pybooru.json`。
 
 | 契约面 | 认证与交付边界 |

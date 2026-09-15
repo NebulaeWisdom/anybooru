@@ -6,7 +6,7 @@
 
 ```python
 from pybooru import Serika
-with Serika('serika', config_file='pybooru.json') as client:
+with Serika('serika') as client:
     print(client.api_index()['name'])
 ```
 
@@ -21,18 +21,18 @@ SerikaART API
 
 ```python
 Serika(site_name=None, site_url=None, api_key=None, proxies=None,
-       *, config_file='pybooru.json', timeout=None, user_agent=None)
+       *, config_file=None, timeout=None, user_agent=None)
 ```
 
 | 参数 | 说明 |
 | :--- | :--- |
-| `site_name` | 根配置 `sites` 下的键，条目包含 `url` 与 `api_key`；不表示仅支持预置清单 |
+| `site_name` | 配置 `sites` 下的键，条目包含 `url` 与 `api_key`；不表示仅支持预置清单 |
 | `site_url` | 显式覆盖地址；不用命名站点时由调用方提供，库没有地址后备 |
 | `api_key` | 覆盖配置的 key；空字符串不附认证头，非空附 `Authorization: Bearer <key>` |
-| `proxies` / `timeout` / `user_agent` | 覆盖根 `request` 对应项；会话关闭 `trust_env`，不读环境变量 |
-| `config_file` | 显式配置路径，默认当前工作目录下 `pybooru.json`，不搜索安装目录 |
+| `proxies` / `timeout` / `user_agent` | 覆盖配置 `request` 对应项；会话关闭 `trust_env`，不读环境变量 |
+| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `pybooru/pybooru.json`，传路径才读别的文件 |
 
-自托管实例：在根 `sites` 新增与 `sites.serika` 相同的两字段条目，把 `url` 改为实例根地址，再把这个键传给 `Serika`；没有自动探测、没有引擎自动切换，也不需要复制代码。配置是应用输入，示例里的分页、评级与图片尺寸都来自 [pybooru.json](../pybooru.json)。
+自托管实例：在配置的 `sites` 新增与 `sites.serika` 相同的两字段条目，把 `url` 改为实例根地址，再把这个键传给 `Serika`；没有自动探测、没有引擎自动切换，也不需要复制代码。配置是应用输入，示例里的分页、评级与图片尺寸都来自 [pybooru.json](../pybooru/pybooru.json)。
 `username`、密码哈希、浏览器 cookie 登录都不是本家族的构造参数；官方 API key 与站内会话 token 是两种不同凭据，本库只实现前者的发送。用完记得 `client.close()`，或用 `with` 语句块。
 
 ## 通用请求入口
@@ -84,12 +84,12 @@ JSON 通路收到非空但不可解析的 2xx 正文抛 `PybooruAPIError`；网�
 
 ## 可运行示例
 
-三个脚本都支持 `--config` 与 `--site`，默认站点取自 `examples.serika.site`，只调用匿名可达路径：
+三个脚本都支持 `--config` 与 `--site`，`--config` 省略即读包内默认配置，默认站点取自 `examples.serika.site`，只调用匿名可达路径：
 
 ```bash
-.venv/Scripts/python.exe examples/serika/service_info.py --config pybooru.json
-.venv/Scripts/python.exe examples/serika/browse.py --config pybooru.json
-.venv/Scripts/python.exe examples/serika/random_image.py --config pybooru.json
+.venv/Scripts/python.exe examples/serika/service_info.py
+.venv/Scripts/python.exe examples/serika/browse.py
+.venv/Scripts/python.exe examples/serika/random_image.py
 ```
 
 * `service_info.py`：官方索引、统计、用户目录；展示裸 JSON、标准信封、users 例外三种返回形状。
