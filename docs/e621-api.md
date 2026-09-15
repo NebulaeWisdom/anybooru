@@ -115,8 +115,8 @@ count = client.post_count(**verified['count_query'])     # {"tags": "rating:s"}
 tags = client.tag_list(**example['tag_query'])           # {"limit": 2}
 # 实测：anthro（id 7115，category 0，post_count 4464327）、mammal（id 12054，category 5）
 ```
-`search`：`name`（逗号分隔、精确、会归一化大小写与空格）、`name_matches`（`*` 通配 LIKE）、
-`fuzzy_name_matches`（相似度）、`category`（逗号分隔的数字，`0` general、`1` artist、`2` contributor、
+`search`：`name`（逗号分隔、精确；先归一化大小写与空格再匹配）、`name_matches`（先归一化，再按 `*`
+通配 LIKE）、`fuzzy_name_matches`（原样做 `%` 相似度匹配，不归一化）、`category`（逗号分隔的数字，`0` general、`1` artist、`2` contributor、
 `3` copyright、`4` character、`5` species、`6` invalid、`7` meta、`8` lore）、`hide_empty`、`has_wiki`、
 `has_artist`、`is_locked`、`order`（`name` / `similarity` / `id_asc` / `id_desc` / `date`，否则按
 post_count 降序）。**不给 `hide_empty` 时上游默认只返回 `post_count > 0` 的标签。**
@@ -154,7 +154,8 @@ artists = client.artist_list(**example['artist_query'])   # {"limit": 2}
 artist = client.artist_show(artists[0]['id'])            # 实测 126653 → miindfang
 by_name = client.artist_show(artists[0]['name'])         # 名称分支仅源码对齐
 ```
-纯数字路径段按 id 查，否则按名称查；JSON 请求下未知名称返回 `404`（HTML 请求会被重定向到新建入口）。
+纯数字路径段按 id 查，否则按名称查（`Artist.named` 会归一化大小写与空格）；JSON 请求下未知名称返回
+`404`（HTML 请求会被重定向到新建入口）。
 返回对象除上面那些键外还带 `domains`。
 
 ## 评论（2 个方法）
