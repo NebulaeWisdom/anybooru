@@ -1,27 +1,29 @@
 # 验证记录
 
 这里记录真实执行的命令、请求和结果；方法怎么调用见[方法参考](index.md#按家族选文档)，上游依据见各家族的契约审计附注。
-所有数据都是当时的快照，不保证再次请求得到相同 ID、计数或排名。`temp/` 路径是当时的本地证据指针，不随仓库分发；已删除的脚本只在[历史记录](#历史记录)中列出。
+所有数据都是当时的快照，不保证再次请求得到相同 ID、计数或排名。证据文件当时保存在维护者本机临时目录，不随仓库分发；已删除的脚本只在[历史记录](#历史记录)中列出。
 
 ## 执行环境与批次
 
-| 批次 | 时间、站点与身份 | 命令 / 证据指针 | 执行结果 |
+| 批次 | 时间、站点与身份 | 方式 / 证据 | 执行结果 |
 | :--- | :--- | :--- | :--- |
-| D1：Danbooru 匿名读取 | 2026-09-14T16:14:23Z–16:14:44Z（本地 2026-09-15 00:14）；`https://danbooru.donmai.us`，`sites.danbooru`，username/api_key 均空 | `.venv/Scripts/python.exe temp/verify_danbooru.py`；`temp/danbooru-live-evidence.json` 保存请求与响应原文 | 15 次：12×200、404/410/422 各一次；间隔 1 秒 |
-| D2：画师重定向 | 同站、同代理、匿名 | `temp/verify_artist_redirect.py`；结果见[Danbooru 表](#danbooru匿名只读验证) | 跟随 302，最终 200 JSON |
-| M1：Moebooru 首次读取 | 2026-09-15；`https://yande.re`，`sites.yandere`，username/password 均空 | `.venv/Scripts/python.exe temp/verify_moebooru.py --config pybooru.json`；`temp/moebooru-live-first-pass.json` | 15×200 后一次断连，退出 1；证据仅为实际终端输出摘要，不是完整原始响应 |
-| M2：Moebooru 续跑 | 2026-09-14T17:48:23Z–17:48:27Z（本地 2026-09-15 01:48），同站同代理 | `.venv/Scripts/python.exe temp/verify_moebooru_remaining.py --config pybooru.json`；`temp/moebooru-live-continuation.json` | 200/404/400 各一次，退出 0；逐次保存 URL、状态、头、JSON/正文和异常类型 |
-| M4：候选站点复核 | 2026-09-15，全部匿名 GET | `temp/probe_moebooru_candidates.py`；`temp/moebooru-candidates.json` | 四域名各 12 个只读端点全部 200 JSON，差异见[站点复核](#站点复核) |
-| S1：Serika 客户端示例 | 2026-09-15；`https://serika.art`，`sites.serika.api_key` 为空 | `.venv/Scripts/python.exe temp/run_serika_examples.py --config pybooru.json` 编排三个现有示例 | 8×200；三进程均退出 0、stderr 为空；临时 runner、片段、stdout/stderr/returncode 证据转录后已删除 |
-| D3：Danbooru 候选读路径复核 | 2026-09-15，匿名 GET | `temp/probe_danbooru_family.py`；`temp/danbooru-family-probe.json` | `danbooru.donmai.us` 的 9 个 REST 读路径（含 `users.json` / `autocomplete.json`）全 `200` |
+| D1：Danbooru 匿名读取 | 2026-09-14T16:14:23Z–16:14:44Z；`https://danbooru.donmai.us`，`sites.danbooru`，username/api_key 均空 | 维护者本机一次性脚本；证据保存请求与响应原文 | 15 次：12×200、404/410/422 各一次；间隔 1 秒 |
+| D2：画师重定向 | 同站、匿名 | 同一脚本；结果见[Danbooru 表](#danbooru匿名只读验证) | 跟随 302，最终 200 JSON |
+| M1：Moebooru 首次读取 | 2026-09-15；`https://yande.re`，`sites.yandere`，username/password 均空 | 维护者本机一次性脚本 | 15×200 后一次断连，退出 1；证据仅为实际终端输出摘要，不是完整原始响应 |
+| M2：Moebooru 续跑 | 2026-09-14T17:48:23Z–17:48:27Z，同站 | 同一脚本的续跑部分 | 200/404/400 各一次，退出 0；逐次保存 URL、状态、头、JSON/正文和异常类型 |
+| M3：突发与中断复查 | 2026-09-15，同站匿名 | 见[突发与中断复查](#突发与中断复查) | 完整序列 17 次调用退出 0；连续 10 次 `GET /post.json?limit=1` 全部 200，无中断 |
+| M4：候选站点复核 | 2026-09-15，全部匿名 GET | 维护者本机脚本；证据文件 | 四域名各 12 个只读端点全部 200 JSON，差异见[站点复核](#站点复核) |
+| S1：Serika 客户端示例 | 2026-09-15；`https://serika.art`，`sites.serika.api_key` 为空 | 维护者本机 runner 依次运行三个现有示例 | 8×200；三进程均退出 0、stderr 为空；临时 runner、片段、stdout/stderr/returncode 证据转录后已删除 |
+| D3：Danbooru 候选读路径复核 | 2026-09-15，匿名 GET | 维护者本机脚本；证据文件 | `danbooru.donmai.us` 的 9 个 REST 读路径（含 `users.json` / `autocomplete.json`）全 `200` |
+| D4：Safebooru 客户端复测 | 2026-09-15，匿名 GET | 维护者本机脚本；证据文件 | 16 个客户端方法全 `200`，返回形态与 `danbooru.donmai.us` 一致 |
 
 | 共享设置 | 实际值 |
 | :--- | :--- |
-| 解释器 | 项目 `.venv/Scripts/python.exe` |
 | D1 参数 | 根 `verification` 段：站点、关键词、样本规模、间隔，以及 `missing_post_id` / `invalid_page` / `invalid_tags` |
 | M1/M2 参数 | 根 `verification.moebooru`，间隔 1 秒，无客户端自动重试；续跑没有重跑已成功的 15 次 |
+| S1 参数 | 根 `examples.serika`、`verification.serika.scripts`、`verification.serika.pause_seconds=1`；只在示例之间等待，示例内部不额外 sleep / 重试 |
 | 本地导入（Moebooru） | `.venv/Scripts/python.exe -c "import pybooru; from pybooru import Moebooru"`，退出 0 |
-| 本地导入（三家族） | `.venv/Scripts/python.exe -c "import pybooru; from pybooru import Serika, Danbooru, Moebooru; print(Serika.__name__, Danbooru.__name__, Moebooru.__name__)"`，退出 0，输出 `Serika Danbooru Moebooru` |
+| 本地导入（三家族） | `.venv/Scripts/python.exe -c "import pybooru; from pybooru import Serika, Danbooru, Moebooru"`，退出 0，输出 `Serika Danbooru Moebooru` |
 
 ## Danbooru：匿名只读验证
 
@@ -83,10 +85,15 @@ M1 + M2 合计 **19 次尝试：16×200、1×404、1×400、1 次无 HTTP 响应
 
 HTML/空正文 HTTP 错误与 Danbooru 的 JSON 错误体不同；网络异常原样抛出，没有被转换成状态码或 JSON 解码错误。
 
+### 突发与中断复查
 
-| 项目 | 命令 / 方式 | 结果与证据 |
+| 项目 | 方式 | 结果 |
 | :--- | :--- | :--- |
+| 单发原失败端点 | `GET /comment/show.json?id=0` | 404 text/html、550 字节 |
+| 完整序列重跑 | 同一脚本、同站点、1 秒间隔 | 17 次完成、退出 0，`comment_show(0)` 为 404 |
+| 无间隔突发 | 连续 10 次 `GET /post.json?limit=1`，无 sleep | 10/10×200，无中断 |
 
+原第 16 次请求的一次断连记录为**无法复现的瞬时中断**：不是该端点的固有行为，也没有观测到突发限流阈值。站点侧反爬/限流仍是可能原因；重跑时留间隔，不能把无响应写成 HTTP 404 或断言限流阈值。
 
 ## 当前示例的执行记录
 
@@ -94,6 +101,7 @@ HTML/空正文 HTTP 错误与 Danbooru 的 JSON 错误体不同；网络异常�
 
 | 家族 | 实际命令 | 输出摘要 / 执行结果 |
 | :--- | :--- | :--- |
+| Danbooru | `.venv/Scripts/python.exe examples/danbooru/related_tag.py --config pybooru.json` | 移除个人示例后的独立执行：`query: touhou posts: 1096795`；`1girl`、`solo`、`hat`；匿名 |
 | Moebooru | `.venv/Scripts/python.exe examples/moebooru/list_posts.py --config pybooru.json` | page 1：`1268790 / 1268789 / 1268785`；page 2：`1268781 / 1268779 / 1268755`，各附文件 URL |
 | Moebooru | `.venv/Scripts/python.exe examples/moebooru/list_tags.py --config pybooru.json` | 3 标签及计数，首项 `thighhighs 264282` |
 | Moebooru | `.venv/Scripts/python.exe examples/moebooru/wiki_list.py --config pybooru.json` | `alphes`、`alstroemeria_records`、`azur_lane` |
@@ -103,16 +111,17 @@ HTML/空正文 HTTP 错误与 Danbooru 的 JSON 错误体不同；网络异常�
 | Serika | `.venv/Scripts/python.exe examples/serika/browse.py --config pybooru.json` | 3 张 safe 图、详情、标签、画师，详见 S1 表 |
 | Serika | `.venv/Scripts/python.exe examples/serika/random_image.py --config pybooru.json` | bytes，81224 字节，`Content-Type: image/png`，详见 S1 表 |
 
-Moebooru 五命令按上述顺序以 `&&` 连接执行，整体退出 0；输入来自 `examples.moebooru`，同代理匿名，输出摘要在 `temp/moebooru-examples-evidence.json`。Serika 三命令各退出 0、stderr 为空，合计 8 请求。
+Moebooru 五命令按上述顺序以 `&&` 连接执行，整体退出 0；输入来自 `examples.moebooru`，匿名，输出摘要当时保存在维护者本机。Serika 三命令各退出 0、stderr 为空，合计 8 请求。
 
 ## 站点复核
 
-来源：用户提供的 `temp/image-sites-architecture-report.md`（调查日期 2026-09-14）。报告中的引擎血缘归类与 API 兼容性分开核对；未探测报告中“都不属于”的站点。
+来源：用户提供的站点架构调查报告（本机文件，未入库；调查日期 2026-09-14）。报告中的引擎血缘归类与 API 兼容性分开核对；未探测报告中“都不属于”的站点。
 
 ### Moebooru 身份与只读覆盖
 
 | 域名 | `GET /` 页脚证据 | `GET /help/api` 自述 | 只读结果 |
 | :--- | :--- | :--- | :--- |
+| `konachan.com` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3`，自述 Moebooru | 12/12×200 JSON |
 | `konachan.net` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3` | 12/12×200 JSON |
 | `sakugabooru.com` | `Running Moebooru 6.0.0` | `Help: API 1.13.0+update.3` | 12/12×200 JSON |
 | `yande.re` | 此批根路径按 Accept 返回 JSON，没有页脚记录 | `Help: API 1.13.0+update.3`，自述 Moebooru | 12/12×200 JSON；本轮主契约判据站 |
@@ -132,9 +141,11 @@ Moebooru 五命令按上述顺序以 `&&` 连接执行，整体退出 0；输入
 
 | 同时段对照 | 观察结果 | 结论 |
 | :--- | :--- | :--- |
+| `konachan.com`，同域名、同一时段 | 一次 `403`（`Server: cloudflare`、`Just a moment...`），一次 `200`（含首页、帮助页与 12 端点） | `403` 是网络侧的 Cloudflare 挑战，不是域名或引擎没有 API |
 | `.com` 的 `/post.json?limit=5` | `408456, 408455, 408454, 408453, 408452` | 默认保留 `.com` |
 | `.net` 的同一请求 | `408453, 408452, 408451, 408450, 408449` | 同站过滤镜像，少最新 3 帖，不是等价备份 |
 
+两域名同引擎、同 API 版本、同加盐模板，但内容不等价。`.net` 与 `.com` 内容不等价，不能用 `.net` 代替完整站点或 yande.re 的契约判据。
 
 ### HTML 帮助页的 Accept 差异
 
@@ -147,6 +158,7 @@ Moebooru 五命令按上述顺序以 `&&` 连接执行，整体退出 0；输入
 
 ### Safebooru 与 Rails 路径判别
 
+匿名 GET；Safebooru 此前仅继承旧清单登记，本批才补齐验证。
 
 | 请求 | `safebooru.donmai.us` | `yande.re` |
 | :--- | :--- | :--- |
@@ -164,6 +176,7 @@ Safebooru 与 Danbooru 同属 donmai 部署，使用 Danbooru 引擎。路径形
 ### Safebooru：D4 用客户端复测的 16 个方法
 
 上面那一批是裸路径探测；D4 改用线上客户端（`Danbooru(site_url='https://safebooru.donmai.us')`）逐方法复测，
+匿名、间隔 1 秒。ID 取自同一轮的列表响应：
 post `12195666`、tag `2730264`、artist `683106`、comment `2630682`、pool `23200`。
 
 | 客户端方法 | 实际路径 | HTTP | 返回形态 |
@@ -247,14 +260,14 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 
 | 历史阶段 / 入口 | 当时事实 | 后续落点 |
 | :--- | :--- | :--- |
-| 最初共享传输 `temp/verify_transport.py` | 匿名 `/posts.json?limit=2` 为 200；仅本地构造 Konachan/yande.re 客户端，观察 API 版本与鉴权模板保留 | 当时没有 Moebooru 线上验证；后续执行单列为 M1–M4 |
+| 最初共享传输脚本 | 匿名 `/posts.json?limit=2` 为 200；仅本地构造 Konachan/yande.re 客户端，观察 API 版本与鉴权模板保留 | 当时没有 Moebooru 线上验证；后续执行单列为 M1–M4 |
 | Danbooru 阶段的未验证清单 | 当时 Moebooru 全部端点、除 danbooru.donmai.us 外站点均未验证 | 后来 Moebooru 与 Safebooru/候选站记录各自独立，不将新结果计入 D1 |
 | 已删除个人示例 | `.venv/Scripts/python.exe examples/danbooru/pixiv_id_to_tag.py --config pybooru.json`：`artist: 8704 fuzichoco`，帖子 `12090564`、`12070768`、`12064514` | 脚本在 `20cea4b` 删除，根配置三个个人输入也删除；不能作为可运行入口或库特性 |
 | 原生 Artist 查询历史 | pixiv 作者 `27517` → artist `8704` → name/tag `fuzichoco` | 保留真实 URL 与查询证据；通用 Artist 契约见 [Danbooru 方法参考](danbooru-api.md) |
 | 与个人示例同批的相关标签 | `.venv/Scripts/python.exe examples/danbooru/related_tag.py --config pybooru.json`：query `touhou`，post_count `1096790`，`1girl` / `solo` / `hat`；两示例均同配置、代理、匿名 | 删除个人输入后另一次输出为 `1096795`，两个计数是独立快照 |
 | Moebooru 评论示例替换 | 原 `comment_create.py` 会真实写入且需账号 | 已改用只读 `list_comments.py`，未加模拟成功或护栏；写方法仍在参考页 |
 | M1 中断的最初判断 | 用户指出站点侧反爬/限流（yande.re 较重）可造成无 HTTP 响应，是环境预期现象，不是本库缺陷 | M3 未复现、未观测阈值；保留一次瞬时中断事实，不写成 404 或确定限流机制 |
-| Konachan 早期探测 | `temp/moebooru-site-probe.json`：`.com` 24/24 为 Cloudflare 403 / `Just a moment...` | 限制随网络环境变化，不是域名永久不可用 |
+| Konachan 早期探测 | 早期探测脚本：`.com` 24/24 为 Cloudflare 403 / `Just a moment...` | 限制随网络环境变化，不是域名永久不可用 |
 | 帮助页早期 404 | 当时仅发 `Accept: application/json` | HTML Accept 返回 200，页面并未缺失；详见 Accept 差异表 |
 | Serika 改造前匿名 200 | `/api/v1`、`/api/v1/stats`、`/api/v1/users?limit=1`、`/api/v1/random/400/400/image.png`；站内 `/api/images`、`/api/images/:id`、`/api/tags`、`/api/artists` | 来源：改造前的 Serika.art 评估记录；不计入 S1 的 8 次新增客户端请求 |
 | Serika 改造前匿名 401 | v1 images 列表/详情、tags 列表/详情、trending、search、random、users 详情，共 8 个 GET | 仅证明无 key 被拒绝，不证明成功字段；S1 没有重跑 |

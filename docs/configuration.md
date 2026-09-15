@@ -43,7 +43,7 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
 {
   "request": {
     "timeout": 30,
-    "proxies": { "http": "http://proxy-host:port", "https": "http://proxy-host:port" },
+    "proxies": { "http": "http://proxy.example:8080", "https": "http://proxy.example:8080" },
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
@@ -274,7 +274,7 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
-.venv/Scripts/python.exe examples/danbooru/list_posts.py --config temp/my-sites.json --site safebooru
+.venv/Scripts/python.exe examples/danbooru/list_posts.py --config config/sites.json --site safebooru
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（留空则取
@@ -293,7 +293,7 @@ client = Danbooru(
     site_url='https://safebooru.donmai.us',
     username='your-username',
     api_key='your-api-key',
-    proxies={'http': 'http://proxy-host:port', 'https': 'http://proxy-host:port'},
+    proxies={'http': 'http://proxy.example:8080', 'https': 'http://proxy.example:8080'},
     timeout=10,
     user_agent='MyApp/1.0',
 )

@@ -116,7 +116,7 @@
 全部未实测**（用户没有也不申请 key，勿再索要），其中 8 个 GET 另有改造前的匿名 `401` 记录；
 站内其余 10 个方法仅源码对齐。
 
-改造前的匿名边界探测（主 agent 执行，代理 `proxy-host:port`，**不是本轮**的客户端调用）用到的实际路径：
+改造前的匿名边界探测（维护者在本机经代理执行，**不是本轮**的客户端调用）用到的实际路径：
 `GET /api/v1`、`/api/v1/stats`、`/api/v1/users?limit=1`、`/api/v1/random/400/400/image.png`
 （均 `200`，最后一条返回 PNG 字节），以及 `GET /api/v1/images`、`/api/v1/images/:id`、`/api/v1/tags`、
 `/api/v1/tags/:name`、`/api/v1/trending`、`/api/v1/search`、`/api/v1/random`、`/api/v1/users/:id`

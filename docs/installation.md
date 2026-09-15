@@ -30,7 +30,7 @@ python -m venv .venv
 pip 支持显式指定代理，请不要用环境变量注入：
 
 ```bash
-.venv/Scripts/python.exe -m pip install -e . --proxy http://proxy-host:port
+.venv/Scripts/python.exe -m pip install -e . --proxy http://proxy.example:8080
 ```
 
 运行期的代理写在配置文件的 `request.proxies` 中。

@@ -1301,4 +1301,4 @@ post ID 为标识，走 `favorite_delete(post_id)`。
 | 原 API 页的「验证状态」节 | 本文「状态口径与总量」+ `danbooru-api.md` 末尾「边界与未实测」 |
 | 原能力页引用的 `PostPolicy`/`UserPolicy` 等内部符号 | 本文「权限与字段级过滤器」，能力页改为用户可见的字段表现 |
 
-全量搬迁清单（含每个方法的旧条目 → 新位置）见 `temp/danbooru-doc-migration.txt`（临时产物，不入库）。
+全量搬迁清单（含每个方法的旧条目 → 新位置）当时保存在维护者本机临时目录，未入库。

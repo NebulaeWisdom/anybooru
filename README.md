@@ -49,7 +49,7 @@ pip install --user Pybooru
 {
   "request": {
     "timeout": 30,
-    "proxies": { "http": "http://proxy-host:port", "https": "http://proxy-host:port" },
+    "proxies": { "http": "http://proxy.example:8080", "https": "http://proxy.example:8080" },
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
