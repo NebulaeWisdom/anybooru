@@ -256,7 +256,7 @@ S1 只计新增客户端的 **8×200**，不混入旧评估中的匿名 401。�
 | M1 中断的最初判断 | 用户指出站点侧反爬/限流（yande.re 较重）可造成无 HTTP 响应，是环境预期现象，不是本库缺陷 | M3 未复现、未观测阈值；保留一次瞬时中断事实，不写成 404 或确定限流机制 |
 | Konachan 早期探测 | `temp/moebooru-site-probe.json`：`.com` 24/24 为 Cloudflare 403 / `Just a moment...` | 限制随网络环境变化，不是域名永久不可用 |
 | 帮助页早期 404 | 当时仅发 `Accept: application/json` | HTML Accept 返回 200，页面并未缺失；详见 Accept 差异表 |
-| Serika 改造前匿名 200 | `/api/v1`、`/api/v1/stats`、`/api/v1/users?limit=1`、`/api/v1/random/400/400/image.png`；站内 `/api/images`、`/api/images/:id`、`/api/tags`、`/api/artists` | 来源 `HANDOFF.md` 的“Serika.art 评估”；不计入 S1 的 8 次新增客户端请求 |
+| Serika 改造前匿名 200 | `/api/v1`、`/api/v1/stats`、`/api/v1/users?limit=1`、`/api/v1/random/400/400/image.png`；站内 `/api/images`、`/api/images/:id`、`/api/tags`、`/api/artists` | 来源：改造前的 Serika.art 评估记录；不计入 S1 的 8 次新增客户端请求 |
 | Serika 改造前匿名 401 | v1 images 列表/详情、tags 列表/详情、trending、search、random、users 详情，共 8 个 GET | 仅证明无 key 被拒绝，不证明成功字段；S1 没有重跑 |
 | Serika 说明矛盾纠正 | ID、未知标签、限流错误码、PNG 标签过滤等旧评估泛化 | 仅按源码纠正，见 [Serika 契约审计附注](serika-contract-notes.md)，没有另发探测 |
 

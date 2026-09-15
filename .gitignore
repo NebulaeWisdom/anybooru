@@ -26,6 +26,9 @@ venv/
 # scratch/process files (temporary work products, never committed)
 temp/
 
+# local agent handoff notes (kept on disk, never committed)
+/HANDOFF.md
+
 # ignore test file
 .pytest_cache
 pro.py
