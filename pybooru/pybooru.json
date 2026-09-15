@@ -42,6 +42,16 @@
       "password": "",
       "api_version": "1.13.0+update.3",
       "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
+    },
+    "e621": {
+      "url": "https://e621.net",
+      "username": "",
+      "api_key": ""
+    },
+    "e926": {
+      "url": "https://e926.net",
+      "username": "",
+      "api_key": ""
     }
   },
   "examples": {
@@ -82,6 +92,19 @@
       "related_tags": "touhou",
       "related_type": "general",
       "preview_chars": 120
+    },
+    "e621": {
+      "site": "e621",
+      "post_query": {"tags": "rating:s", "limit": 2},
+      "random_query": {"tags": "rating:s"},
+      "tag_query": {"limit": 2},
+      "artist_query": {"limit": 2},
+      "comment_query": {"group_by": "comment", "limit": 2},
+      "pool_query": {"limit": 2},
+      "note_query": {"limit": 2},
+      "wiki_query": {"limit": 2},
+      "wiki_title": "help:api",
+      "pause_seconds": 1
     }
   },
   "verification": {
@@ -133,6 +156,20 @@
       "user_name": "admin",
       "missing_comment_id": 0,
       "invalid_date": {"year": 2026, "month": 13, "day": 1}
+    },
+    "e621": {
+      "sites": ["e621", "e926"],
+      "scripts": [
+        "examples/e621/list_posts.py",
+        "examples/e621/browse_resources.py",
+        "examples/e621/wiki_pages.py"
+      ],
+      "post_query": {"tags": "rating:s", "limit": 1},
+      "count_query": {"tags": "rating:s"},
+      "v2_query": {"v2": true},
+      "only_query": {"only": "id,rating"},
+      "related_search": {"query": "wolf", "category_id": 0},
+      "pause_seconds": 1
     }
   }
 }
