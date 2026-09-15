@@ -6,13 +6,15 @@
 
 * [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown 文档。
 * [Pybooru on PyPI](https://pypi.org/project/Pybooru/)：已发布版本。
-* [代码示例](examples/)：Danbooru / Moebooru 两套可运行示例。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng 四个家族的可运行示例。
 * [问题追踪](https://github.com/LuqueDaniel/pybooru/issues)：Bug 与功能请求。
 
 上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
 
 * `danbooru/`：Danbooru 引擎（Ruby on Rails），路由见 `danbooru/config/routes.rb`。
 * `moebooru/`：Moebooru 引擎，路由见 `moebooru/config/routes.rb`。
+* `Serika.art/`：Serika 引擎，官方 v1 与站内路由见 `app/api/v1/**/route.ts` 与 `app/api/**/route.ts`。
+* `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`。
 
 ## 行为准则
 
@@ -42,8 +44,8 @@
 * 功能的详细说明
 * 为什么需要该功能、你会如何使用它、它能带来什么收益
 
-新增站点级用法时，请说明对应的上游引擎路由（`danbooru/config/routes.rb` /
-`moebooru/config/routes.rb`）与控制器，而不是某个站点的私有行为。
+新增站点级用法时，请说明对应家族的上游引擎路由与控制器，而不是某个站点的私有行为；四家族的
+源码入口与依据见[契约审计附注导航](docs/index.md#按家族选文档)。
 
 ### 提交 Pull Request
 

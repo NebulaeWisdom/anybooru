@@ -69,7 +69,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 ## Serika 系站点
 
-Serika 是独立第三类引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
+Serika 是四家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `pybooru.json`。
 
