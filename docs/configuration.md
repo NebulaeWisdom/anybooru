@@ -214,7 +214,7 @@ Serika 不使用 `username`、`password`、`hash_string` 或客户端路径版�
 | 键 | 引擎 | 本轮线上状态 |
 | :--- | :--- | :--- |
 | `danbooru` | Danbooru | 匿名只读已实测（12 成功 + 3 预期错误） |
-| `safebooru` | Danbooru | 匿名只读已实测（`posts` / `tags` / `artists` / `comments` / `wiki_pages` / `pools` 均 `200`）；它与 `danbooru` 同属 donmai 部署，`safebooru.donmai.us/post.json` 为 `404`，路径形态确认是 Danbooru 引擎而非 Moebooru |
+| `safebooru` | Danbooru | 匿名只读已实测：先是 6 个列表端点 `200`、`/post.json` 为 `404`，随后用客户端复测 16 个方法全 `200` 且形态与 `danbooru.donmai.us` 一致；它与 `danbooru` 同属 donmai 部署，路径形态确认是 Danbooru 引擎而非 Moebooru |
 | `konachan` | Moebooru | 匿名只读已实测（12 个列表端点 `200`；该站对部分网络会给 Cloudflare `403`，见 [verification.md](verification.md)） |
 | `yandere` | Moebooru | 匿名只读已实测（同上） |
 | `sakugabooru` | Moebooru | 匿名只读已实测（同上）；`api_version` 与 `hash_string` 取该站 `help/api` 自述 |
