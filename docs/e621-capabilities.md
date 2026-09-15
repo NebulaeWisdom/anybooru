@@ -60,7 +60,8 @@
 - **评论**：匿名看不到隐藏评论与评论被关闭帖子的评论，未给 `search={'id': ...}` 时还有评分阈值；
   `group_by='post'` 换的是分页与对象类型（裸帖子），不是评论内容。
 - **wiki / 画师 / 合集 / 笔记**：字段是各自表的列加少量附加字段（`creator_name`、`post_count`、
-  `category_id`、`urls`、`domains`），逐字段见 [方法参考](e621-api.md)。
+  `category_id`、`urls`、`domains`，以及画师模型上声明的 `notes`，它不是表列），逐字段见
+  [方法参考](e621-api.md)。
 
 以上是上游权限过滤器与查询对象的概括，逐条规则与出处见
 [附注的权限与可见性](e621-contract-notes.md#sec-permissions)。

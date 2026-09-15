@@ -145,7 +145,9 @@ artists = client.artist_list(**example['artist_query'])   # {"limit": 2}
 （`name` / `updated_at` / `post_count`）。顶层还可以给单一 `name`，上游把它并进 `search[name]`；
 `expiry`（天）允许中间层缓存该响应。返回 artist 对象数组，键为 `id`、`name`、`creator_id`、`is_active`、
 `group_name`、`created_at`、`updated_at`、`other_names`、`linked_user_id`、`is_locked`，并**总是带
-`urls` 数组**（每个是画师的 `artist_urls` 行）。分页计数只在能收窄结果的搜索上启用，这属于上游行为。
+`urls` 数组**（每个是画师的 `artist_urls` 行）；此外还有 `notes`——它不是表列，而是模型上声明的属性
+（`app/models/artist.rb:37` 的 `attribute :notes, :string`），未填写时为 `null`。分页计数只在能收窄结果的
+搜索上启用，这属于上游行为。
 
 `artist_show(artist_id, **params)` — `GET /artists/<artist_id>.json`，按 id 或名称读一个画师。
 ```python
