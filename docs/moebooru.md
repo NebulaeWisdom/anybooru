@@ -49,6 +49,9 @@ with Moebooru('yandere', config_file='pybooru.json') as client:
 ## 认证
 
 不用 HTTP Basic：`password_hash = SHA1(hash_string.format(password))`，构造时算好、之后不再重算。`username` 与 `password` 都为空才是匿名；`GET` / `HEAD` 把 `login` 与 `password_hash` 放进查询串，其他动词放进表单体。
+`hash_string` 就是站点自己的 `CONFIG["password_salt"]` 加固定前后缀 `--`（上游
+`user.rb:95-96` 的 `SHA1("#{salt}--#{pass}--")`，帮助页 `help/api.en.html.erb:95` 会把它原文列出来），
+属于站点固定常量、不随版本变；取值与来源见 [configuration.md](configuration.md#sites-段)。
 服务端还接受 `username` + `api_key`、会话 Cookie、明文 `user[name]` 等方式，本库只实现密码哈希一种；细节见 [authentication.md](authentication.md)。
 
 ## 通用入口与返回值

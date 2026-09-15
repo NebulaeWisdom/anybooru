@@ -162,10 +162,31 @@ Moebooru 系站点（Moebooru 引擎）：
 | `url` | string | 站点根地址，如 `https://konachan.com` |
 | `username` | string | 用户名 |
 | `password` | string | 明文密码，客户端自行计算 `password_hash` |
-| `hash_string` | string \| null | 该站点 `help/api` 页面约定的加盐模板，含 `{0}` 占位符；为 `null` 表示没有内置值，登录时需要显式提供 |
-| `api_version` | string | 该站点声明的 API 版本，如 `1.13.0+update.3` |
+| `hash_string` | string \| null | 站点自己的加盐模板，含 `{0}` 占位符（等价上游 `CONFIG["password_salt"]` + 固定前后缀 `--`）；为 `null` 表示条目没给，登录时必须显式传 |
+| `api_version` | string | 站点 `help/api` 标题里自述的 API 版本，如 `1.13.0+update.3`；只影响列表路径形态，见下 |
 
 > 凭据留空即可用于**只读**接口。请把填好的 `pybooru.json` 留在本地，不要提交真实账号与 key。
+
+这两个键都是**站点自述值，抄自该站 `help/api`**（需要 `Accept: text/html`，见
+[moebooru-api.md](moebooru-api.md)），不是本库定义、也没有“最新版本”可升级：
+
+* `hash_string`：上游把它渲染进帮助页
+  （`moebooru/app/views/help/api.en.html.erb:95` 的 “The actual string that is hashed is
+  `<%= CONFIG["password_salt"] %>--your-password--`”），仓库默认值是 `choujin-steiner`
+  （`moebooru/config/init_config.rb:9`，即 yande.re 用的那个）。各站自己改盐：本仓库样本里
+  `konachan` 是 `So-I-Heard-You-Like-Mupkids-?--{0}--`、`sakugabooru` 是
+  `er@!$rjiajd0$!dkaopc350!Y%)--{0}--`。本库做 `SHA1(hash_string.format(password))`，
+  与上游 `User.sha1`（`moebooru/app/models/user.rb:95-96`，盐来自 `user.rb:615` 的
+  `@salt = CONFIG["password_salt"]`）等价。它是**固定常量**：站点不换盐就不用动，
+  与引擎版本无关；本轮实测三站 `help/api` 报的仍是上面这些值。
+* `api_version`：本库只拿它决定**列表路径形态**。`help/api` 的变更日志写着 `1.13.0+update.3`
+  的改动是 “Removed /index from API URLs”，所以只有 `1.13.0` / `1.13.0+update.1` / `1.13.0+update.2`
+  这三个旧值会被补成 `/post/index.json`，其余走 `/post.json`（`pybooru/moebooru.py` 的 `request`）。
+  现役三站都自述 `1.13.0+update.3`，因此用新形态；旧别名路由在新部署里仍然存在，但不再是契约路径。
+
+> 注意同名不同物：请求参数里的 `api_version='2'` 是**引擎的 v2 响应信封开关**
+> （`moebooru/app/controllers/post_controller.rb:338-362`），与这里的站点版本字符串无关，
+> 详见 [moebooru-api.md](moebooru-api.md)。
 
 Serika 系站点（独立第三类引擎）：
 
