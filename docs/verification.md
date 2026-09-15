@@ -298,6 +298,19 @@ E1 是本轮新增客户端后的真实执行：**37 次匿名 GET**，其中 30
 这些脚本不打印 HTTP 状态码，因此不把进程退出 `0` 记作逐请求的 `200` 证据。
 `comment_create.py` 是需凭据的真实 POST 写示例，保持未执行、未实测；本次没有发写请求。
 
+### e621 示例的默认站点
+
+命令 `.venv/Scripts/python.exe examples/e621/list_posts.py --config <配置文件>` 中的配置路径为占位表示；
+执行时**没有传 `--site`**，站点取 `examples.e621.site`。进程退出 `0`、stderr 为空，并打印三次真实 HTTP `200`：
+
+| 方法 | 实际请求 / 结果 |
+| :--- | :--- |
+| `post_list` | `https://e621.net/posts.json?tags=rating%3As&limit=2`，返回 `6709653` / `6709650`，均 `rating=s` |
+| `post_show` | `https://e621.net/posts/6709653.json`，返回首帖 `6709653` |
+| `post_random` | `https://e621.net/posts/random.json?tags=rating%3As`，返回 `6573362`，`rating=s` |
+
+本次只确认该脚本省略 `--site` 的路径，不将它扩展为全部站点、空字符串选项或其它参数组合的实测。
+
 ## 边界与未实测
 
 | 范围 | 没有执行 / 不能据现有证据声称 |

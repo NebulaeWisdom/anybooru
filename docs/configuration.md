@@ -354,7 +354,7 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 .venv/Scripts/python.exe examples/e621/list_posts.py --site e926
 ```
 
-`--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（留空则取
+`--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（省略该选项则取
 `examples.<段>.site`，e621 示例默认取 `examples.e621.site`）。
 两者都只用命令行参数，不使用环境变量。
 
