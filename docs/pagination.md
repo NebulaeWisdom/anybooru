@@ -94,6 +94,44 @@ with Moebooru('yandere') as client:
         print('page:', page, 'posts:', len(posts))
 ```
 
+## e621ng 系站点的分页
+
+e621ng 用自己的 `Danbooru::Paginator`（与 Danbooru 同名但不是同一份实现），`page` 也有编号与游标两种形式：
+
+| 形式 | 含义 |
+| :--- | :--- |
+| `page=1`、`page=2` | 编号分页：第 N 页；超过站点上限（`750`，`Danbooru.config.max_numbered_pages`）报错 |
+| `page=b1000` | 顺序分页：ID **小于** 1000 的记录，按 ID 倒序返回 |
+| `page=a1000` | 顺序分页：ID **大于** 1000 的记录，取数时升序、返回前再倒过来 |
+
+* 三种形式之外的值（非数字、游标 ID 超出 32 位整数上限）抛 `PaginationError` → HTTP `410`，
+  正文是 `{"success": false, "message": ...}`；编号页超过上限同样是 `410`；
+* `limit` 收纯数字，取值范围 `0..320`（`Danbooru.config.max_per_page`）；缺省或空串取站点默认 `75`
+  （`Danbooru.config.records_per_page`），只有帖子分页额外使用账号的 `per_page`；
+* `tags` 里的 `limit:` 元标签同样能给出每页数量，但只在**顶层 `limit` 缺省时**生效
+  （上游 `PostSets::Post` 里是 `limit || 元标签` 的顺序）；
+* 帖子列表的顶层 `random` 参数**不是**分页/排序手段：它只影响服务端的呈现判定，要随机结果得用
+  `order:random` 元标签或 `post_random`。
+
+`a` 游标返回的数组同样是新的 ID 在前：继续向新记录翻页时取当前页首项，取末项会重复。
+
+```python
+from pybooru import E621
+
+with E621('e621') as client:
+    example = client.config['examples']['e621']
+
+    posts = client.post_list(**example['post_query'])
+    print(client.post_count(tags=example['post_query']['tags']))  # {'count': N, 'capped': bool}
+
+    older = client.post_list(**dict(example['post_query'],
+                                    page='b{0}'.format(posts[-1]['id'])))
+```
+
+计数端点 `post_count` 走 `/posts/count.json`（不是 `/counts/posts.json`，那是 Danbooru 的路径），
+返回 `{"count": N, "capped": bool}`；`capped` 为 `true` 时表示搜索触到了分页上限
+（`750 × 320 + 1 = 240001`），此时的 `count` 是下限而不是精确值。
+
 ## 相关文档
 
 * [方法参考导航](index.md#按家族选文档)：各家族参数与返回形状

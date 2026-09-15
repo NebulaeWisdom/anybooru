@@ -1,12 +1,13 @@
-# Pybooru - Danbooru / Moebooru / Serika 图站 API 客户端
+# Pybooru - Danbooru / Moebooru / Serika / e621ng 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/LuqueDaniel/pybooru/master/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/Pybooru.svg?style=flat-square)](https://pypi.python.org/pypi/Pybooru/)
 
-**Pybooru** 是用 Python 访问 Danbooru、Moebooru 与 Serika 三类引擎图站 API 的客户端库。
+**Pybooru** 是用 Python 访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎图站 API 的客户端库。
 
 本库按对应引擎的路由与控制器对齐契约，适用于运行相同引擎的实例，不只支持几个固定站点。
-Serika 是独立的 Next.js 引擎；其官方 v1 与前端私有的非版本化 API 分开标注，不混同 Rails 两家。
+Serika 是独立的 Next.js 引擎，其官方 v1 与前端私有的非版本化 API 分开标注；Danbooru、Moebooru、
+e621ng 是三个互不相同的 Rails 引擎，同名路由与相同的认证头不代表同一套契约。
 
 - 版本：**5.0.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
@@ -53,10 +54,13 @@ pip install --user Pybooru
     "user_agent": "Pybooru/5.0.0.dev1"
   },
   "sites": {
-    "danbooru": { "url": "https://danbooru.donmai.us", "username": "", "api_key": "" }
+    "danbooru": { "url": "https://danbooru.donmai.us", "username": "", "api_key": "" },
+    "e621": { "url": "https://e621.net", "username": "", "api_key": "" },
+    "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
   },
   "examples": {
-    "danbooru": { "site": "danbooru", "tags": "rating:g", "limit": 3, "post_id": 1, "comment_body": "示例评论" }
+    "danbooru": { "site": "danbooru", "tags": "rating:g", "limit": 3, "post_id": 1, "comment_body": "示例评论" },
+    "e621": { "site": "e621", "post_query": { "tags": "rating:s", "limit": 2 }, "pause_seconds": 1 }
   }
 }
 ```
@@ -80,7 +84,7 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 读自己那份
 `api_version`）接入，见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md#sites-段)。
 
-完整的默认配置样例（含三类引擎站点、`examples`、`verification` 段）见
+完整的默认配置样例（含四类引擎站点、`examples`、`verification` 段）见
 [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md)。
 
 ### 2. Danbooru 系站点
@@ -151,6 +155,30 @@ with Serika('serika') as client:
 v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不能互换。
 使用方式见 [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md)。
 
+### 5. e621ng 系站点（e621.net / e926.net）
+
+```python
+from pybooru import E621
+
+# 'e621' 与 'e926' 是 pybooru.json 中 sites 段的键名；两者是同一引擎的两套站点，
+# e926 只提供安全内容。URL、代理、超时、凭据同样来自配置。
+with E621('e621') as client:
+    example = client.config['examples']['e621']
+
+    for post in client.post_list(**example['post_query']):
+        print(post['id'], post['rating'], post['file']['url'])
+```
+
+e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法**：帖子、标签、画师、评论、
+合集、笔记、wiki 各一对列表/详情，另有随机帖、帖子计数和两个相关标签方法。默认帖子负载是嵌套结构
+（`file` / `preview` / `sample` / `score` / `tags`），**没有** Danbooru 的 `tag_string` / `file_url` /
+`media_asset`；评级词表也是 e621 自己的 `rating:s` / `rating:q` / `rating:e`，首字母不是 `s` / `q` / `e`
+的取值（例如 Danbooru 的 `rating:g`）会被服务端静默丢弃，不报错。
+本面不提供原生写方法：需要写操作时用通用 `request()` 显式指定方法与路径。
+需要成员权限的 `related_tag` / `related_tag_bulk` 只有源码依据，未取得成功响应。
+完整方法、参数与返回形态见
+[docs/e621-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-api.md)。
+
 ## 文档
 
 文档全部为 `docs/` 下的中文 Markdown：
@@ -172,6 +200,9 @@ v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不�
 | [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md) | Serika 客户端、信封拆封与二进制响应 |
 | [docs/serika-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-api.md) | 官方 v1 路由、参数、权限与文档矛盾 |
 | [docs/serika-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-capabilities.md) | 两层能力、站内私有匿名读取与未实测边界 |
+| [docs/e621.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621.md) | e621ng 客户端、`request()` 通用入口与信封规则 |
+| [docs/e621-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-api.md) | e621ng 18 个原生只读方法、参数与返回形态 |
+| [docs/e621-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-capabilities.md) | e621ng 能做什么、想做某件事该用哪个方法 |
 | [docs/migration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
 | [docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
@@ -183,6 +214,8 @@ v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不�
   yande.re），不发写请求。
 - `examples/serika/`：`service_info.py`（官方匿名信息）、`browse.py`（站内匿名浏览）、
   `random_image.py`（官方匿名图片字节），参数从 `examples.serika` 读取，不调用需 key 路由。
+- `examples/e621/`：`list_posts.py`（帖子列表、详情与随机帖）、`browse_resources.py`（标签、画师、
+  评论、合集、笔记）、`wiki_pages.py`（wiki 列表与单个标题），匿名只读，参数从 `examples.e621` 读取。
 
 示例中的关键词、ID 等参数一律从配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
 分页。脚本默认读包内那份 `pybooru.json`，用 `--config` 可指向别处。

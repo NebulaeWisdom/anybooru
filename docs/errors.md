@@ -76,8 +76,9 @@ Danbooru 引擎的 JSON 错误体形如：
 
 ## 状态码
 
-本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留两个 Rails 引擎的速查；
-Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，不重复列出。
+本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；
+Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见
+[e621ng 契约审计附注](e621-contract-notes.md)，不重复列出。
 
 ### Danbooru 引擎
 

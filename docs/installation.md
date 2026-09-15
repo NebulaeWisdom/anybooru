@@ -78,11 +78,11 @@ client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指�
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `pybooru/` | 包源码（`danbooru.py` / `api_danbooru.py` 为 Danbooru 面，`moebooru.py` / `api_moebooru.py` 为 Moebooru 面，`pybooru.py` 为共享核心） |
+| `pybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` 各有客户端模块与 `api_<family>.py` 方法模块，`pybooru.py` 为共享核心 |
 | `pybooru/pybooru.json` | 随包默认配置：站点、凭据、代理、超时、示例参数 |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 可运行示例脚本 |
-| `danbooru/`、`moebooru/` | 上游引擎源码，只读参考，不属于发布包 |
+| 上游引擎仓库 | 可选的只读契约参考，不属于发布包；版本与源码入口见各家族契约审计附注 |
 
 ## 上游引擎源码（可选）
 
@@ -91,7 +91,9 @@ client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指�
 ```bash
 git clone https://github.com/danbooru/danbooru.git
 git clone https://github.com/moebooru/moebooru.git
+git clone https://github.com/e621ng/e621ng.git
 ```
 
-路由权威来源是 `danbooru/config/routes.rb` 与 `moebooru/config/routes.rb`，参数与权限见对应
-`app/controllers/` 下的控制器。这两个目录不随本包发布，也不参与提交。
+Rails 三家的路由权威来源是各上游的 `config/routes.rb`，参数与权限见对应 `app/controllers/`
+及模型；e621ng 的帖子序列化位于 `app/blueprints/`。Serika 的独立路由结构与源码入口见
+[Serika 契约审计附注](serika-contract-notes.md)。所有上游参考都不随本包发布，也不参与提交。

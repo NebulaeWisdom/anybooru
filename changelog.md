@@ -14,6 +14,26 @@
 - 三个匿名示例实际运行退出 0，共 8 个 HTTP 200；所有需 key 的 v1 方法仅源码对齐，未实测成功路径。
 - 文档区分官方 v1 / 站内私有 / 需 key 未实测，并记录内部 id 与 post_id、未知标签分支、限流 code 与 PNG 占位响应等契约差异。
 
+### e621ng 第四引擎
+
+- 新增 `E621` 导出、`pybooru/e621.py` 与 `pybooru/api_e621.py`，对齐上游 `e621ng/`（HEAD `7a9c98851`）的
+  `config/routes.rb` 与控制器；一个类同时服务 e621.net 与 e926.net 两站，站点由 `sites` 段的键或显式
+  `site_url` 选择。
+- 原生 API 固定为 **18 个只读 GET 方法**：帖子 `post_list` / `post_show` / `post_random` / `post_count`，
+  标签、画师、评论、合集、笔记、wiki 各自的 `*_list` / `*_show`，以及 `related_tag` /
+  `related_tag_bulk`。**本面没有原生写方法**：上游的写路由要用通用 `request()` 显式调用，本库不把
+  e621ng 的全部路由都包一遍。
+- 信封拆封按上游请求分支决定，是显式参数而不是形状猜测：列表拆 `posts`、详情拆 `post`、
+  `md5` 查询拆 `post`；`v2=true` 或带 `only` 的请求上游本身不套信封，客户端按同一分支不拆。
+  `request()` 保持原始正文返回，只有显式传入 `envelope` 才拆，键不存在就抛错，不回退到别的形状。
+- 认证与 Danbooru 同形（HTTP Basic，用户名 + API key），但是另一套引擎：帖子负载是引擎自己的嵌套
+  结构（`file` / `preview` / `sample` / `score` / `tags`），没有 `tag_string` / `file_url` / `media_asset`，
+  评级词表是 `rating:s` / `rating:q` / `rating:e`。同名路由与相同认证头不代表同一套契约。
+- 配置新增 `sites.e621` 与 `sites.e926`（凭据留空）、`examples.e621` 与 `verification.e621`。
+- `examples/e621/` 提供三个匿名只读示例：`list_posts.py`、`browse_resources.py`、`wiki_pages.py`，
+  输入全部来自 `examples.e621`。
+- 需要成员权限的 `related_tag` / `related_tag_bulk` 成功路径仅源码对齐、未实测；本轮没有发写请求。
+
 ### 配置与认证
 
 - 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `pybooru.json`，随包安装
@@ -96,6 +116,10 @@
   的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、配置、认证、分页、错误、
   各 Danbooru API 面、Moebooru 客户端/端点清单/能力总览、迁移）。
 - README、CONTRIBUTING 更新为中文并与 5.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
+- 新增 e621ng 家族四份同构文档（`docs/e621.md` 客户端用法、`docs/e621-api.md` 方法参考、
+  `docs/e621-capabilities.md` 能力入口、`docs/e621-contract-notes.md` 契约审计附注），并在
+  `docs/index.md`、README、`docs/configuration.md`、`docs/authentication.md`、`docs/pagination.md`
+  与 changelog 中同步四类引擎的导航与能力表述。
 - 示例重写为从配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
 
@@ -123,9 +147,16 @@
   全部 `200`；`konachan.com` 的可达性取决于网络环境（被 Cloudflare 挑战时会得到 `403`），
   `konachan.net` 是同站的过滤镜像。
 - 补测此前只登记未验证的 `safebooru`：6 个 Danbooru 路径全部 `200`，`/post.json` 为 `404`，
-  确认为 Danbooru 引擎；同轮取得两引擎判别式（`/posts.json` 对 `/post.json`）。
-  库不做引擎自动识别，选哪个类由调用者决定，见
-  [docs/configuration.md](docs/configuration.md#sites-段)。
+  确认为 Danbooru 引擎。同轮的两条路径差异**不是**通用判别式：e621ng 同样用复数 `posts` 路由，
+  单数 `/post.json` 在 e621 上是反脚本拦截的 `403` 页面而不是 `404`。库不做引擎自动识别，选哪个类
+  由调用者决定，判断依据见
+  [docs/configuration.md](docs/configuration.md#怎么判断一个站点该用哪个类)。
+- e621ng 面的匿名只读由 **37 次真实 GET** 覆盖（36×200、1×403）：三个示例在 e621.net 与 e926.net
+  各跑一遍（6 条命令共 30 次调用，全部退出 0），另复核 `post_count`（两站同为 `240001` /
+  `capped=true`）、原始 `posts` 信封、`md5` 单帖对象、`only=` 只拆信封不筛字段、`v2=true` 的新蓝图，
+  以及 `related_tag` 匿名 `403`。逐条命令与摘要见 [docs/verification.md](docs/verification.md)。
+- e621ng 的成员路径（`related_tag` / `related_tag_bulk`）、全部写动作与邻接只读路由只有源码依据；
+  本轮没有发过写请求，也没有新增或保留测试文件，未运行项目测试套件、formatter、lint 或构建。
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 ## Pybooru 4.2.2 - (2020-10-17)

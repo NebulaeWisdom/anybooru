@@ -86,12 +86,49 @@ Serika 是独立第三类引擎。`Serika` 从 `sites.<站点>.api_key` 读取�
 逐条权限、限流实现和官方说明差异见 [Serika 契约审计附注](serika-contract-notes.md)，
 可调用能力见 [Serika 能力入口](serika-capabilities.md)。
 
+## e621ng 系站点
+
+e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danbooru 相同（HTTP Basic），
+但属于另一套引擎：Basic 用户名是登录名，密码是 **API key**。
+
+| 字段 | 值 |
+| :--- | :--- |
+| Basic 用户名 | `sites.<站点>.username` |
+| Basic 密码 | `sites.<站点>.api_key` |
+
+```json
+"sites": {
+  "e621": { "url": "https://e621.net", "username": "your-username", "api_key": "your-api-key" },
+  "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
+}
+```
+
+规则：
+
+* `username` 与 `api_key` **任一非空**，每个请求就带上 Basic 头（缺的那项发空串）；两项都为空才是匿名请求；
+* 上游把 Basic 凭据按第一个 `:` 切出 `login` 与 `api_key` 再校验；
+* 客户端**只走 Basic 头**：上游另外接受 `login` + `api_key` 请求参数，那条路径额外要求同源请求才能跳过
+  CSRF，本库不使用；
+* 权限判断完全由服务端完成，客户端不预判、不在认证失败后退回匿名。
+
+本客户端的 16 个常规只读方法允许匿名进入；`related_tag` 与 `related_tag_bulk` 在上游控制器级是
+`member_only`，匿名请求以 `403` 失败，且不会因此降级到别的端点。两个方法的成员成功响应
+仅源码对齐、未实测；`related_tag` 的匿名拒绝已记录在[验证记录](verification.md)。
+
+写请求：e621ng 面**没有原生写方法**。上游写路由要求已登录，并对已登录的非 `GET` / `HEAD` 请求做令牌桶
+限流（超限回 `429`，响应头带 `X-Api-Limit`）；需要时用通用 `request()` 显式指定方法与路径，本库不做
+自动重试、不替调用者补参数。
+
+`safe_mode` 由服务端决定（请求参数 `safe_mode`、账号设置或站点自己的部署配置），上游仓库默认值是关闭。
+本库不替站点补 `rating` 过滤，e926 那类安全内容站点的实际可见范围以该站配置为准。
+
 ## 边界与未实测
 
-三个家族需要登录的写接口只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
+已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
 12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。
-Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，匿名执行范围同样见
-[验证记录](verification.md)。源码对齐不保证具体站点授予权限，目标站点的权限模型为准。
+Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD
+`7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。源码对齐不保证具体站点授予权限，
+目标站点的权限模型为准。
 
 ## 相关文档
 
