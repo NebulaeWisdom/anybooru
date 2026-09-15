@@ -12,6 +12,11 @@ e621ng 是三个互不相同的 Rails 引擎，同名路由与相同的认证头
 - 版本：**5.0.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 
+本项目源自 [LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（上游最后一次发版是 2020 年的 4.2.2），
+但已经按上游引擎源码重写：新增 Serika 与 e621ng 两个家族、重构配置与文档结构、重做传输与错误处理。
+除 changelog 里保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；原项目的 MIT 许可与
+版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/pybooru/blob/master/LICENSE)。
+
 ## 运行要求
 
 - Python >= 3.6
