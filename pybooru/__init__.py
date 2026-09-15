@@ -23,8 +23,8 @@ Pybooru modules:
 
 __version__ = "5.0.0.dev1"
 __license__ = "MIT"
-__source_url__ = "https://github.com/LuqueDaniel/pybooru"
-__author__ = "Daniel Luque <danielluque14[at]gmail[dot]com>"
+__source_url__ = "https://github.com/NebulaeWisdom/pybooru"
+__author__ = "NebulaeWisdom <rezerols[at]gmail[dot]com>"
 
 # pybooru imports
 from .moebooru import Moebooru

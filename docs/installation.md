@@ -14,7 +14,7 @@
 ## 从源码安装（当前开发版）
 
 ```bash
-git clone https://github.com/LuqueDaniel/pybooru.git
+git clone https://github.com/NebulaeWisdom/pybooru.git
 cd pybooru
 
 # 创建并激活虚拟环境

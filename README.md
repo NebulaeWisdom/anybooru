@@ -1,6 +1,6 @@
 # Pybooru - Danbooru / Moebooru / Serika / e621ng 图站 API 客户端
 
-[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/LuqueDaniel/pybooru/master/LICENSE)
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/pybooru/master/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/Pybooru.svg?style=flat-square)](https://pypi.python.org/pypi/Pybooru/)
 
 **Pybooru** 是用 Python 访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎图站 API 的客户端库。
@@ -22,7 +22,7 @@ e621ng 是三个互不相同的 Rails 引擎，同名路由与相同的认证头
 ### 从源码安装（当前开发版）
 
 ```bash
-git clone https://github.com/LuqueDaniel/pybooru.git
+git clone https://github.com/NebulaeWisdom/pybooru.git
 cd pybooru
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -e .        # Windows
@@ -83,10 +83,10 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 读自己那份
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会退回到默认文件。`sites` 段是
 **样例 / 起始清单，不是支持边界**：名单外的同引擎站点可以直接用 `site_url`（Moebooru 另需
 `api_version`）接入，见
-[docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md#sites-段)。
+[docs/configuration.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/configuration.md#sites-段)。
 
 完整的默认配置样例（含四类引擎站点、`examples`、`verification` 段）见
-[docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md)。
+[docs/configuration.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/configuration.md)。
 
 ### 2. Danbooru 系站点
 
@@ -116,7 +116,7 @@ client.comment_create(post_id=example['post_id'], body=example['comment_body'])
 对应脚本 `examples/danbooru/comment_create.py` 未执行、未实测；要真正写入得自己填 `username` / `api_key`。
 
 画师查询的参数与上游匹配语义见
-[Danbooru API 契约](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md#artists)。
+[Danbooru API 契约](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/danbooru-api.md#artists)。
 
 ### 3. Moebooru 系站点（如 yande.re / konachan）
 
@@ -136,9 +136,9 @@ client.close()
 
 Moebooru 面已按上游 `moebooru/` 的路由与控制器对齐（90 个原生方法，覆盖帖子、合集、笔记、标签、
 画师、评论、wiki、论坛与账号端点）；匿名只读端点的执行记录见
-[docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md)，
+[docs/verification.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/verification.md)，
 需要登录的写接口只做源码对齐、未做线上实测。完整清单见
-[docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md)。
+[docs/moebooru-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/moebooru-api.md)。
 
 ### 4. Serika 系站点（serika.art 及自托管实例）
 
@@ -157,7 +157,7 @@ with Serika('serika') as client:
 **14 个站内匿名读方法**。官方需 key 的 12 个方法仅源码对齐，未实测；配置 key 留空，
 不实现站内 cookie 登录。随机图片方法返回原始 `bytes`，不会按 JSON 解析。
 v1 图片路径用内部 `id`，站内详情用顺序号 `post_id`，两者不能互换。
-使用方式见 [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md)。
+使用方式见 [docs/serika.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/serika.md)。
 
 ### 5. e621ng 系站点（e621.net / e926.net）
 
@@ -181,7 +181,7 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 本面不提供原生写方法：需要写操作时用通用 `request()` 显式指定方法与路径。
 需要成员权限的 `related_tag` / `related_tag_bulk` 只有源码依据，未取得成功响应。
 完整方法、参数与返回形态见
-[docs/e621-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-api.md)。
+[docs/e621-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/e621-api.md)。
 
 ## 文档
 
@@ -189,28 +189,28 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/index.md) | 文档索引与设计立场 |
-| [docs/danbooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-capabilities.md) | 能做什么、匿名能做什么、想做某件事该用哪个方法 |
-| [docs/installation.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/installation.md) | 安装、环境要求、配置文件放哪 |
-| [docs/configuration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/configuration.md) | 默认配置来源、`config_file` 覆盖与 `pybooru.json` 完整样例 |
-| [docs/authentication.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/authentication.md) | 认证与权限 |
-| [docs/pagination.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/pagination.md) | 分页与游标 |
-| [docs/errors.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/errors.md) | 异常与状态码 |
-| [docs/danbooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru.md) | Danbooru 客户端与 `request()` 通用入口 |
-| [docs/danbooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/danbooru-api.md) | Danbooru 各 API 面与端点清单 |
-| [docs/moebooru.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru.md) | Moebooru 客户端与 `request()` 通用入口 |
-| [docs/moebooru-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-api.md) | Moebooru 各 API 面与端点清单 |
-| [docs/moebooru-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/moebooru-capabilities.md) | Moebooru 能做什么、想做某件事该用哪个方法 |
-| [docs/serika.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika.md) | Serika 客户端、信封拆封与二进制响应 |
-| [docs/serika-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-api.md) | 官方 v1 路由、参数、权限与文档矛盾 |
-| [docs/serika-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/serika-capabilities.md) | 两层能力、站内私有匿名读取与未实测边界 |
-| [docs/e621.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621.md) | e621ng 客户端、`request()` 通用入口与信封规则 |
-| [docs/e621-api.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-api.md) | e621ng 18 个原生只读方法、参数与返回形态 |
-| [docs/e621-capabilities.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/e621-capabilities.md) | e621ng 能做什么、想做某件事该用哪个方法 |
-| [docs/migration.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
-| [docs/verification.md](https://github.com/LuqueDaniel/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
+| [docs/index.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/index.md) | 文档索引与设计立场 |
+| [docs/danbooru-capabilities.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/danbooru-capabilities.md) | 能做什么、匿名能做什么、想做某件事该用哪个方法 |
+| [docs/installation.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/installation.md) | 安装、环境要求、配置文件放哪 |
+| [docs/configuration.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/configuration.md) | 默认配置来源、`config_file` 覆盖与 `pybooru.json` 完整样例 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/authentication.md) | 认证与权限 |
+| [docs/pagination.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/pagination.md) | 分页与游标 |
+| [docs/errors.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/errors.md) | 异常与状态码 |
+| [docs/danbooru.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/danbooru.md) | Danbooru 客户端与 `request()` 通用入口 |
+| [docs/danbooru-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/danbooru-api.md) | Danbooru 各 API 面与端点清单 |
+| [docs/moebooru.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/moebooru.md) | Moebooru 客户端与 `request()` 通用入口 |
+| [docs/moebooru-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/moebooru-api.md) | Moebooru 各 API 面与端点清单 |
+| [docs/moebooru-capabilities.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/moebooru-capabilities.md) | Moebooru 能做什么、想做某件事该用哪个方法 |
+| [docs/serika.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/serika.md) | Serika 客户端、信封拆封与二进制响应 |
+| [docs/serika-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/serika-api.md) | 官方 v1 路由、参数、权限与文档矛盾 |
+| [docs/serika-capabilities.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/serika-capabilities.md) | 两层能力、站内私有匿名读取与未实测边界 |
+| [docs/e621.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/e621.md) | e621ng 客户端、`request()` 通用入口与信封规则 |
+| [docs/e621-api.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/e621-api.md) | e621ng 18 个原生只读方法、参数与返回形态 |
+| [docs/e621-capabilities.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/e621-capabilities.md) | e621ng 能做什么、想做某件事该用哪个方法 |
+| [docs/migration.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/migration.md) | 从 Pybooru 4.x 迁移 |
+| [docs/verification.md](https://github.com/NebulaeWisdom/pybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
-可运行示例见 [examples/](https://github.com/LuqueDaniel/pybooru/tree/master/examples)：
+可运行示例见 [examples/](https://github.com/NebulaeWisdom/pybooru/tree/master/examples)：
 
 - `examples/danbooru/`：六个匿名只读示例（`list_posts.py`、`list_tags.py`、`show_post.py`、
   `paginate_posts.py`、`related_tag.py`、`wiki_page.py`），默认站点取自 `examples.danbooru.site`；
@@ -230,8 +230,8 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 ## 贡献
 
 请在动手前阅读
-**[CONTRIBUTING.md](https://github.com/LuqueDaniel/pybooru/blob/master/CONTRIBUTING.md)**。
+**[CONTRIBUTING.md](https://github.com/NebulaeWisdom/pybooru/blob/master/CONTRIBUTING.md)**。
 
 ## 许可
 
-- **[MIT License](https://github.com/LuqueDaniel/pybooru/blob/master/LICENSE)**
+- **[MIT License](https://github.com/NebulaeWisdom/pybooru/blob/master/LICENSE)**

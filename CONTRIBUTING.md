@@ -7,7 +7,7 @@
 * [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown 文档。
 * [Pybooru on PyPI](https://pypi.org/project/Pybooru/)：已发布版本。
 * [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng 四个家族的可运行示例。
-* [问题追踪](https://github.com/LuqueDaniel/pybooru/issues)：Bug 与功能请求。
+* [问题追踪](https://github.com/NebulaeWisdom/pybooru/issues)：Bug 与功能请求。
 
 上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
 
@@ -24,7 +24,7 @@
 
 ### 报告 Bug
 
-报告前请先搜索 [已有 issue](https://github.com/LuqueDaniel/pybooru/issues)，确认尚未被提交。Bug 使用
+报告前请先搜索 [已有 issue](https://github.com/NebulaeWisdom/pybooru/issues)，确认尚未被提交。Bug 使用
 **Bug report** 模板创建：
 
 * 描述性的标题
@@ -37,7 +37,7 @@
 
 ### 功能请求
 
-请先搜索 [已有 issue](https://github.com/LuqueDaniel/pybooru/issues)，确认尚未被请求。功能请求使用
+请先搜索 [已有 issue](https://github.com/NebulaeWisdom/pybooru/issues)，确认尚未被请求。功能请求使用
 **Feature request** 模板创建：
 
 * 描述性的标题
