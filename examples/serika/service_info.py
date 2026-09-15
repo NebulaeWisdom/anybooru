@@ -5,17 +5,17 @@ import argparse
 import json
 
 from pybooru import Serika
+from pybooru.resources import load_config
 
 
 def main():
     parser = argparse.ArgumentParser(description='读取 Serika 官方匿名信息')
-    parser.add_argument('--config', default='pybooru.json',
-                        help='根配置文件路径（默认 pybooru.json）')
+    parser.add_argument('--config', default=None,
+                        help='配置文件路径（默认包内 pybooru.json）')
     parser.add_argument('--site', default='', help='留空则取 examples.serika.site')
     args = parser.parse_args()
 
-    with open(args.config, encoding='utf-8') as config_file:
-        site = args.site or json.load(config_file)['examples']['serika']['site']
+    site = args.site or load_config(args.config)['examples']['serika']['site']
 
     with Serika(site, config_file=args.config) as client:
         example = client.config['examples']['serika']
