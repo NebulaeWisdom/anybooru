@@ -62,7 +62,11 @@
 两条相关标签路径的 `member_only` 是控制器级全局过滤器（`related_tags_controller.rb:6`），所以失败先于参数
 解析。`routes.rb:382` 的 `resource :related_tag, only: %i[show update]` 另外登记了 `PUT /related_tag`，
 但控制器没有 `update` 动作，该动词只会落进错误页，属应排除的动词。`related_tag` 的动作直接索引
-`params[:search][:query]`（9 行），不带 `search` 会触发未捕获异常；`bulk` 读顶层 `query` / `category_id`（18-19）。
+`params[:search][:query]` / `params[:search][:category_id]`（`related_tags_controller.rb:9`），但**缺 `search`
+不会抛异常**：全局 `before_action :normalize_search`（`application_controller.rb:35`）在 346-377 行先执行
+`params[:search] ||= ActionController::Parameters.new`（360 行），缺失时补出来的是空 Parameters，动作读到
+`nil`（等于空查询），且该次补空不会触发它自己的 302 清理；匿名请求更早就在 `member_only` 处得到 403。
+`bulk` 读顶层 `query` / `category_id`（18-19），与 `search` 无关。
 
 <a id="sec-post-shapes"></a>
 
