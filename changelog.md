@@ -6,7 +6,7 @@
 > <https://github.com/NebulaeWisdom/anybooru>，导入方式相应变为 `from anybooru import ...`，公开异常改为
 > `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，包内配置为 `anybooru/anybooru.json`。
 > 版本号采用新的独立序列，从 `0.1.0.dev1` 起算；本仓库暂不发布到 PyPI。
-> 下面各条目描述的功能改写发生在改名之前，本文按改名后的名称统一书写。
+> 下方客户端功能的改写发生在改名之前，本文按改名后的名称统一书写；构建工作流随改名调整。
 
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
@@ -132,6 +132,8 @@
 ### 工程整理
 
 - 删除历史 CI 配置（`.travis.yml`、`appveyor.yml`）与临时入口脚本 `provisional_test.py`。
+- 用 `.github/workflows/build.yml` 替换旧 PyPI 发布工作流；推送、PR 与手动触发只构建 sdist/wheel，
+  不再随 release 自动发布，也不读取发布 token。checkout/setup-python 升至 v7，构建采用 `python -m build`。
 - 删除只服务旧流程的工具脚本（`tools/`）。
 - 新增 `MANIFEST.in`，把包内配置文件 `anybooru/anybooru.json` 与 `docs/`、`examples/` 带入 sdist；
   `setup.cfg` 的 `[options.package_data]` 让 wheel 也带上该配置文件。

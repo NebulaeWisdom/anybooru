@@ -40,6 +40,12 @@ pip 支持显式指定代理，请不要用环境变量注入：
 本库目前**不发布到 PyPI**：请按上面的源码安装方式使用，不要依赖 `pip install Anybooru` 这类指令。
 将来是否发包由维护者决定，届时本文再补对应的安装方式。
 
+[构建工作流](../.github/workflows/build.yml) 在推送、PR 或手动触发时构建 sdist 与 wheel，
+不包含上传步骤、不读取 PyPI secret，也不监听 release 事件。当前构建使用 Python 3.11，
+并非对所有受支持 Python 版本逐一验证。
+以后若决定发布，需先确认 PyPI 项目名及其归属、配置对应项目的 token secret，并明确发布触发方式；
+当前工作流不会代替这些决策自动发包。
+
 ## 验证安装
 
 ```bash

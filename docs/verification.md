@@ -412,4 +412,17 @@ Serika 本轮三个示例均成功，但不抹去此前批次出现过的连接�
 项目解释器检查了全部 **30 份受跟踪 Markdown** 中的 **84 个相对锚点链接**，结果为 **0 悬空**、退出 `0`。
 没有新增测试套件，也没有用上述结果代替 GitHub runner 或 PyPI 发布验证。
 
+### 只构建工作流的本地执行
+
+真实执行 `.venv/Scripts/python.exe -m build --no-isolation --outdir <输出目录>`（目录为占位表示），
+退出 `0`，末行输出：
+
+```text
+Successfully built anybooru-0.1.0.dev1.tar.gz and anybooru-0.1.0.dev1-py3-none-any.whl
+```
+
+该过程先构建 sdist，再从 sdist 构建 wheel；日志包含 `anybooru/anybooru.json`。
+本地复跑使用已装好依赖的项目虚拟环境，因此加了 `--no-isolation`；CI 保持 `python -m build` 的默认隔离构建。
+这不是 GitHub Actions runner 实跑，也未触发或验证任何 PyPI 发布。临时分发产物检查后删除。
+
 [文档入口](index.md) · [Danbooru 审计](danbooru-contract-notes.md) · [Moebooru 审计](moebooru-contract-notes.md) · [Serika 审计](serika-contract-notes.md) · [e621ng 审计](e621-contract-notes.md)
