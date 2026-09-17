@@ -2,7 +2,12 @@
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是用 Python 访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎图站 API 的客户端库。
+**Anybooru** 是访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎的普通 Python API 客户端，
+不是某个站点的私有 SDK：一个原生方法对应一条 API 路由，参数按该引擎的规则编码，
+服务端返回的数据字段原样给出，不拼装跨引擎的统一图库模型。
+
+部分原生方法按文档明确的契约拆开响应信封；需要保留完整 JSON 时可使用各家族的通用 `request()` 入口。
+信封与元数据的处理方式见对应家族文档，不把不同引擎的响应差异隐藏起来。
 
 本库按对应引擎的路由与控制器对齐契约，适用于运行相同引擎的实例，不只支持几个固定站点。
 Serika 是独立的 Next.js 引擎，其官方 v1 与前端私有的非版本化 API 分开标注；Danbooru、Moebooru、
