@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""pybooru.api_moebooru
+"""anybooru.api_moebooru
 
 This module contains all API calls of Moebooru.
 
@@ -23,7 +23,7 @@ Conventions:
       ``api_version='2'``) and are passed as caller-supplied strings, never
       converted from booleans.
     * Authentication, permissions and validation stay server-side. The
-      transport raises :class:`~pybooru.exceptions.PybooruHTTPError` for non-2xx
+      transport raises :class:`~anybooru.exceptions.AnybooruHTTPError` for non-2xx
       answers: 403 access denied, 420 validation, 421 daily or hourly limits,
       423 already exists, 424 invalid value, 406 HTML-only format.
     * Raw JSON comes back unchanged: list actions return a top-level array (or

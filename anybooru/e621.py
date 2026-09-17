@@ -1,11 +1,11 @@
 """Configured JSON client for sites running the e621ng engine."""
 
 from .api_e621 import E621Api_Mixin
-from .pybooru import _Pybooru
+from .anybooru import _Anybooru
 from .resources import json_params
 
 
-class E621(_Pybooru, E621Api_Mixin):
+class E621(_Anybooru, E621Api_Mixin):
     """Access e621ng routes with Rails parameters and HTTP Basic API auth.
 
     The engine serves both e621.net and its safe mirror e926.net; a site name

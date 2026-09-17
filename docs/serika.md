@@ -5,7 +5,7 @@
 [能力总览](serika-capabilities.md)，逐条签名看 [方法参考](serika-api.md)。
 
 ```python
-from pybooru import Serika
+from anybooru import Serika
 with Serika('serika') as client:
     print(client.api_index()['name'])
 ```
@@ -30,9 +30,9 @@ Serika(site_name=None, site_url=None, api_key=None, proxies=None,
 | `site_url` | 显式覆盖地址；不用命名站点时由调用方提供，库没有地址后备 |
 | `api_key` | 覆盖配置的 key；空字符串不附认证头，非空附 `Authorization: Bearer <key>` |
 | `proxies` / `timeout` / `user_agent` | 覆盖配置 `request` 对应项；会话关闭 `trust_env`，不读环境变量 |
-| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `pybooru/pybooru.json`，传路径才读别的文件 |
+| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `anybooru/anybooru.json`，传路径才读别的文件 |
 
-自托管实例：在配置的 `sites` 新增与 `sites.serika` 相同的两字段条目，把 `url` 改为实例根地址，再把这个键传给 `Serika`；没有自动探测、没有引擎自动切换，也不需要复制代码。配置是应用输入，示例里的分页、评级与图片尺寸都来自 [pybooru.json](../pybooru/pybooru.json)。
+自托管实例：在配置的 `sites` 新增与 `sites.serika` 相同的两字段条目，把 `url` 改为实例根地址，再把这个键传给 `Serika`；没有自动探测、没有引擎自动切换，也不需要复制代码。配置是应用输入，示例里的分页、评级与图片尺寸都来自 [anybooru.json](../anybooru/anybooru.json)。
 `username`、密码哈希、浏览器 cookie 登录都不是本家族的构造参数；官方 API key 与站内会话 token 是两种不同凭据，本库只实现前者的发送。用完记得 `client.close()`，或用 `with` 语句块。
 
 ## 通用请求入口
@@ -76,9 +76,9 @@ request(method, path, *, params=None, data=None, files=None,
 
 ## 错误处理
 
-非 2xx 在 JSON 与二进制通路里都抛 `PybooruHTTPError`，有 `http_code`、`url`、`body`、`data`、
+非 2xx 在 JSON 与二进制通路里都抛 `AnybooruHTTPError`，有 `http_code`、`url`、`body`、`data`、
 `response`；服务端给了 JSON `code` 时用 `error.data['code']` 读取，非 JSON 错误正文的 `data` 为 `None`。
-JSON 通路收到非空但不可解析的 2xx 正文抛 `PybooruAPIError`；网络异常保持 requests 的原异常。
+JSON 通路收到非空但不可解析的 2xx 正文抛 `AnybooruAPIError`；网络异常保持 requests 的原异常。
 官方 v1 的缺 key / 缺权限 / 限流 HTTP 分别是 `401` / `403` / `429`，但**三者的正文 `code` 都可能等于
 `UNAUTHORIZED`**，要连 HTTP 状态码与原始正文一起判断。详见 [errors.md](errors.md)。
 

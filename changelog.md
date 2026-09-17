@@ -1,6 +1,12 @@
-# Pybooru - Changelog
+# Anybooru - Changelog
 
-## Pybooru 5.0.0.dev1 - (2026-09-15)
+## Anybooru 0.1.0.dev1 - (2026-09-15)
+
+> **改名与版本重置**：本项目改名为 `anybooru`，仓库迁至
+> <https://github.com/NebulaeWisdom/anybooru>，导入方式相应变为 `from anybooru import ...`，公开异常改为
+> `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，包内配置为 `anybooru/anybooru.json`。
+> 版本号采用新的独立序列，从 `0.1.0.dev1` 起算；本仓库暂不发布到 PyPI。
+> 下面各条目描述的功能改写发生在改名之前，本文按改名后的名称统一书写。
 
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
@@ -16,7 +22,7 @@
 
 ### e621ng 第四引擎
 
-- 新增 `E621` 导出、`pybooru/e621.py` 与 `pybooru/api_e621.py`，对齐上游 `e621ng/`（HEAD `7a9c98851`）的
+- 新增 `E621` 导出、`anybooru/e621.py` 与 `anybooru/api_e621.py`，对齐上游 `e621ng/`（HEAD `7a9c98851`）的
   `config/routes.rb` 与控制器；一个类同时服务 e621.net 与 e926.net 两站，站点由 `sites` 段的键或显式
   `site_url` 选择。
 - 原生 API 固定为 **18 个只读 GET 方法**：帖子 `post_list` / `post_show` / `post_random` / `post_count`，
@@ -36,12 +42,12 @@
 
 ### 配置与认证
 
-- 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `pybooru.json`，随包安装
-  （`pybooru/pybooru.json`，`setup.cfg` 的 `package_data` + `MANIFEST.in` 同时覆盖 wheel 与 sdist）；
+- 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `anybooru.json`，随包安装
+  （`anybooru/anybooru.json`，`setup.cfg` 的 `package_data` + `MANIFEST.in` 同时覆盖 wheel 与 sdist）；
   `config_file` 默认 `None` 即读这份包内文件，显式传路径才读别的文件，指到的文件缺失时抛
   `FileNotFoundError`；不搜索当前工作目录、不读环境变量、没有内置站点后备。
-- 新增 `pybooru.DEFAULT_CONFIG_FILE`（包内默认配置的绝对路径，可直接当模板来源）；
-  `config_file` 默认值从字符串 `"pybooru.json"` 改为 `None`。
+- 新增 `anybooru.DEFAULT_CONFIG_FILE`（包内默认配置的绝对路径，可直接当模板来源）；
+  `config_file` 默认值从旧配置文件名字符串改为 `None`。
 - `examples/` 下 15 个脚本的 `--config` 默认值同步改为 `None`（默认读包内配置），
   站点名改从 `resources.load_config` 读，不再自己 `open()` 一遍配置文件。
 - 删除 `resources.SITE_LIST` 与 `HTTP_STATUS_CODE`（站点清单改由配置提供）。
@@ -58,8 +64,8 @@
   （保留显式空数组等结构），带文件时改用 Rails 表单 / multipart。
 - 会话复用连接并关闭 `trust_env`（代理只来自配置）；固定 `Accept: application/json`。
 - 不做本地校验、不做本地分页上限、不自动重试、不做客户端鉴权。
-- 空成功体（204 等）返回 `None`；HTTP 错误抛 `PybooruHTTPError(response)`，携带
-  `http_code` / `url` / `response` / `body` / `data`；2xx 非 JSON 抛 `PybooruAPIError`。
+- 空成功体（204 等）返回 `None`；HTTP 错误抛 `AnybooruHTTPError(response)`，携带
+  `http_code` / `url` / `response` / `body` / `data`；2xx 非 JSON 抛 `AnybooruAPIError`。
 - `Danbooru.close()` 与上下文管理器支持；Danbooru 面移除内部 `_get`。
 
 ### Danbooru API 面
@@ -115,7 +121,7 @@
 - 删除 Sphinx 文档树（`docs/source/`、`docs/Makefile`、`docs/make.bat`）、预览脚本与 `setup.cfg`
   的 `docs` / `all` extras；文档改为 `docs/` 下的中文 Markdown（安装、配置、认证、分页、错误、
   各 Danbooru API 面、Moebooru 客户端/端点清单/能力总览、迁移）。
-- README、CONTRIBUTING 更新为中文并与 5.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
+- README、CONTRIBUTING 更新为中文并与 0.1.x 契约一致；`docs` 链接不再指向已失效的 Read the Docs。
 - 新增 e621ng 家族四份同构文档（`docs/e621.md` 客户端用法、`docs/e621-api.md` 方法参考、
   `docs/e621-capabilities.md` 能力入口、`docs/e621-contract-notes.md` 契约审计附注），并在
   `docs/index.md`、README、`docs/configuration.md`、`docs/authentication.md`、`docs/pagination.md`
@@ -125,10 +131,9 @@
 
 ### 工程整理
 
-- 删除历史 CI 配置（`.travis.yml`、`appveyor.yml`）与临时入口脚本 `provisional_test.py`；
-  保留与旧流程无关的发布工作流。PyPI 发布工作流见 `.github/workflows/publish_to_pypi.yml`。
+- 删除历史 CI 配置（`.travis.yml`、`appveyor.yml`）与临时入口脚本 `provisional_test.py`。
 - 删除只服务旧流程的工具脚本（`tools/`）。
-- 新增 `MANIFEST.in`，把包内配置文件 `pybooru/pybooru.json` 与 `docs/`、`examples/` 带入 sdist；
+- 新增 `MANIFEST.in`，把包内配置文件 `anybooru/anybooru.json` 与 `docs/`、`examples/` 带入 sdist；
   `setup.cfg` 的 `[options.package_data]` 让 wheel 也带上该配置文件。
 - `setup.cfg` 移除过时的 Python 3.5 分类器与 `docs`/`all` extras（运行下限仍为 Python >= 3.6）。
 
@@ -158,6 +163,8 @@
 - e621ng 的成员路径（`related_tag` / `related_tag_bulk`）、全部写动作与邻接只读路由只有源码依据；
   本轮没有发过写请求，也没有新增或保留测试文件，未运行项目测试套件、formatter、lint 或构建。
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
+
+以下为上游 Pybooru 的历史发布记录。
 
 ## Pybooru 4.2.2 - (2020-10-17)
 

@@ -3,15 +3,15 @@
 
 每类资源先列一页，再用列表里第一项的 id 取详情；列表为空时只报零，不取详情、
 也不编造 ID。查询、数量、调用间隔与站点名全部来自配置文件 examples.e621 段
-（默认读包内 pybooru.json），可以用 --config / --site 覆盖。
+（默认读包内 anybooru.json），可以用 --config / --site 覆盖。
 """
 
 import argparse
 import json
 import time
 
-from pybooru import E621
-from pybooru.resources import load_config
+from anybooru import E621
+from anybooru.resources import load_config
 
 
 def tag_summary(tag):
@@ -54,7 +54,7 @@ def emit(client, method, **summary):
 def main():
     parser = argparse.ArgumentParser(description='浏览 e621 系站点的匿名资源')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default=None, help='站点名，默认取 examples.e621.site')
     args = parser.parse_args()
 

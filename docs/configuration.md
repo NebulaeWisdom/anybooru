@@ -1,11 +1,11 @@
-# 配置文件 `pybooru.json`
+# 配置文件 `anybooru.json`
 
-Pybooru 的所有可调参数——站点地址、凭据、代理、超时、User-Agent、示例参数——集中放在一份
+Anybooru 的所有可调参数——站点地址、凭据、代理、超时、User-Agent、示例参数——集中放在一份
 JSON 文件里。
 
 设计上只有两个来源，都用**显式参数**决定：
 
-* 默认：`config_file=None`，读**随包安装**的 `pybooru/pybooru.json`；
+* 默认：`config_file=None`，读**随包安装**的 `anybooru/anybooru.json`；
 * 覆盖：`config_file='<路径>'`，读指定的那一份（相对路径相对当前工作目录解析）。
 
 此外没有别的入口：没有环境变量输入、不去当前工作目录或用户目录猜一份同名文件、没有内置站点后备，
@@ -13,13 +13,13 @@ JSON 文件里。
 
 ## 文件放在哪里
 
-`config_file` 默认 `None`，读的是安装包里那份 `pybooru.json`，所以 `pip install` 之后直接写
+`config_file` 默认 `None`，读的是安装包里那份 `anybooru.json`，所以安装之后直接写
 `Danbooru('danbooru')` 就能用，不需要把任何东西复制到工作目录。
 
 要改站点、凭据或代理，把那份文件复制成自己的，再把路径交给 `config_file`：
 
 ```python
-from pybooru import Danbooru, DEFAULT_CONFIG_FILE
+from anybooru import Danbooru, DEFAULT_CONFIG_FILE
 
 print(DEFAULT_CONFIG_FILE)  # 包内默认配置的绝对路径
 client = Danbooru('danbooru')  # 读包内默认配置
@@ -27,15 +27,15 @@ client = Danbooru('danbooru', config_file='config/sites.json')  # 读自己那�
 client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径亦可
 ```
 
-包内默认文件的绝对路径从 `pybooru.DEFAULT_CONFIG_FILE` 读（editable 安装时它就是仓库里的
-`pybooru/pybooru.json`，改动立即生效）。`config_file` 指到的文件不存在时构造函数直接抛出
+包内默认文件的绝对路径从 `anybooru.DEFAULT_CONFIG_FILE` 读（editable 安装时它就是仓库里的
+`anybooru/anybooru.json`，改动立即生效）。`config_file` 指到的文件不存在时构造函数直接抛出
 `FileNotFoundError`，**不会**退回到默认文件，也不会退回到内置站点。
 
 `Danbooru('danbooru')` 的第一个参数是 `sites` 段里的键名，不是 URL。
 
 ## 完整样例
 
-完整、可直接复制的内容见包内的 [`pybooru/pybooru.json`](../pybooru/pybooru.json)（wheel 与 sdist
+完整、可直接复制的内容见包内的 [`anybooru/anybooru.json`](../anybooru/anybooru.json)（wheel 与 sdist
 都带这份文件）。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是维护者验证脚本
 专用的，普通使用者可以省略）：
 
@@ -44,7 +44,7 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
   "request": {
     "timeout": 30,
     "proxies": {},
-    "user_agent": "Pybooru/5.0.0.dev1"
+    "user_agent": "Anybooru/0.1.0.dev1"
   },
   "sites": {
     "serika": { "url": "https://serika.art", "api_key": "" },
@@ -175,7 +175,7 @@ e621ng 示例使用 `examples.e621`，查询参数是 Rails 顶层参数与 `sea
 这一段是**样例 / 起始清单，不是支持边界**：
 
 * 库不读任何内置站点表，也不对站点名做白名单校验——`site_name` 在 `sites` 里查不到就
-  直接 `KeyError`，不会回落到别的地址（`resources.py` 只做 `json.load`，`pybooru.py` 只做一次字典取值）；
+  直接 `KeyError`，不会回落到别的地址（`resources.py` 只做 `json.load`，`anybooru.py` 只做一次字典取值）；
 * 名单外的站点只要跑同一套引擎，就能直接用：构造时传 `site_url`（Moebooru 还必须同时传
   `api_version`），完全绕开本段；
 * 反过来，名单里的站点**不保证每个能力都可用**：站点自己会关闭部分功能、按权限裁剪返回内容，
@@ -210,7 +210,7 @@ Moebooru 系站点（Moebooru 引擎）：
 | `hash_string` | string \| null | 站点自己的加盐模板，含 `{0}` 占位符（等价上游 `CONFIG["password_salt"]` + 固定前后缀 `--`）；为 `null` 表示条目没给，登录时必须显式传 |
 | `api_version` | string | 站点 `help/api` 标题里自述的 API 版本，如 `1.13.0+update.3`；只影响列表路径形态，见下 |
 
-> 凭据留空即可用于**只读**接口。请把填好的 `pybooru.json` 留在本地，不要提交真实账号与 key。
+> 凭据留空即可用于**只读**接口。请把填好的 `anybooru.json` 留在本地，不要提交真实账号与 key。
 
 这两个键都是**站点自述值，抄自该站 `help/api`**（需要 `Accept: text/html`，见
 [moebooru-api.md](moebooru-api.md)），不是本库定义、也没有“最新版本”可升级：
@@ -226,7 +226,7 @@ Moebooru 系站点（Moebooru 引擎）：
   与引擎版本无关；本轮实测三站 `help/api` 报的仍是上面这些值。
 * `api_version`：本库只拿它决定**列表路径形态**。`help/api` 的变更日志写着 `1.13.0+update.3`
   的改动是 “Removed /index from API URLs”，所以只有 `1.13.0` / `1.13.0+update.1` / `1.13.0+update.2`
-  这三个旧值会被补成 `/post/index.json`，其余走 `/post.json`（`pybooru/moebooru.py` 的 `request`）。
+  这三个旧值会被补成 `/post/index.json`，其余走 `/post.json`（`anybooru/moebooru.py` 的 `request`）。
   现役三站都自述 `1.13.0+update.3`，因此用新形态；旧别名路由在新部署里仍然存在，但不再是契约路径。
 
 > 注意同名不同物：请求参数里的 `api_version='2'` 是**引擎的 v2 响应信封开关**
@@ -363,7 +363,7 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 构造函数参数优先于配置文件中的同名值，方便在不改配置文件的前提下临时切换：
 
 ```python
-from pybooru import Danbooru
+from anybooru import Danbooru
 
 client = Danbooru(
     'danbooru',

@@ -1,11 +1,11 @@
 """Configured client for the Serika engine's two HTTP API surfaces."""
 
 from .api_serika import SerikaApi_Mixin
-from .pybooru import _Pybooru
+from .anybooru import _Anybooru
 from .resources import json_params
 
 
-class Serika(_Pybooru, SerikaApi_Mixin):
+class Serika(_Anybooru, SerikaApi_Mixin):
     """Access official v1 and unversioned internal routes on Serika instances.
 
     API keys use Bearer authentication. An empty key sends no authentication;
@@ -37,7 +37,7 @@ class Serika(_Pybooru, SerikaApi_Mixin):
         Internal methods preserve their original JSON envelopes.
 
         binary=True returns bytes, with Content-Type and image identifiers in
-        last_call['headers']. All non-2xx responses raise PybooruHTTPError,
+        last_call['headers']. All non-2xx responses raise AnybooruHTTPError,
         retaining HTTP status and the error body, including a JSON code.
         """
         path = path.lstrip("/")

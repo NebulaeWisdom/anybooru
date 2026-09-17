@@ -15,7 +15,7 @@
 - 数据库字段语义来自 `lib/db.ts:387-543`；站内会话来自 `lib/auth.ts:18`（`getCurrentUser()`：
   先读 cookie `session_token`，再读 `Authorization: Bearer`，再向 `accounts.serika.dev` 校验）；
   根 `middleware.ts` 只匹配 `/upload/:path*` 与 `/user/:path*`，**不拦截 `/api/*`**。
-- 本库侧实现是 `pybooru/api_serika.py` 的 `SerikaApi_Mixin`（`Serika` 客户端）；
+- 本库侧实现是 `anybooru/api_serika.py` 的 `SerikaApi_Mixin`（`Serika` 客户端）；
   本页每个方法的 `Serika.request()` 调用就是它对应的路由。
 - Serika 自己仓库里对 Danbooru 的 `lib/danbooru.ts:177`（`get('/posts.json')`）是它作为
   Danbooru **消费者**的导入器，不能反推它提供 Danbooru 契约。
@@ -526,7 +526,7 @@ service key 调账号服务，把结果 **upsert 进本地 `users` 表**（`ON C
 - 失败分两类：**业务态**也在 `{"success": false, "error": ...}` 里（图片列表的
   `{"success": false, "error": "One or more specified tags were not found", "code":
   "TAG_NOT_FOUND"}` 就是这种，HTTP 同时是 404），**以及 5xx 的 `Failed to ...`**。
-  非 2xx 一律由库抛 `PybooruHTTPError`，正文原样保留。
+  非 2xx 一律由库抛 `AnybooruHTTPError`，正文原样保留。
 
 ### 参数命名
 

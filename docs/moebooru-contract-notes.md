@@ -207,7 +207,7 @@
 本库实际打印过的具体字段（各 `api_attributes` 的完整列表）另见本节末的字段坐标小节。
 
 错误响应不一定是 JSON：HTML 错误页（例如对未知 id 请求 `comment/show` 得到的 `404`）会把原始文本放在
-`PybooruHTTPError.body`，此时 `.data` 是 `None`。判定失败请以状态码为准，不要假定 `.data` 一定可解析。
+`AnybooruHTTPError.body`，此时 `.data` 是 `None`。判定失败请以状态码为准，不要假定 `.data` 一定可解析。
 
 ### 写请求的重定向与结果歧义
 
@@ -389,7 +389,7 @@
 ## 排除项（都有真实路由，只是没有 JSON 契约）
 
 `Moebooru.request()` 始终请求 `.json`；它既不把 HTML 变成 JSON，也不做订阅源 / ZIP 下载出口。
-请求这些地址通常先得到 HTTP 错误（`PybooruHTTPError`），只有 2xx 非 JSON 正文才抛 `PybooruAPIError`。
+请求这些地址通常先得到 HTTP 错误（`AnybooruHTTPError`），只有 2xx 非 JSON 正文才抛 `AnybooruAPIError`。
 
 ### 只渲染 HTML / JS（`.json` 会 406 或 500）
 

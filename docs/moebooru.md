@@ -5,7 +5,7 @@
 逐条上游坐标、权限与排除项见[契约审计附注](moebooru-contract-notes.md)。
 
 ```python
-from pybooru import Moebooru
+from anybooru import Moebooru
 with Moebooru('yandere') as client:
     print(len(client.comment_search(query=client.config['examples']['moebooru']['comment_query'])))
 ```
@@ -28,7 +28,7 @@ with Moebooru('yandere') as client:
 | `hash_string` | 站点加盐模板（含 `{0}`）；站点条目里是 `null` 又需要登录时必须显式给 |
 | `api_version` | 决定**列表路径形态**（见下方「坑」）：旧版本把裸集合路径补成 `/index`，`1.13.0+update.3` 不补 |
 | `proxies` / `timeout` / `user_agent` | 覆盖配置 `request` 段的同名项；会话关闭 `trust_env`，不读环境变量 |
-| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `pybooru/pybooru.json`，传路径才读别的文件 |
+| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `anybooru/anybooru.json`，传路径才读别的文件 |
 
 显式参数优先于配置文件中的同名值；自定义站点写法 `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3', username='me', password='secret', hash_string='salt--{0}--')`。
 解析后的配置挂在 `c.config`，派生字段可读 `c.api_version` / `c.password_hash`（匿名时为 `None`）；每次请求后 `c.last_call` 是最新一次的 `API` 相对路径、最终 `url`（含查询串）、状态与响应头。
@@ -61,7 +61,7 @@ with Moebooru('yandere') as client:
 `None` 不发送），`files` 非空时改为 multipart；传入的文件对象由调用者关闭。
 
 ```python
-from pybooru import Moebooru
+from anybooru import Moebooru
 
 with Moebooru('yandere') as c:
     example = c.config['examples']['moebooru']
@@ -73,8 +73,8 @@ with Moebooru('yandere') as c:
 | :--- | :--- |
 | JSON 正文 | 原样返回的 Python 对象（列表是数组，详情是单个对象），不改字段、不包装 |
 | `204` / 空正文 | `None` |
-| HTTP 错误 | `PybooruHTTPError`（`http_code` / `url` / `body` / `data`；正文不是 JSON 时 `.data` 为 `None`） |
-| 2xx 但正文不是 JSON | `PybooruAPIError` |
+| HTTP 错误 | `AnybooruHTTPError`（`http_code` / `url` / `body` / `data`；正文不是 JSON 时 `.data` 为 `None`） |
+| 2xx 但正文不是 JSON | `AnybooruAPIError` |
 
 各族的具体形态（顶层数组、`{success:true}`、被触及帖子的批量负载、重定向目标页的 JSON）见 [方法参考的响应形态](moebooru-api.md#响应形态)；异常类型见 [errors.md](errors.md)。
 

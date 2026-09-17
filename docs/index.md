@@ -1,6 +1,6 @@
-# Pybooru 文档
+# Anybooru 文档
 
-Pybooru 是访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 ## 先选阅读层
 
@@ -31,16 +31,16 @@ Danbooru / Moebooru / e621ng 是 Rails 引擎；Serika 是独立的 Next.js 引�
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
-| [安装](installation.md) | 环境要求、源码/PyPI 安装与目录结构 |
+| [安装](installation.md) | 环境要求、源码安装与目录结构 |
 | [配置](configuration.md) | 默认配置来源、`config_file` 覆盖、站点、代理、超时和示例参数 |
 | [认证](authentication.md) | Danbooru Basic、Moebooru password_hash、Serika Bearer、e621ng Basic |
 | [分页](pagination.md) | page/limit 透传、编号页与 Danbooru/e621ng 游标 |
 | [错误处理](errors.md) | HTTP 错误字段、网络异常、状态码与重定向 |
-| [迁移](migration.md) | 从 4.x 到 5.x 的方法与参数替换 |
+| [迁移](migration.md) | 从 4.x 到 Anybooru 的方法与参数替换 |
 
 ## 客户端共同约定
 
-1. **显式配置**：默认读随包安装的 `pybooru/pybooru.json`，`config_file` 指向其他文件时读那份；没有
+1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向其他文件时读那份；没有
    环境变量注入、没有工作目录搜索、没有内置站点后备。站点键指向配置里的 `sites` 条目。
 2. **通用入口与原生方法**：四个客户端都有 `request()`；原生方法是其薄封装。服务端决定权限与参数含义，客户端不猜能力、不拦截未知搜索字段。
 3. **保留原响应语义**：不自动翻页、重试或降级；HTTP 错误保留状态和正文。Serika 官方信封拆为返回数据与 `last_call['meta']`，站内 JSON 原样返回，图片方法返回 bytes；e621ng 的信封拆封按上游请求分支决定（不同分支拆 `posts` / `post` 或不拆），不做形状猜测。

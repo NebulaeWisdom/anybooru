@@ -2,7 +2,7 @@
   "request": {
     "timeout": 30,
     "proxies": {},
-    "user_agent": "Pybooru/5.0.0.dev1"
+    "user_agent": "Anybooru/0.1.0.dev1"
   },
   "sites": {
     "serika": {

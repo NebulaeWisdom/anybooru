@@ -9,7 +9,6 @@ __pycache__
 # build/dist/venv files
 build/
 dist/
-Pybooru.egg-info/
 venv/
 
 # IDEs/Editors config files/folders

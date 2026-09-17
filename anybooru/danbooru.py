@@ -1,11 +1,11 @@
 """Configured JSON client for sites running the Danbooru engine."""
 
 from .api_danbooru import DanbooruApi_Mixin
-from .pybooru import _Pybooru
+from .anybooru import _Anybooru
 from .resources import json_params
 
 
-class Danbooru(_Pybooru, DanbooruApi_Mixin):
+class Danbooru(_Anybooru, DanbooruApi_Mixin):
     """Access Danbooru routes with Rails parameters and HTTP Basic API auth."""
 
     def __init__(self, site_name=None, site_url=None, username=None, api_key=None,

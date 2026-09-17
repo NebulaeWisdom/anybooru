@@ -29,7 +29,7 @@ Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用�
 也可以在构造函数里显式覆盖配置文件的凭据：
 
 ```python
-from pybooru import Danbooru
+from anybooru import Danbooru
 
 client = Danbooru('danbooru', username='your-username', api_key='your-api-key')
 ```
@@ -71,7 +71,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 Serika 是四家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
-不制造占位 key。URL、代理、超时仍来自同一份 `pybooru.json`。
+不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
 | 契约面 | 认证与交付边界 |
 | :--- | :--- |
@@ -82,7 +82,7 @@ Serika 是四家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` �
 
 客户端不预判权限、不自动换成站内接口、不在认证失败后退回匿名。服务端按 API key 限流。
 当前 v1 的缺 key、缺权限、超限都返回 `code: UNAUTHORIZED`，HTTP 分别为 `401` / `403` / `429`；
-请结合 `PybooruHTTPError.http_code`、`.data['code']` 与 `.body` 判断原因。
+请结合 `AnybooruHTTPError.http_code`、`.data['code']` 与 `.body` 判断原因。
 逐条权限、限流实现和官方说明差异见 [Serika 契约审计附注](serika-contract-notes.md)，
 可调用能力见 [Serika 能力入口](serika-capabilities.md)。
 

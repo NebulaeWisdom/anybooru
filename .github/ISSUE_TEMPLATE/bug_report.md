@@ -31,7 +31,7 @@ assignees: ''
 
 ## Your Environment
 <!--- Include as many relevant details about the environment you experienced the bug in -->
-* Pybooru Version:
+* Anybooru Version:
 * Python Version:
 * Danbooru / Moebooru site:
 * Operating System and version:

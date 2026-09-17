@@ -1,6 +1,6 @@
-# 从 Pybooru 4.x 迁移
+# 从 Pybooru 4.x 迁移到 Anybooru
 
-5.x（`5.0.0.dev1`）以本地上游引擎源码为契约重写了对 Danbooru 面与 Moebooru 面的访问。
+Anybooru（`0.1.0.dev1`）以本地上游引擎源码为契约重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
 ## 一、破坏性变更总览
@@ -8,7 +8,7 @@
 ### 1. 站点清单消失，改为配置文件
 
 4.x 把默认站点硬编码在 `pybooru/resources.py` 的 `SITE_LIST` 里，并允许用 `site_url=` 传任意地址。
-5.x 删除 `SITE_LIST`，站点、凭据、代理、超时、User-Agent 全部来自 `pybooru.json`：
+Anybooru 删除 `SITE_LIST`，站点、凭据、代理、超时、User-Agent 全部来自 `anybooru.json`：
 
 ```python
 # 4.x
@@ -16,8 +16,9 @@ from pybooru import Danbooru
 client = Danbooru('danbooru')
 client = Danbooru(site_url='https://danbooru.donmai.us')
 
-# 5.x
-client = Danbooru('danbooru')                       # sites 段的键名，读包内默认 pybooru.json
+# Anybooru
+from anybooru import Danbooru
+client = Danbooru('danbooru')                       # sites 段的键名，读包内默认 anybooru.json
 client = Danbooru('danbooru', config_file='config/sites.json')   # 换一份自己维护的配置
 client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可显式覆盖
 ```
@@ -32,11 +33,11 @@ client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可
 # 4.x（内部方法，且每个方法带 auth= 开关）
 client._get('posts.json', {'tags': 'rating:g'})
 
-# 5.x
+# Anybooru
 client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 ```
 
-`request(method, path, *, params=None, data=None, files=None)` 成为唯一出口（5.x 的两个面**都不再有**
+`request(method, path, *, params=None, data=None, files=None)` 成为唯一出口（Anybooru 的两个面**都不再有**
 `_get()`）：
 
 * `path` 是相对路径，自动补 `.json`（Moebooru 面在旧 `api_version` 下还会给裸集合路径补 `/index`）；
@@ -51,7 +52,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 3. 方法命名与签名统一
 
-| 4.x | 5.x |
+| 4.x | Anybooru |
 | :--- | :--- |
 | 各方法零散参数（`name=`, `order=`, `limit=` …） | Danbooru 面列表方法统一 `xxx_list(search=None, **params)`；Moebooru 面没有 `search` 字典，过滤条件都是顶层 `**params` |
 | `auth=False` 开关 | 无（凭据决定） |
@@ -62,12 +63,12 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 4. 返回与异常
 
-| 情形 | 4.x | 5.x |
+| 情形 | 4.x | Anybooru |
 | :--- | :--- | :--- |
 | JSON 响应 | 解析后的对象 | 同 |
 | `204` / 空响应体 | `204` 返回 `True`，其余成功状态仍尝试解析 JSON | 统一返回 `None` |
-| HTTP 错误 | `PybooruHTTPError(msg, http_code, url)` | `PybooruHTTPError(response)`，带 `http_code` / `url` / `body` / `data` / `response` |
-| 2xx 但非 JSON | 包装为 `PybooruError`，错误处理可能再失败 | `PybooruAPIError(message, response=...)` |
+| HTTP 错误 | `PybooruHTTPError(msg, http_code, url)` | `AnybooruHTTPError(response)`，带 `http_code` / `url` / `body` / `data` / `response` |
+| 2xx 但非 JSON | 包装为 `PybooruError`，错误处理可能再失败 | `AnybooruAPIError(message, response=...)` |
 
 详见 [errors.md](errors.md)。
 
@@ -83,11 +84,11 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 6. Moebooru 面也按上游路由重写
 
-`Moebooru` 类在 5.x 同样逐端点对齐了上游 `moebooru/config/routes.rb`（HEAD `206455e1`）与控制器，
+`Moebooru` 类在 Anybooru 同样逐端点对齐了上游 `moebooru/config/routes.rb`（HEAD `206455e1`）与控制器，
 共 90 个原生方法，方法命名与 Danbooru 面一致（`xxx_list` / `xxx_show` / `xxx_create` / `xxx_update` /
 `xxx_destroy`）。**旧名字只在本文出现**：
 
-| 旧名 / 旧签名 | 5.x |
+| 旧名 / 旧签名 | Anybooru |
 | :--- | :--- |
 | `pool_posts(**params)` | `pool_show(pool_id, **params)`：返回的是**一个合集对象**，帖子在 `posts` 里 |
 | `user_search(**params)` | `user_list(**params)` |
@@ -112,7 +113,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 帖子
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `post_list(**params)` | `post_list(**params)` | 顶层 `tags` / `page` / `limit` 照旧；posts 控制器不读取 `search[...]`，其他过滤写入 `tags` 元标签 |
 | `post_show(post_id)` | `post_show(post_id)` | 不变 |
@@ -134,7 +135,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 上传与媒体
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `upload_list(uploader_id=..., ...)` | `upload_list(search=None, **params)` | 顶层 `user_id` / `limit` / `mode` / `size`；过滤走 `search`。**可见范围收紧**：非 moderator 只能看到自己的上传 |
 | `upload_show(upload_id)` | `upload_show(upload_id)` | 同上（仅本人或 moderator） |
@@ -144,7 +145,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 标签
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `tag_list(name_matches=..., ...)` | `tag_list(search=None, **params)` | 过滤条件走 `search`；删除 `limit > 1000` 的本地告警 |
 | `tag_show(tag_id)` | `tag_show(tag_id)` | 不变 |
@@ -158,7 +159,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 画师
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `artist_list(query=None, artist_id=..., ...)` | `artist_list(search=None, **params)` | `search[name]` 语义已变：模糊匹配用 `any_name_matches`，URL 用 `url_matches`；`empty_only` / `is_active` / `creator_name` / `creator_id` 已不在搜索字段内 |
 | `artist_show(artist_id)` | `artist_show(artist_id)` | 不变 |
@@ -180,7 +181,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 评论与笔记
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `comment_list(group_by, ...)` | `comment_list(search=None, **params)` | `group_by` 变可选（默认按 comment）；补 `is_sticky` / `score` / `is_edited` / `updater_*` |
 | `comment_create(post_id, body, ...)` | `comment_create(post_id, body, **attributes)` | `comment[post_id, body, do_not_bump_post, is_sticky]` |
@@ -199,7 +200,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 合集与 wiki
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `pool_list(name_matches=..., ...)` | `pool_list(search=None, **params)` | `name_matches` 仍有效（Pool.name 是 text）；另支持 `name` / `name_contains`；`is_active` / `creator_*` 已废，现为 `is_deleted` |
 | `pool_update(pool_id, ..., is_active=...)` | `pool_update(pool_id, **attributes)` | `pool[is_active]` 已废；`post_ids` 保留，另有 `post_ids_string` |
@@ -217,7 +218,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 用户、收藏、站内信
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `user_list(name=None, name_matches=..., ...)` | `user_list(search=None, **params)` | 顶层 `name` 仍可用（会转成 `name_or_past_name_matches`）；补 `is_banned` |
 | `user_show(user_id)` | `user_show(user_id)` | 不变 |
@@ -234,7 +235,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 论坛
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `forum_topic_list(title_matches=..., ...)` | `forum_topics_list(search=None, **params)` | 过滤条件走 `search` |
 | `forum_topic_create(title, body, category=None)` | `forum_topic_create(title, body, **attributes)` | |
@@ -252,7 +253,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 计数与杂项
 
-| 4.x | 5.x | 说明 |
+| 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
 | `count_posts(tags=None)` | `counts_posts(tags=None, estimate_count=None, skip_cache=None)` | 新增 `estimate_count` / `skip_cache` |
 | — | `status` / `source_show` / `iqdb_query` / `autocomplete_list` | 新增 |
@@ -282,13 +283,13 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ## 四、迁移检查清单
 
-1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`pybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
+1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`Anybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
 2. 把 `Danbooru('danbooru')` 之外的站点构造改为 `sites` 段的键名，删掉对 `SITE_LIST` 的依赖；
 3. 除 `post_list(**params)` 与 `autocomplete_list(query, ...)` 外，列表过滤迁至 `search={...}`；分页保持顶层；
 4. 写接口改用 `**attributes` 形式，删掉 `auth=` 参数；
 5. 替换已删除的方法（`post_unvote` / `comment_unvote` / `artist_undelete` / `artist_banned` /
    `dmail_delete`）；
-6. 捕获异常时改用新字段（`PybooruHTTPError.http_code` / `.url` / `.body` / `.data`）；
+6. 捕获异常时改用新字段（`AnybooruHTTPError.http_code` / `.url` / `.body` / `.data`）；
 7. Moebooru 调用方要改构造与配置来源，并按[上文第 6 小节](#6-moebooru-面也按上游路由重写)替换旧方法与参数
    （`pool_posts` / `user_search` / `note_create_update` / `wiki_show`、合集写操作的动词、属性键名等）。
 

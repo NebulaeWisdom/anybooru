@@ -3,15 +3,15 @@
 ## 异常层次
 
 ```
-PybooruError
-├── PybooruHTTPError     HTTP 状态码不是 2xx
-└── PybooruAPIError      状态码是 2xx，但响应体不是合法 JSON
+AnybooruError
+├── AnybooruHTTPError     HTTP 状态码不是 2xx
+└── AnybooruAPIError      状态码是 2xx，但响应体不是合法 JSON
 ```
 
 网络层错误（连不上、超时、TLS 失败等）**不包装**，直接抛出 requests 自己的异常
 （`requests.ConnectionError`、`requests.Timeout` 等）。
 
-## `PybooruHTTPError`
+## `AnybooruHTTPError`
 
 HTTP 状态码不在 `200..299` 时抛出，保留完整响应：
 
@@ -32,12 +32,12 @@ HTTP 状态码不在 `200..299` 时抛出，保留完整响应：
 用法：
 
 ```python
-from pybooru import Danbooru, PybooruHTTPError
+from anybooru import Danbooru, AnybooruHTTPError
 
 client = Danbooru('danbooru')
 try:
     client.post_show(0)
-except PybooruHTTPError as error:
+except AnybooruHTTPError as error:
     print(error.http_code)                  # 404
     print(error.url)                        # https://danbooru.donmai.us/posts/0.json
     if error.data:                          # 站点返回的 JSON 错误体
@@ -58,7 +58,7 @@ Danbooru 引擎的 JSON 错误体形如：
 （模板见上游 `app/views/static/error.json.erb`，正文结构由 `ApplicationController#render_error_page`
 组装。）
 
-## `PybooruAPIError`
+## `AnybooruAPIError`
 
 状态码是 2xx，但响应体无法按 JSON 解析时抛出。常见于两种情况：
 
@@ -116,7 +116,7 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 
 * `429` 与 `5xx` 由调用者自己决定等待多久、重试几次；
 * Danbooru 在被限流的请求上会返回 `X-Rate-Limit` 响应头（JSON，含 `action`、`rate`、`burst`、`limits`
-  等字段），通过 `PybooruHTTPError.response.headers` 读取。
+  等字段），通过 `AnybooruHTTPError.response.headers` 读取。
 
 ## 边界与未实测
 

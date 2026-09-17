@@ -6,8 +6,8 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 
 审计依据：本地只读 clone `danbooru/`，HEAD `d4cdddd44`（2026-09-14）。权威来源是
 `config/routes.rb`（路由）、`app/controllers/*`（动作与强参数）、`app/policies/*`（权限与字段过滤）、
-`app/models/*`（搜索与校验）。客户端侧依据是 `pybooru/api_danbooru.py`（227 个原生方法）与
-`pybooru/danbooru.py`（传输）。**本文行号都指该 clone 的当前版本**，上游更新后需重新核对。
+`app/models/*`（搜索与校验）。客户端侧依据是 `anybooru/api_danbooru.py`（227 个原生方法）与
+`anybooru/danbooru.py`（传输）。**本文行号都指该 clone 的当前版本**，上游更新后需重新核对。
 
 ## 状态口径与总量
 
@@ -23,7 +23,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 
 ## 逐资源：路由、参数键与状态（227 个原生方法）
 
-方法名、路由与参数键都从 `pybooru/api_danbooru.py` 读取：路由是方法内 `self.request(...)` 调用的字面量
+方法名、路由与参数键都从 `anybooru/api_danbooru.py` 读取：路由是方法内 `self.request(...)` 调用的字面量
 （路径变量写成 `<id>`），参数键与括注直接摘自该方法的 docstring（英文原文，保留以不丢枚举值等事实）；
 状态列的口径见上一节。
 
@@ -800,7 +800,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 > 目标端点通常仍返回 JSON（已实测 `artist_show_or_new` 跟随重定向后拿到 `200` +
 > `application/json`，见 [verification.md](verification.md)）。
 > 写类重定向端点**未实测**，因此不断言成功或失败；若最终响应不是 JSON，会抛
-> `PybooruAPIError`，此时用 `last_call['status_code']` 与 `last_call['url']` 判断实际结果。
+> `AnybooruAPIError`，此时用 `last_call['status_code']` 与 `last_call['url']` 判断实际结果。
 
 ### comments、notes、投票
 
@@ -993,7 +993,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
 ### 路径与格式
 
 * 路径是站点根地址之后的相对路径，**没有** API 版本前缀；原生方法显式用 `.json`，`request()` 为无后缀
-  路径补上（`pybooru/danbooru.py`）。
+  路径补上（`anybooru/danbooru.py`）。
 * 重定向目标即使没有后缀，也可通过 `Accept: application/json` 协商到 JSON；请求了不支持的格式得到
   `406`（`app/controllers/application_controller.rb:141`）。
 * 路径里的 ID 或标题若含特殊字符，需要调用者自行 URL 转义（`wiki_page_show` 内部已转义）。
@@ -1062,7 +1062,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
 
 ### 失败与能力依赖
 
-* 非 2xx 抛 `PybooruHTTPError`（状态码、URL、正文原样保留），2xx 但非 JSON 抛 `PybooruAPIError`；
+* 非 2xx 抛 `AnybooruHTTPError`（状态码、URL、正文原样保留），2xx 但非 JSON 抛 `AnybooruAPIError`；
   状态码清单见 [errors.md](errors.md)。
 * **archive 服务未配置时 `501`**：`PostVersion.enabled?` 为假时 `post_versions#index|undo` 抛
   `NotImplementedError`（`post_versions_controller.rb:42-45`），`PoolVersion.enabled?` 同理
@@ -1130,7 +1130,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
 11. **重定向类动作**：`artist_delete` / `artist_ban` / `artist_unban` / `wiki_page_show_or_new` /
     `forum_topics_mark_all_as_read` 在控制器里是 `redirect_to`。客户端始终发
     `Accept: application/json`，目标端点通常仍回 JSON（`artist_show_or_new` 已实测 302 → `200` +
-    `application/json`）；最终响应不是 JSON 时抛 `PybooruAPIError`。**写类重定向未实测**，因此不能
+    `application/json`）；最终响应不是 JSON 时抛 `AnybooruAPIError`。**写类重定向未实测**，因此不能
     断言成功或失败，只能看 `last_call`。
 12. **`post_versions` 没有 show**：路由只有 index 与 undo，客户端因此没有 `post_version_show`
     （对照：tag/artist/wiki/note 都有版本 show）。

@@ -15,9 +15,9 @@ id 读出来或赋值（例如从 `post_list` 的响应取 `post_id`），本库
 也可以把整段放入 `with Danbooru(...) as client:`，见 [客户端用法](danbooru.md)。
 
 ```python
-from pybooru import Danbooru
+from anybooru import Danbooru
 
-client = Danbooru('danbooru')                     # 读包内默认 pybooru.json
+client = Danbooru('danbooru')                     # 读包内默认 anybooru.json
 example = client.config['examples']['danbooru']   # 样例输入：站点、关键词、条数等
 ```
 
@@ -39,8 +39,8 @@ example = client.config['examples']['danbooru']   # 样例输入：站点、关�
 * **端点无关的顶层参数**：`only`（选返回字段与嵌套关联，如 `only=id,url,artist[name]`，只对
   json/xml 生效）、`redirect=true`（结果唯一时 302 到对象页面）、`safe_mode`（强制 `rating:g`）、
   `save_data`（省流模式）。
-* **失败**：非 2xx 抛 `PybooruHTTPError`（保留状态码、URL 与正文），2xx 但非 JSON 抛
-  `PybooruAPIError`；archive 未配置返回 `501`，IQDB 未配置则返回空数组，各可选服务分别判断。见
+* **失败**：非 2xx 抛 `AnybooruHTTPError`（保留状态码、URL 与正文），2xx 但非 JSON 抛
+  `AnybooruAPIError`；archive 未配置返回 `501`，IQDB 未配置则返回空数组，各可选服务分别判断。见
   [errors.md](errors.md)。
 
 ## 状态、账号与限流（6 个方法）
@@ -292,7 +292,7 @@ artist = client.artist_show_or_new(name='fuzichoco')
 - `artist_show(artist_id)` — 读取一个画师记录；返回单个 artist 对象（含 `id`、`name`、`is_banned`、`group_name`、`other_names`）。
 - `artist_create(name, **attributes)` — 创建画师（`name` 就是将来的标签名）；`other_names_string`、`group_name`、`url_string` 等属性；返回写后的 artist 对象（含 `id`、`name`、`is_banned`、`group_name`、`other_names`）。
 - `artist_update(artist_id, **attributes)` — 改名称、其他名、团体与主页；返回写后的 artist 对象（含 `id`、`name`、`is_banned`、`group_name`、`other_names`）。
-- `artist_delete(artist_id)` — 软删除画师（置 `is_deleted`，需 builder）；服务端重定向到画师页，最终响应决定结果（不是 JSON 会抛 `PybooruAPIError`）。
+- `artist_delete(artist_id)` — 软删除画师（置 `is_deleted`，需 builder）；服务端重定向到画师页，最终响应决定结果（不是 JSON 会抛 `AnybooruAPIError`）。
 - `artist_revert(artist_id, version_id)` — 恢复画师记录的指定版本；返回写后的 artist 对象（含 `id`、`name`、`is_banned`、`group_name`、`other_names`）。
 - `artist_ban(artist_id)` — 封禁画师（admin）；服务端重定向到画师页，最终响应决定结果。
 - `artist_unban(artist_id)` — 解除画师封禁（admin）；服务端重定向到画师页，最终响应决定结果。

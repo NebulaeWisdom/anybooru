@@ -2,7 +2,7 @@
 """列出 e621 系站点的帖子，再取其中一帖的详情与一帖随机帖。
 
 标签、数量、调用间隔与站点名全部来自配置文件 examples.e621 段（默认读包内
-pybooru.json），可以用 --config / --site 覆盖，不使用环境变量。
+anybooru.json），可以用 --config / --site 覆盖，不使用环境变量。
 每次调用打印一行 JSON：方法名、状态码、真实 URL 与返回摘要。
 """
 
@@ -10,8 +10,8 @@ import argparse
 import json
 import time
 
-from pybooru import E621
-from pybooru.resources import load_config
+from anybooru import E621
+from anybooru.resources import load_config
 
 
 def summarize(post):
@@ -40,7 +40,7 @@ def emit(client, method, **summary):
 def main():
     parser = argparse.ArgumentParser(description='列出 e621 系站点的帖子')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default=None, help='站点名，默认取 examples.e621.site')
     args = parser.parse_args()
 

@@ -9,13 +9,13 @@
 | 标准库依赖 | `json`、`os`（读取默认配置文件），无其他第三方依赖 |
 
 本库不依赖环境变量，也不会去当前工作目录或用户目录搜索配置文件；所有可调参数都在配置文件里显式
-声明，默认读随包安装的 `pybooru/pybooru.json`，见 [configuration.md](configuration.md)。
+声明，默认读随包安装的 `anybooru/anybooru.json`，见 [configuration.md](configuration.md)。
 
 ## 从源码安装（当前开发版）
 
 ```bash
-git clone https://github.com/NebulaeWisdom/pybooru.git
-cd pybooru
+git clone https://github.com/NebulaeWisdom/anybooru.git
+cd anybooru
 
 # 创建并激活虚拟环境
 python -m venv .venv
@@ -23,7 +23,7 @@ python -m venv .venv
 .venv/bin/python -m pip install -e .                # Linux / macOS
 ```
 
-`-e`（editable）安装后，`import pybooru` 直接指向仓库里的源码，改动立即生效。
+`-e`（editable）安装后，`import anybooru` 直接指向仓库里的源码，改动立即生效。
 
 ### 需要代理时
 
@@ -35,38 +35,33 @@ pip 支持显式指定代理，请不要用环境变量注入：
 
 运行期的代理写在配置文件的 `request.proxies` 中。
 
-## 从 PyPI 安装
+## 打包与发布状态
 
-```bash
-pip install --user Pybooru
-```
-
-> 本次重构尚未发布；普通 PyPI 安装不保证包含新契约。本文方法针对包含本轮提交的源码开发版（**5.0.0.dev1**）。
->
-> 任何安装方式都自带可用配置，见下节。
+本库目前**不发布到 PyPI**：请按上面的源码安装方式使用，不要依赖 `pip install Anybooru` 这类指令。
+将来是否发包由维护者决定，届时本文再补对应的安装方式。
 
 ## 验证安装
 
 ```bash
-.venv/Scripts/python.exe -c "import pybooru; print(pybooru.__version__)"
+.venv/Scripts/python.exe -c "import anybooru; print(anybooru.__version__)"
 ```
 
 输出当前源码版本号即安装成功。
 
 ## 配置文件放在哪
 
-安装包里自带一份 `pybooru/pybooru.json`，`Danbooru('danbooru')` 这类调用默认读它，**不需要**把它复制
-到工作目录。它的绝对路径是 `pybooru.DEFAULT_CONFIG_FILE`，可直接当模板来源：
+安装包里自带一份 `anybooru/anybooru.json`，`Danbooru('danbooru')` 这类调用默认读它，**不需要**把它复制
+到工作目录。它的绝对路径是 `anybooru.DEFAULT_CONFIG_FILE`，可直接当模板来源：
 
 ```bash
 # 源码安装：复制仓库里那份
-cp pybooru/pybooru.json /path/to/your-project/sites.json
+cp anybooru/anybooru.json /path/to/your-project/sites.json
 ```
 
 ```python
-import shutil, pybooru
+import shutil, anybooru
 
-shutil.copy(pybooru.DEFAULT_CONFIG_FILE, 'config/sites.json')  # pip 安装后用这个
+shutil.copy(anybooru.DEFAULT_CONFIG_FILE, 'config/sites.json')  # 用包内默认配置当模板
 client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指向自己那份
 ```
 
@@ -78,8 +73,8 @@ client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指�
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `pybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` 各有客户端模块与 `api_<family>.py` 方法模块，`pybooru.py` 为共享核心 |
-| `pybooru/pybooru.json` | 随包默认配置：站点、凭据、代理、超时、示例参数 |
+| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
+| `anybooru/anybooru.json` | 随包默认配置：站点、凭据、代理、超时、示例参数 |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 可运行示例脚本 |
 | 上游引擎仓库 | 可选的只读契约参考，不属于发布包；版本与源码入口见各家族契约审计附注 |

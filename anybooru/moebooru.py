@@ -3,10 +3,10 @@
 import hashlib
 
 from .api_moebooru import MoebooruApi_Mixin
-from .pybooru import _Pybooru
+from .anybooru import _Anybooru
 
 
-class Moebooru(_Pybooru, MoebooruApi_Mixin):
+class Moebooru(_Anybooru, MoebooruApi_Mixin):
     """Access Moebooru routes with Rails forms and password-hash auth."""
 
     def __init__(self, site_name=None, site_url=None, username=None, password=None,

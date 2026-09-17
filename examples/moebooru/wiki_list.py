@@ -6,14 +6,14 @@ query 是顶层标题搜索参数，不使用 Danbooru 的 search 字典。
 
 import argparse
 
-from pybooru import Moebooru
-from pybooru.resources import load_config
+from anybooru import Moebooru
+from anybooru.resources import load_config
 
 
 def main():
     parser = argparse.ArgumentParser(description='列出 Moebooru 系站点的 wiki 页面')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default='', help='站点名，留空则取 examples.moebooru.site')
     args = parser.parse_args()
 

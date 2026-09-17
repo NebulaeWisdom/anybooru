@@ -8,7 +8,7 @@
 [`7a9c98851`](https://github.com/e621ng/e621ng/tree/7a9c98851)。本文所有 `路径:行号` 都相对该 commit，
 上游更新后需重新核对。权威顺序是 `config/routes.rb`（路由）→ `app/controllers/*`（动作、过滤器与强参数）
 → `app/blueprints/*.rb` 与 `app/models/*`（序列化、搜索、校验）→ `config/danbooru_default_config.rb`（默认值）。
-客户端侧依据是 `pybooru/api_e621.py`（`E621Api_Mixin`，18 个原生方法）与 `pybooru/e621.py`（客户端与
+客户端侧依据是 `anybooru/api_e621.py`（`E621Api_Mixin`，18 个原生方法）与 `anybooru/e621.py`（客户端与
 `request()`）。
 
 **目录形态与 Danbooru 不同**：e621ng **没有** `app/policies/` 与 `app/serializers/`。权限过滤器定义在
@@ -141,7 +141,7 @@
 
 ## 客户端侧实现契约
 
-`pybooru/e621.py` 与 `pybooru/api_e621.py` 只做三件与上游一一对应的事，其余原样透传：
+`anybooru/e621.py` 与 `anybooru/api_e621.py` 只做三件与上游一一对应的事，其余原样透传：
 
 * **分支判定**：`_unwrapped(params)` 对应两处上游条件——`params[:only].present?`（`json_response_helper.rb:14`）
   与控制器传入的 `legacy: params[:v2] != "true"`（`posts_controller.rb:18`、`57`、`101`、`180`，取值后再由
@@ -233,8 +233,8 @@
 | 已登录的非 `GET`/`HEAD` 请求在**启用 `api_check`** 的控制器上被限流 | `429` | 同上 | `application_controller.rb:107-116`（响应头 `X-Api-Limit`）；`comments_controller.rb:11`、`users_controller.rb:5` 用 `skip_before_action :api_check` 关掉它 |
 | 数据库不可用 | `503` | 错误页 | 161-162 |
 
-客户端侧：非 2xx 一律抛 `PybooruHTTPError`（`http_code`、`url`、`body`、`data`、`response`），
-2xx 但非 JSON 抛 `PybooruAPIError`；`403` 的 JSON 正文实测为
+客户端侧：非 2xx 一律抛 `AnybooruHTTPError`（`http_code`、`url`、`body`、`data`、`response`），
+2xx 但非 JSON 抛 `AnybooruAPIError`；`403` 的 JSON 正文实测为
 `{"success": false, "reason": "Access Denied"}`。见 [errors.md](errors.md)。
 
 ## 分页与计数
@@ -349,7 +349,8 @@
 * 客户端沿用配置中的描述性 `User-Agent`。此快照未检出入站 User-Agent 的强制校验；
   `config/danbooru_default_config.rb:735-741` 定义的是站点**出站** HTTP 头，
   `app/logical/session_loader.rb:246` 只记录 API key 使用时的 User-Agent，不能混作入站要求的实现依据。
-  本轮匿名请求使用配置中的 `Pybooru/5.0.0.dev1`；边缘访问策略不属于这份 Rails 源码的保证。
+  先前的匿名请求使用改名前的 User-Agent（原始结果见[验证记录](verification.md)）；改名后包内默认是 `Anybooru/0.1.0.dev1`。
+  边缘访问策略不属于这份 Rails 源码的保证。
 
 ## 未实测
 

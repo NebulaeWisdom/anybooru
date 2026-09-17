@@ -1,8 +1,8 @@
 # Danbooru 客户端用法
 
 ```python
-from pybooru import Danbooru
-with Danbooru('danbooru') as client:                       # 读包内默认 pybooru.json
+from anybooru import Danbooru
+with Danbooru('danbooru') as client:                       # 读包内默认 anybooru.json
     print(client.wiki_page_show(client.config['examples']['danbooru']['wiki_title'])['title'])
 ```
 
@@ -27,8 +27,8 @@ Danbooru(site_name=None, site_url=None, username=None, api_key=None, proxies=Non
 ```
 
 `site_name` 是 `sites` 段的键名（如 `'danbooru'`、`'safebooru'`），同时决定读取哪个站点的
-`api_key`；`config_file` 默认 `None`，即读随包安装的 `pybooru/pybooru.json`
-（`pybooru.DEFAULT_CONFIG_FILE`），显式传路径才读别的文件，指到的文件不存在直接抛
+`api_key`；`config_file` 默认 `None`，即读随包安装的 `anybooru/anybooru.json`
+（`anybooru.DEFAULT_CONFIG_FILE`），显式传路径才读别的文件，指到的文件不存在直接抛
 `FileNotFoundError` 而不回落到默认文件或内置站点；其余参数显式覆盖配置文件同名值。见 [configuration.md](configuration.md)。
 
 解析后的配置挂在公开属性 `config` 上：`config['request']['timeout']`（`30`）、
@@ -85,7 +85,7 @@ client.post_list(tags='rating:g order:score', limit=10)
 ## 返回值与上一次请求
 
 JSON 响应体解析后原样返回（dict / list / 标量，不改字段、不包装）；`204` 或空正文返回 `None`；
-非 2xx 抛 `PybooruHTTPError`（带状态码、URL、响应内容），2xx 但非 JSON 抛 `PybooruAPIError`，
+非 2xx 抛 `AnybooruHTTPError`（带状态码、URL、响应内容），2xx 但非 JSON 抛 `AnybooruAPIError`，
 网络层异常原样抛出，见 [errors.md](errors.md)。`last_call` 记录每次请求的实际情况，其 `url` 是含查询串的最终地址，可直接排查“参数到底发成了什么样”：
 
 ```python

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""pybooru.api_danbooru
+"""anybooru.api_danbooru
 
 This module contains all API calls of Danbooru.
 
@@ -931,7 +931,7 @@ class DanbooruApi_Mixin(object):
 
         The controller redirects to the artist page. The client follows it
         with Accept: application/json and returns the final JSON response;
-        a non-JSON final response raises PybooruAPIError. This write is untested.
+        a non-JSON final response raises AnybooruAPIError. This write is untested.
 
         Parameters:
             artist_id (int): The artist id.
@@ -1885,7 +1885,7 @@ class DanbooruApi_Mixin(object):
 
         The controller redirects to the topic list. The client follows it
         with Accept: application/json and returns the final JSON response;
-        a non-JSON final response raises PybooruAPIError. This write is untested.
+        a non-JSON final response raises AnybooruAPIError. This write is untested.
         """
         return self.request("POST", "forum_topics/mark_all_as_read.json")
 

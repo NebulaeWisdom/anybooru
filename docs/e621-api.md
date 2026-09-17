@@ -12,9 +12,9 @@
 也可以把整段放进 `with E621(...) as client:`。
 
 ```python
-from pybooru import E621
+from anybooru import E621
 
-client = E621('e621')                              # 读包内默认 pybooru.json
+client = E621('e621')                              # 读包内默认 anybooru.json
 example = client.config['examples']['e621']        # 站点、查询、条数与调用间隔
 verified = client.config['verification']['e621']   # count_query / v2_query / only_query / related_search
 ```
@@ -35,7 +35,7 @@ verified = client.config['verification']['e621']   # count_query / v2_query / on
   缺省 `75`（帖子走账号每页设置）；页码越界或 `limit` 非法回 `410`。见 [pagination.md](pagination.md)。
 * **评级**：查询评级取首字母识别 `s` / `q` / `e`，因此 `rating:safe` 等全称也生效；
   首字母不在词表内的值（如 Danbooru 的 `rating:g`）被静默丢弃。e926 的过滤来自站点部署配置。
-* **失败**：非 2xx 抛 `PybooruHTTPError`（保留状态码、URL 与正文）；`404` 正文是
+* **失败**：非 2xx 抛 `AnybooruHTTPError`（保留状态码、URL 与正文）；`404` 正文是
   `{"success": false, "reason": "not found"}`，权限不足 `403` 是 `{"success": false, "reason": "Access Denied"}`，
   其余预期错误走 `{"success": false, "message": ..., "code": ...}`。状态码与出处见
   [契约审计附注](e621-contract-notes.md#sec-errors)。

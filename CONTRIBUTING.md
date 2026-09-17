@@ -1,13 +1,13 @@
-# 向 Pybooru 贡献
+# 向 Anybooru 贡献
 
 感谢你有兴趣参与贡献！
 
 ## 资源
 
 * [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown 文档。
-* [Pybooru on PyPI](https://pypi.org/project/Pybooru/)：已发布版本。
+* [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
 * [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng 四个家族的可运行示例。
-* [问题追踪](https://github.com/NebulaeWisdom/pybooru/issues)：Bug 与功能请求。
+* [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
 
@@ -24,20 +24,20 @@
 
 ### 报告 Bug
 
-报告前请先搜索 [已有 issue](https://github.com/NebulaeWisdom/pybooru/issues)，确认尚未被提交。Bug 使用
+报告前请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被提交。Bug 使用
 **Bug report** 模板创建：
 
 * 描述性的标题
 * 期望行为
 * 实际行为
 * 复现步骤（含代码）
-* 环境信息（Pybooru 版本、Python 版本、站点、操作系统）
+* 环境信息（Anybooru 版本、Python 版本、站点、操作系统）
 
 > 请勿在 issue、示例或提交中粘贴真实账号、API key、密码或代理凭据。
 
 ### 功能请求
 
-请先搜索 [已有 issue](https://github.com/NebulaeWisdom/pybooru/issues)，确认尚未被请求。功能请求使用
+请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被请求。功能请求使用
 **Feature request** 模板创建：
 
 * 描述性的标题
@@ -61,7 +61,7 @@
    .venv/bin/python -m pip install -e .                # Linux / macOS
    ```
 
-   示例脚本从配置文件读取参数（默认是包内 `pybooru/pybooru.json`，见 [docs/configuration.md](docs/configuration.md)）。
+   示例脚本从配置文件读取参数（默认是包内 `anybooru/anybooru.json`，见 [docs/configuration.md](docs/configuration.md)）。
 
 ## 代码风格
 
@@ -70,7 +70,7 @@
 
 其他约定：
 
-* 站点地址、凭据、代理、超时、示例参数一律放在配置文件 `pybooru/pybooru.json`，禁止硬编码在代码里，
+* 站点地址、凭据、代理、超时、示例参数一律放在配置文件 `anybooru/anybooru.json`，禁止硬编码在代码里，
   也禁止用环境变量注入。
 * 不做隐式兜底、不自动重试、不猜站点上限；服务端返回什么就原样暴露什么。
 * 文档改动请同时更新 `docs/` 下对应的中文 Markdown。

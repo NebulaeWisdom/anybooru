@@ -12,7 +12,7 @@
 也就是说，分页策略完全由调用者决定，客户端只负责把参数发对。
 
 ```python
-from pybooru import Danbooru
+from anybooru import Danbooru
 
 client = Danbooru('danbooru')
 example = client.config['examples']['danbooru']
@@ -84,7 +84,7 @@ Moebooru 面同样不做本地分页：`page` 就是页码（服务端把它夹�
 那样的 `page=a1000` / `b1000` 游标形式，`page` 只接受编号。
 
 ```python
-from pybooru import Moebooru
+from anybooru import Moebooru
 
 with Moebooru('yandere') as client:
     example = client.config['examples']['moebooru']
@@ -116,7 +116,7 @@ e621ng 用自己的 `Danbooru::Paginator`（与 Danbooru 同名但不是同一�
 `a` 游标返回的数组同样是新的 ID 在前：继续向新记录翻页时取当前页首项，取末项会重复。
 
 ```python
-from pybooru import E621
+from anybooru import E621
 
 with E621('e621') as client:
     example = client.config['examples']['e621']

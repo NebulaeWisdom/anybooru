@@ -12,7 +12,7 @@
 那份清单是样例，不是支持边界，任何跑 Moebooru 引擎的站点都可以 `site_url=` + `api_version=` 直接接入）：
 
 ```python
-from pybooru import Moebooru
+from anybooru import Moebooru
 
 c = Moebooru('yandere')
 ```
@@ -42,8 +42,8 @@ c = Moebooru('yandere')
 | :--- | :--- |
 | JSON 响应体 | 解析后的 Python 对象，原样返回，不改字段、不包装（列表是数组，详情是单个对象） |
 | `204` 或空响应体 | `None`（`forum_mark_all_read`） |
-| HTTP 错误状态 | `PybooruHTTPError`，带 `http_code` / `url` / `body` / `data`；`.data` 只在正文本身是 JSON 时有值 |
-| 2xx 但正文不是 JSON | `PybooruAPIError` |
+| HTTP 错误状态 | `AnybooruHTTPError`，带 `http_code` / `url` / `body` / `data`；`.data` 只在正文本身是 JSON 时有值 |
+| 2xx 但正文不是 JSON | `AnybooruAPIError` |
 | 网络层错误 | 原样抛出 requests 的异常 |
 
 排查「参数到底发成了什么样」看 `c.last_call['url']`（`last_call` 只表示最近一次请求）。
@@ -343,7 +343,7 @@ c.user_update(show_samples='1', receive_dmails='0')
 | 跟随重定向 | 目标页的 JSON：可能是数组（别名 / 蕴含 / 论坛索引）或单个对象（合集、主题） |
 | `204` | `None` |
 | 原始对象 | `favorite_list_users` → `{'favorited_users': 'name1,name2'}`；`tag_related` → `{标签: [[名称, 计数], ...]}` |
-| 错误 | `PybooruHTTPError`；正文不是 JSON 时 `.data` 为 `None`，原文在 `.body` |
+| 错误 | `AnybooruHTTPError`；正文不是 JSON 时 `.data` 为 `None`，原文在 `.body` |
 
 ## 边界与未实测汇总
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""pybooru.api_serika
+"""anybooru.api_serika
 
 Official SerikaART v1 routes and unversioned anonymous internal reads.
 
@@ -25,7 +25,7 @@ Shared v1 facts:
       and the random-image route returns pixels (``binary=True``).
     * Failures keep their real HTTP status (``400``/``401``/``403``/``404``/
       ``429``/``500``) and a ``{"success": false, "error", "code"}`` body, so
-      they surface as ``PybooruHTTPError`` with the parsed body in ``data``.
+      they surface as ``AnybooruHTTPError`` with the parsed body in ``data``.
       The controllers pass ``UNAUTHORIZED`` as the code for **every** API-key
       failure, rate limiting included: a limited key gets HTTP ``429`` with
       ``code: "UNAUTHORIZED"`` (only the unused ``withApiAuth`` helper, and

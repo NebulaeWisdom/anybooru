@@ -4,7 +4,7 @@ import json
 import os
 
 DEFAULT_CONFIG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "pybooru.json")
+    os.path.dirname(os.path.abspath(__file__)), "anybooru.json")
 
 
 def load_config(path=None):

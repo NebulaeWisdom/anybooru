@@ -7,14 +7,14 @@ username 与 api_key 任一非空，客户端就会带上 HTTP Basic。
 
 import argparse
 
-from pybooru import Danbooru
-from pybooru.resources import load_config
+from anybooru import Danbooru
+from anybooru.resources import load_config
 
 
 def main():
     parser = argparse.ArgumentParser(description='发表一条评论')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default='', help='站点名，留空则取 examples.danbooru.site')
     args = parser.parse_args()
 

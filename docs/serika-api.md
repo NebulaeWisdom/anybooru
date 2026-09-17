@@ -29,7 +29,7 @@ Serika 客户端共 **30 个原生方法**，分两面：官方版本化 `/api/v
 ### 前置块（下面所有片段共用）
 
 ```python
-from pybooru import Serika
+from anybooru import Serika
 
 client = Serika('serika')
 example = client.config['examples']['serika']
@@ -233,7 +233,7 @@ rows = client.request('GET', 'api/v1/tags', envelope='data')
 
 ## 错误与状态码
 
-非 2xx 一律抛 `PybooruHTTPError`；JSON `code` 从 `error.data['code']` 读，非 JSON 正文时 `data` 为 `None`。
+非 2xx 一律抛 `AnybooruHTTPError`；JSON `code` 从 `error.data['code']` 读，非 JSON 正文时 `data` 为 `None`。
 官方 v1 的缺 key / key 缺权限 / 超限分别是 HTTP `401` / `403` / `429`，但**三种情况的正文 `code`
 都可能是 `UNAUTHORIZED`**（只有"删别人的图且不是 admin/owner"才是 `FORBIDDEN`），
 所以判断失败原因要连 HTTP 状态码一起看。

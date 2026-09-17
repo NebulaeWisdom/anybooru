@@ -2,7 +2,7 @@
 """列出 e621 系站点的 wiki 页面，再取配置里那个标题的页面。
 
 查询、数量、调用间隔、标题与站点名全部来自配置文件 examples.e621 段（默认读包内
-pybooru.json），可以用 --config / --site 覆盖。标题里的冒号会被 URL 转义，
+anybooru.json），可以用 --config / --site 覆盖。标题里的冒号会被 URL 转义，
 所以 "help:api" 这类标题可以直接传。
 """
 
@@ -10,8 +10,8 @@ import argparse
 import json
 import time
 
-from pybooru import E621
-from pybooru.resources import load_config
+from anybooru import E621
+from anybooru.resources import load_config
 
 
 def page_summary(page):
@@ -31,7 +31,7 @@ def emit(client, method, **summary):
 def main():
     parser = argparse.ArgumentParser(description='读取 e621 系站点的 wiki 页面')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default=None, help='站点名，默认取 examples.e621.site')
     args = parser.parse_args()
 

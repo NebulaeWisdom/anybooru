@@ -3,6 +3,9 @@
 这里记录真实执行的命令、请求和结果；方法怎么调用见[方法参考](index.md#按家族选文档)，上游依据见各家族的契约审计附注。
 所有数据都是当时的快照，不保证再次请求得到相同 ID、计数或排名。证据文件当时保存在维护者本机临时目录，不随仓库分发；已删除的脚本只在[历史记录](#历史记录)中列出。
 
+改名前的实测记录保留当时的 `pybooru` / `pybooru.json` / `Pybooru*` 包名、配置名与异常名；
+改名后对应 `anybooru` / `anybooru.json` / `Anybooru*`。原命令和观测结果不回写，改名后的复跑结果另列于文末。
+
 ## 执行环境与批次
 
 | 批次 | 时间、站点与身份 | 方式 / 证据 | 执行结果 |
@@ -348,5 +351,65 @@ E1 是本轮新增客户端后的真实执行：**37 次匿名 GET**，其中 30
 | Serika 改造前匿名 200 | `/api/v1`、`/api/v1/stats`、`/api/v1/users?limit=1`、`/api/v1/random/400/400/image.png`；站内 `/api/images`、`/api/images/:id`、`/api/tags`、`/api/artists` | 来源：改造前的 Serika.art 评估记录；不计入 S1 的 8 次新增客户端请求 |
 | Serika 改造前匿名 401 | v1 images 列表/详情、tags 列表/详情、trending、search、random、users 详情，共 8 个 GET | 仅证明无 key 被拒绝，不证明成功字段；S1 没有重跑 |
 | Serika 说明矛盾纠正 | ID、未知标签、限流错误码、PNG 标签过滤等旧评估泛化 | 仅按源码纠正，见 [Serika 契约审计附注](serika-contract-notes.md)，没有另发探测 |
+
+## Anybooru 改名后的复跑（2026-09-18）
+
+本节为 `anybooru==0.1.0.dev1` 的新执行，不回写前面的 Pybooru 历史证据。
+首条示例的开始时间为 `2026-09-17T23:22:05Z`（UTC）。以下命令中的 `<配置文件>` 是占位符：
+实际使用的是从包内配置复制出来的覆写配置；凭据为空，User-Agent 为 `Anybooru/0.1.0.dev1`。
+包内默认 `request.proxies` 仍是 `{}`，分发配置里不放任何网络设置。
+
+### 导入与默认配置
+
+```bash
+.venv/Scripts/python.exe -c "from anybooru import Danbooru, Moebooru, Serika, E621"
+```
+
+退出 `0`，stdout/stderr 均为空。另一次真实导入读取的元数据为 `name: anybooru`、
+`version: 0.1.0.dev1`、`Home-page: https://github.com/NebulaeWisdom/anybooru`；
+`anybooru.DEFAULT_CONFIG_FILE` 指向已安装包目录内的 `anybooru/anybooru.json`。
+用同一内部配置构造 `E621` 后，会话的 `User-Agent` 实际为 `Anybooru/0.1.0.dev1`。
+
+### 四家族现有只读示例
+
+每行均以 `.venv/Scripts/python.exe <脚本路径> --config <配置文件>` 执行，未传 `--site`，
+站点来自配置。共 **17 条命令全部退出 `0`，stderr 均为空**；没有运行需凭据的 `comment_create.py`。
+
+| 脚本路径 | 真实输出片段 / 摘要 |
+| :--- | :--- |
+| `examples/danbooru/list_posts.py` | `12211425 g`、`12211421 g`、`12211420 g` 及各自标签 |
+| `examples/danbooru/list_tags.py` | `1girl 8429162`、`highres 8177132`、`solo 7077918` |
+| `examples/danbooru/show_post.py` | `12211425 g` 及标签 |
+| `examples/danbooru/paginate_posts.py` | `page 1 [12211425, 12211421, 12211420]`；`page 2` 与 `before 12211420` 均为 `[12211416, 12211415, 12211410]` |
+| `examples/danbooru/related_tag.py` | `query: touhou posts: 1097796`，随后为 `1girl` / `solo` / `hat` |
+| `examples/danbooru/wiki_page.py` | `help:api`，正文以 `Danbooru offers a REST-like API to make scripting easy.` 开头 |
+| `examples/moebooru/list_posts.py` | 两页各 3 帖及文件 URL：第一页 `1269034` / `1269023` / `1269022`；第二页 `1269019` / `1269016` / `1269015` |
+| `examples/moebooru/list_tags.py` | `thighhighs 264342`、`no_bra 208004`、`nipples 203288` |
+| `examples/moebooru/wiki_list.py` | `alphes`、`alstroemeria_records`、`azur_lane` |
+| `examples/moebooru/list_comments.py` | `comments: 0`，未验证非空评论正文 |
+| `examples/moebooru/related_tags.py` | `tag: touhou`，`thighhighs 5286` / `nipples 4630` / `wings 4491` |
+| `examples/serika/service_info.py` | 3×200；`SerikaART API` / `1.0.0`，图片 `4237843`、标签 `730851`、用户 `3059`，用户目录返回 1 项 |
+| `examples/serika/browse.py` | 4×200；列表 3 图，首图与详情 `id=7323837` / `post_id=4237836`；标签首项 `highres 3402288`，画师首项 `dairi 17186` |
+| `examples/serika/random_image.py` | 200，`python_type: bytes`、`bytes: 66729`、`Content-Type: image/png`，`x-image-id: 1811154` |
+| `examples/e621/list_posts.py` | 3×200；列表 `6715096` / `6715093`，详情 `6715096`，随机 `502758`，均 `rating=s` |
+| `examples/e621/browse_resources.py` | 10×200；标签 `7115 anthro`，画师 `126799 panzer_(p.z)`，评论 `10075334`（正文 229 字符），合集 `54791`，笔记 `506654` |
+| `examples/e621/wiki_pages.py` | 2×200；列表标题 `toriel` / `vodyanoy5`，详情 `11224 help:api` |
+
+Danbooru 与 Moebooru 的脚本不打印状态码，本节只报告真实 stdout 和进程退出码，
+不据此编造逐请求 HTTP 状态。Serika 明确打印 **8×200**，e621.net 明确打印 **15×200**；
+后者证明新 User-Agent 在这些匿名路由上被接受，没有遇到 403。
+Serika 本轮三个示例均成功，但不抹去此前批次出现过的连接失败。
+本轮没有重测 e926、账号认证、写路径、Serika 需 key 的方法或其余部署与参数组合。
+
+### 分发包与文档锚点
+
+真实执行 `.venv/Scripts/python.exe -m pip wheel . --no-deps --no-build-isolation --wheel-dir <输出目录>`
+（输出目录为占位表示），退出 `0`，生成 `anybooru-0.1.0.dev1-py3-none-any.whl`。
+用项目解释器读取 wheel 后确认包含 `anybooru/anybooru.json`，没有旧包名的归档成员；
+元数据实际为 `Name: anybooru`、`Version: 0.1.0.dev1`、
+`Home-page: https://github.com/NebulaeWisdom/anybooru`。配置中的 User-Agent 为 `Anybooru/0.1.0.dev1`、`proxies` 是空对象。
+
+项目解释器检查了全部 **30 份受跟踪 Markdown** 中的 **84 个相对锚点链接**，结果为 **0 悬空**、退出 `0`。
+没有新增测试套件，也没有用上述结果代替 GitHub runner 或 PyPI 发布验证。
 
 [文档入口](index.md) · [Danbooru 审计](danbooru-contract-notes.md) · [Moebooru 审计](moebooru-contract-notes.md) · [Serika 审计](serika-contract-notes.md) · [e621ng 审计](e621-contract-notes.md)

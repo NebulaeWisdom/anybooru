@@ -2,14 +2,14 @@
 
 import requests
 
-from .exceptions import PybooruAPIError, PybooruHTTPError
+from .exceptions import AnybooruAPIError, AnybooruHTTPError
 from .resources import encode_params, load_config
 
 
-class _Pybooru:
+class _Anybooru:
     """Load one parameter file and own one requests session.
 
-    `config_file=None` selects the `pybooru.json` installed inside this
+    `config_file=None` selects the `anybooru.json` installed inside this
     package; any other value is used as the path of the file to load.
     """
 
@@ -61,7 +61,7 @@ class _Pybooru:
             "headers": response.headers,
         }
         if not 200 <= response.status_code < 300:
-            raise PybooruHTTPError(response)
+            raise AnybooruHTTPError(response)
         return response
 
     def _request_bytes(self, url, api_call, request_args, method="GET"):
@@ -76,6 +76,6 @@ class _Pybooru:
         try:
             return response.json()
         except ValueError as error:
-            raise PybooruAPIError(
+            raise AnybooruAPIError(
                 "Invalid JSON response from {}: {}".format(response.url, error),
                 response=response) from error

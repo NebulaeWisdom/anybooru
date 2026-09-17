@@ -1,11 +1,11 @@
 """Errors returned by the HTTP and JSON API layers."""
 
 
-class PybooruError(Exception):
-    """Base exception for Pybooru errors."""
+class AnybooruError(Exception):
+    """Base exception for Anybooru errors."""
 
 
-class PybooruHTTPError(PybooruError):
+class AnybooruHTTPError(AnybooruError):
     """An unsuccessful HTTP response, including its original body."""
 
     def __init__(self, response):
@@ -21,7 +21,7 @@ class PybooruHTTPError(PybooruError):
             self.http_code, response.reason, self.body, self.url))
 
 
-class PybooruAPIError(PybooruError):
+class AnybooruAPIError(AnybooruError):
     """A successful HTTP response that cannot be decoded as JSON."""
 
     def __init__(self, message, response=None):

@@ -4,14 +4,14 @@
 import argparse
 import json
 
-from pybooru import Serika
-from pybooru.resources import load_config
+from anybooru import Serika
+from anybooru.resources import load_config
 
 
 def main():
     parser = argparse.ArgumentParser(description='浏览 Serika 站内匿名资源（私有契约）')
     parser.add_argument('--config', default=None,
-                        help='配置文件路径（默认包内 pybooru.json）')
+                        help='配置文件路径（默认包内 anybooru.json）')
     parser.add_argument('--site', default='', help='留空则取 examples.serika.site')
     args = parser.parse_args()
 
