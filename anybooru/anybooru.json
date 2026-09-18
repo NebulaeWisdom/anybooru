@@ -58,6 +58,9 @@
       "api_key": "",
       "user_id": ""
     },
+    "tbib": {
+      "url": "https://tbib.org"
+    },
     "shuushuu": {
       "url": "https://e-shuushuu.net",
       "username": "",
@@ -130,6 +133,13 @@
       "site": "gelbooru",
       "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
     },
+    "gelbooru02": {
+      "site": "tbib",
+      "post_query": {"tags": "rating:safe", "pid": 0, "limit": 2},
+      "tag_query": {"limit": 2},
+      "comment_post_id": 1,
+      "pause_seconds": 1.2
+    },
     "shuushuu": {
       "site": "shuushuu",
       "search_query": {"q": "long hair", "limit": 5},
@@ -154,6 +164,11 @@
     "e621": {"tags": "rating:s"},
     "zerochan": {"sort": "id", "missing_id": 999999999},
     "gelbooru": {"term": "blue", "type": "tag", "limit": 3, "post_id": 1, "last_id": 0},
+    "tbib": {
+      "post_query": {"tags": "rating:safe"},
+      "pages": [0, 1],
+      "comment_post_id": 1
+    },
     "shuushuu": {
       "pause_seconds": 2.1,
       "search_query": {"q": "long hair", "limit": 2},
