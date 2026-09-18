@@ -11,6 +11,17 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Gelbooru 0.2 / TBIB 第八家族
+
+- TBIB 首页自述 `Running Gelbooru 0.2`；独立新增 `Gelbooru02`，不改变 `gelbooru.com` 的既有客户端与契约。
+  原生 `post_list`、`post_deleted`、`tag_list`、`comment_list` 均为 GET；只登记 `sites.tbib`。
+- 帖子默认返回完整 JSON 数组，显式 `response_format='xml'` 返回原样 XML 字符串；标签和评论始终按文本返回，
+  不拆根、不改字段、不自动探测或转换格式，不新增依赖。XML 的解析示例使用 Python 标准库。
+- 如实保留站点异常：删除流 500 / 不完整 XML，`s=deleted` 空正文，两个补全入口 302；
+  `json=1` 的帖子虽标 `text/html` 仍为 JSON，标签/评论却仍为 XML。帮助页的 100 上限与返回 101 条的实测矛盾，客户端不钳位。
+- 新增两个匿名示例、六请求 `test/tbib.py`、四份家族文档与配置/导航。冒烟 `passed=6 failed=0`，
+  两个示例各两次 200、退出 0。账号、非空评论、删除流成功、其它同族站点仍未实测，见[验证记录](docs/verification.md#gelbooru02tbib匿名只读实测2026-09-19)。
+
 ### e-shuushuu 第七家族
 
 - 新增 `Shuushuu`、36 个资源 GET 方法（35 个公共资源读取入口、1 个私有 `user_ratings`）与 5 个显式认证方法。

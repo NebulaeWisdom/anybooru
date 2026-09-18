@@ -2,9 +2,10 @@
 
 ## 客户端行为
 
-七个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+八个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，tag 用 `after_id`，删除流用 `last_id`。
-Shuushuu 的资源列表用 `page` / `per_page`，标签搜索 `search` 用 `limit` / `offset`。
+Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
+标签搜索 `search` 用 `limit` / `offset`。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -223,6 +224,31 @@ Gelbooru 面同样不做任何本地分页：`post_list(**params)` 这类方法�
 与 wiki 的默认 100 不能混为一谈；也没有依据承诺响应一定含总数、当前页或下一页链接。
 完整自足代码见[Gelbooru 方法参考](gelbooru-api.md)，矛盾见[契约附注](gelbooru-contract-notes.md)。
 `autocomplete` 不提供已确认的分页参数；本次 `limit=3` 仍收到 10 条，库不按它截断结果。
+
+## Gelbooru02（TBIB）的分页
+
+TBIB 帖子用 `pid`（页码）与 `limit`（每页条数）；示例第一页取 `pid=0`。显式请求 XML：
+
+```python
+from xml.etree import ElementTree
+from anybooru import Gelbooru02
+
+with Gelbooru02('tbib') as client:
+    posts_xml = client.post_list(tags='rating:safe', pid=1, limit=2, response_format='xml')
+    # GET https://tbib.org/index.php?tags=rating%3Asafe&pid=1&limit=2&s=post&q=index&page=dapi
+    posts = ElementTree.fromstring(posts_xml)
+    print(posts.attrib['count'], posts.attrib['offset'])
+```
+
+实测 `pid=1&limit=2` 返回 `<posts count="7928682" offset="2">` 与两条 `post`。
+不指定 `pid` 的 XML 首次请求根 `offset=0`；按单个 `id` 查时 `count=1,offset=0`。
+**JSON 形式没有这层根信息**：`post_list` 默认返回数组，没有 `count/offset`；数组长度只表示本次条数，
+不是匹配总数。客户端不补 `pid/limit`，也不读取根元素替你继续翻页。
+
+站点 `index.php?page=help&topic=dapi` 写帖子 `limit` 硬上限 100，但实测 `limit=101` 返回 101 条，
+真实上限未经确认。删除流由帮助页明确使用 `last_id`，不是 `pid`；其成功返回与游标推进未实测。
+标签与评论的分页规则没有帮助页依据；删除流查询 `last_id=0,limit=1` 得到 `500`。逐方法说明见 [Gelbooru02 方法参考](gelbooru02-api.md)，
+边界与来源见 [Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)。
 
 ## Shuushuu 的分页
 
