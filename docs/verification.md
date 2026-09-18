@@ -927,3 +927,79 @@ Konachan，所以那条检查一直失败。Konachan 的真实响应是 `404` �
 **Sakugabooru 仍是失败**：`301` 不满足脚本要求的 `200`/`404`，为控制请求数不跟随任何重定向，所以详情与
 第二页没有执行，跳转目标后的 API 是否正常仍未验证。`test/yandere.py` 与 `test/sakugabooru.py` 的判据
 都没有改。
+
+## Shuushuu 匿名只读实测（2026-09-19）
+
+e-shuushuu 接入后的真实客户端调用，不是把收到的旧接口记录改名为本轮结果。执行时间为
+**UTC 2026-09-18 18:14:29–18:15:18**；本节标题用执行者当地日期，保留原始UTC时间。
+站点自带 `GET https://e-shuushuu.net/api/openapi.json` 另取到 **200、application/json**，
+自称 `Shuushuu API 2.0.0`、OpenAPI `3.1.0`；它是接口依据，不计入下面18次资源请求。
+
+### 命令与总结果
+
+命令中的 `my-anybooru.json` 是实际覆盖配置路径的中性写法：从当前包内配置复制，仅使用自己的网络设置，
+没有凭据；公开记录不刊登维护者的配置路径或网络出口。`-X utf8` 固定终端输出编码。
+
+```bash
+.venv/Scripts/python.exe -c "import anybooru; print(anybooru.Shuushuu); c = anybooru.Shuushuu('shuushuu'); print(c.site_url, repr(c.username), repr(c.password), repr(c.access_token), c.last_call); c.close()"
+.venv/Scripts/python.exe -X utf8 test/shuushuu.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/shuushuu/search_images.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/shuushuu/browse_resources.py --config my-anybooru.json
+```
+
+| 命令 | 退出码 | HTTP尝试 | 结果 |
+| :--- | ---: | ---: | :--- |
+| 导入与默认构造 | 0 | 0 | `<class 'anybooru.shuushuu.Shuushuu'>`；站点 `https://e-shuushuu.net`，用户名/密码/token都是空字符串，`last_call={}` |
+| `test/shuushuu.py` | 0 | 10 | 8×200、预期422一次、预期404一次；`SUMMARY shuushuu \| requests=10 \| passed=10 failed=0` |
+| `search_images.py` | 0 | 4 | 4×200；标签名换ID、两页筛图、第一张详情 |
+| `browse_resources.py` | 0 | 4 | 4×200；标签详情、指定图片评论、用户搜索、新闻 |
+
+四条命令的stderr均为空。资源请求合计 **18次：16×200 + 1×422 + 1×404**；两个错误是预期边界，
+没有意外失败或SKIP。冒烟每次输出 `PASS`、URL、状态和字段摘要；末行如上。没有登录或账号相关调用。
+
+### 十次冒烟请求
+
+| 检查 | 实际URL | HTTP | 实际返回与判定 |
+| :--- | :--- | ---: | :--- |
+| 标签搜索 | `https://e-shuushuu.net/api/v1/search?q=long+hair&limit=2` | 200 | `entity='tags'`、`hits=2`、`total=4`，首项 `tag_id=46, title='long hair'`；有 `query/limit/offset` |
+| 标签列表 | `https://e-shuushuu.net/api/v1/tags?search=long+hair&per_page=2` | 200 | `total=2, per_page=2`，标题 `long hair` / `Somali Longhaired`，每项有编号、类型、使用次数和别名标记 |
+| 逗号串筛图与重复状态 | `https://e-shuushuu.net/api/v1/images?tags=46%2C169&tags_mode=all&tag_depth=0&per_page=2&sort_by=favorites&sort_order=DESC&status=1&status=2&include_comments=false` | 200 | `total=189767, page=1, per_page=2`，图片 `[186447,235604]`；两项的 `tags` 均含46和169 |
+| 列表首张详情 | `https://e-shuushuu.net/api/v1/images/186447` | 200 | `image_id=186447` 与所选编号一致，`favorites=306`、31个标签，仍含46和169；MD5 `07301ff8a4dd743ce2d2f60f12fed188` |
+| 标签详情 | `https://e-shuushuu.net/api/v1/tags/46` | 200 | `title='long hair', usage_count=729799, total_image_count=722909`，有 `child_count/aliases/links/sources/characters` |
+| 图片评论 | `https://e-shuushuu.net/api/v1/comments?image_id=1118862&per_page=2` | 200 | `total=1`，评论 `post_id=629189`，`image_id` 与过滤条件一致；`post_text/post_text_html` 均为字符串 |
+| 图片统计 | `https://e-shuushuu.net/api/v1/images/stats/summary` | 200 | `total_images=1102275, total_favorites=5757425, average_rating=3.76` |
+| 站点限制 | `https://e-shuushuu.net/api/v1/meta/config` | 200 | `max_search_tags=5, max_image_size=33554432, search_delay_seconds=2`，`tag_types` 有5项，尺寸/冷却/ML开关字段类型符合检查 |
+| 每页上限越界 | `https://e-shuushuu.net/api/v1/images?per_page=101` | 422 | 抛 `AnybooruHTTPError`，JSON的 `detail[].loc=['query','per_page']`，`type='less_than_equal'`、`ctx.le=100`；正文147字符 |
+| 不存在的图片 | `https://e-shuushuu.net/api/v1/images/999999999` | 404 | 抛 `AnybooruHTTPError`，JSON的 `detail` 是15字符字符串，正文28字符；没有改成空列表 |
+
+这轮证明 `%2C` 逗号串、`status=1&status=2` 重复键与小写布尔值被实际发送；不证明状态组合所有可见性规则。
+没有再发 `tags=1+2` 对照请求；该错误写法会静默丢过滤的依据仍是收到的既有记录（T）。
+
+### 两个匿名示例
+
+`search_images.py` 按名称查到46再分页，不把46硬编码在脚本里：
+
+| 方法 | 实际URL | HTTP | 实际摘要 |
+| :--- | :--- | ---: | :--- |
+| `search` | `https://e-shuushuu.net/api/v1/search?q=long+hair&limit=5` | 200 | `hits=4,total=4,entity='tags'`；精确标题 `long hair` 的编号46、使用次数729799 |
+| `image_list` 页1 | `https://e-shuushuu.net/api/v1/images?tags=46&page=1&tags_mode=all&tag_depth=0&per_page=2&sort_by=favorites&sort_order=DESC` | 200 | `total=722909`，图片 `[186447,1101184]` |
+| `image_list` 页2 | `https://e-shuushuu.net/api/v1/images?tags=46&page=2&tags_mode=all&tag_depth=0&per_page=2&sort_by=favorites&sort_order=DESC` | 200 | `total=722909,page=2`，图片 `[341978,186949]` |
+| `image_show` | `https://e-shuushuu.net/api/v1/images/186447` | 200 | 2459×2504，收藏306，标签31；原图字段 `https://cdn.e-shuushuu.net/fullsize/2009-08-09-186447.png`，缩略图字段 `https://cdn.e-shuushuu.net/thumbs/2009-08-09-186447.webp` |
+
+`browse_resources.py` 的四个请求：
+
+| 方法 | 实际URL | HTTP | 实际摘要 |
+| :--- | :--- | ---: | :--- |
+| `tag_show` | `https://e-shuushuu.net/api/v1/tags/46` | 200 | `type=1,title='long hair',usage_count=729799,total_image_count=722909`；`aliases/links/sources/characters` 都是空数组 |
+| `comment_list` | `https://e-shuushuu.net/api/v1/comments?image_id=1118862&per_page=2` | 200 | `post_id=629189`，作者 `whitekitten`，`date='2026-09-11T03:20:03Z'`，正文487字符 |
+| `user_list` | `https://e-shuushuu.net/api/v1/users?search=whitekitten&per_page=2` | 200 | `total=1`，用户59006，上传22533、收藏8728、`active=true` |
+| `news_list` | `https://e-shuushuu.net/api/v1/news?per_page=1` | 200 | `total=32`，新闻41，标题 `Tag suggestions`，作者 `anonymous_object`，`date='2026-07-09T01:08:13Z'`，正文404字符 |
+
+### 边界与未实测
+
+- 成功覆盖10个公开资源方法，不等于35个公开读取入口逐一跑过。其余历史、关联资源、相似图、hash查重、权限表等只有OpenAPI及明确标出的既有记录依据。
+- 五个 `auth_*` 方法和私有 `user_ratings` 完全未调用；登录、refresh Cookie轮换、Bearer成功路径、账号写操作、上传、收藏、评论写入、私信和admin均未实测。
+- 媒体URL只从JSON字段读出，没有请求CDN、没有下载图像，没有复测受保护媒体路由的302或跳转目标。
+- 没有复测 `tag_images(46)` 与另两个计数入口的差异，没有用本轮暂时相同的722909否定T记录的不同统计口径。
+- 只读请求成功不代表冷却参数被API强制执行、没有Cloudflare限制或长期可用；没有探测限流、重试、其它身份或部署。
+- 没有运行格式化、lint、项目级测试套件、构建、安装归档或CI。只证明本节命令与请求，不扩写为发布验证。
