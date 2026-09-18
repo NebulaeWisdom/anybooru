@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""列出 Moebooru 系站点的标签。
+"""按使用次数列出 Moebooru 系站点的标签名与计数。
 
-Moebooru 面的参数是顶层参数（不像 Danbooru 面那样有 search[...] 字典）。
+调用 tag_list(limit=3, order='count')，对应 GET /tag.json?limit=3&order=count；
+打印每个标签的 name 与 count。过滤与排序都是顶层参数——Moebooru 没有 Danbooru 那种 search[...] 字典。
 """
 
 import argparse

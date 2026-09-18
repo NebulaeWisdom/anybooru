@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-"""列出 Moebooru 系站点的帖子。
+"""按标签分页列出 Moebooru 系站点的帖子编号与原图地址。
 
-搜索与分页参数按顶层参数发送；页码和样本数量从配置读取。
+走匿名只读的 GET /post.json：配置 examples.moebooru 提供站点、标签（示例 rating:s）、页码与每页条数，
+对应的字面调用是 post_list(tags='rating:s', page=1, limit=3)。不登录、不发写请求。
+打印每页的页码，以及该页每个帖子的 id 与 file_url。
 """
 
 import argparse

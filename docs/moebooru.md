@@ -1,97 +1,163 @@
-# Moebooru 客户端
+# Moebooru 客户端用法
 
-`Moebooru` 访问 Moebooru 引擎系站点（yande.re、konachan、sakugabooru 等）：读配置、构造请求、
-附加 `password_hash`、把服务端 JSON 原样返回。契约以只读参考的上游源码 `moebooru/` 为准，
-逐条上游坐标、权限与排除项见[契约审计附注](moebooru-contract-notes.md)。
+`Moebooru` 访问用 Moebooru 引擎搭的图站：yande.re、konachan.com、sakugabooru.com 等。
+它做的事情只有三件：按站点条目读配置、把参数发成 Rails 的表单/查询串、把服务端返回的 JSON 原样交给你。
+哪些接口存在、每个接口要什么参数、什么等级能调用，全部以只读参考的上游源码 `moebooru/` 为准；
+逐条出处、权限过滤器和被排除的浏览器页面见[契约审计附注](moebooru-contract-notes.md)。
 
 ```python
 from anybooru import Moebooru
+
 with Moebooru('yandere') as client:
-    print(len(client.comment_search(query=client.config['examples']['moebooru']['comment_query'])))
+    posts = client.post_list(tags='rating:s', limit=3)   # GET https://yande.re/post.json?tags=rating%3As&limit=3
+    print(posts[0]['id'], posts[0]['file_url'])
 ```
 
-```text
-0
-```
+`post_list` 返回的是一个数组，每项是帖子字典，含 `id`、`tags`、`score`、`md5`、`file_url`、
+`preview_url`、`sample_url`、`width`、`height`、`rating`、`status` 等字段；上面两行会打印第一条的编号与原图地址。
+本轮在 yande.re 上真实读到的编号、文件地址与条数见 [verification.md](verification.md) 的 Moebooru 章节；
+本页只写“怎么调、拿到什么”，不重复那些数字。
 
-这里展示 2026-09-15 匿名运行 `examples/moebooru/list_comments.py` 记录的真实条数（`comments: 0`）；空列表是正常结果。帖子分页示例也有两页各 3 条的记录，命令、ID 与文件 URL 摘要见 [verification.md](verification.md#当前示例的执行记录)。
+Moebooru 面和 Danbooru 面有三个必须分清的区别：**过滤条件直接写在顶层**（没有 `search[...]` 字典）、
+**请求体永远是 Rails 表单**（没有 JSON 请求体）、**认证是 `login` + `password_hash`**（不是 HTTP Basic）。
 
 ## 构造
 
-`Moebooru(site_name=None, site_url=None, username=None, password=None, hash_string=None, api_version=None, proxies=None, *, config_file=None, timeout=None, user_agent=None)`
+```text
+Moebooru(site_name=None, site_url=None, username=None, password=None, hash_string=None,
+         api_version=None, proxies=None, *, config_file=None, timeout=None, user_agent=None)
+```
 
-| 参数 | 说明 |
-| :--- | :--- |
-| `site_name` | 配置 `sites` 段的键名（如 `'yandere'`）；条目里的 `url` / `username` / `password` / `hash_string` / `api_version` 按同名字段读入 |
-| `site_url` | 显式覆盖地址；不用命名站点时必须同时给 `api_version`，否则构造失败 |
-| `username` / `password` | 显式覆盖登录凭据；匿名只读不必填 |
-| `hash_string` | 站点加盐模板（含 `{0}`）；站点条目里是 `null` 又需要登录时必须显式给 |
-| `api_version` | 决定**列表路径形态**（见下方「坑」）：旧版本把裸集合路径补成 `/index`，`1.13.0+update.3` 不补 |
-| `proxies` / `timeout` / `user_agent` | 覆盖配置 `request` 段的同名项；会话关闭 `trust_env`，不读环境变量 |
-| `config_file` | 配置文件路径；默认 `None`，即读随包安装的 `anybooru/anybooru.json`，传路径才读别的文件 |
+| 参数 | 类型 | 说明 | 不给时的行为 |
+| :--- | :--- | :--- | :--- |
+| `site_name` | str | 配置 `sites` 段的键名，例如 `'yandere'`；条目里的 `url`、`username`、`password`、`hash_string`、`api_version` 按同名字段读入 | 与 `site_url` 都不给会直接报错，库没有地址后备 |
+| `site_url` | str | 显式地址，例如 `'https://yande.re'`；用于不在清单里的自建站 | 不给就取 `site_name` 条目的 `url` |
+| `username` | str | 登录用户名 | 取站点条目的 `username`；与 `password` 都空 = 匿名 |
+| `password` | str | 登录密码明文，只用于在构造时算出 `password_hash` | 取站点条目的 `password` |
+| `hash_string` | str | 站点加盐模板，形如 `'choujin-steiner--{0}--'`，`{0}` 会被密码替换 | 取站点条目的 `hash_string`；匿名不需要它 |
+| `api_version` | str | 站点自述版本，决定**列表路径形态**（见下节）；大小写不敏感 | 取站点条目的 `api_version` |
+| `proxies` / `timeout` / `user_agent` | 同 `request` 配置段 | 显式覆盖配置里的同名项；会话不读环境变量（`trust_env=False`） | 用配置 `request` 段的值 |
+| `config_file` | str | 要读的配置路径 | `None` = 读随包安装的 `anybooru/anybooru.json`；指到的文件不存在会抛 `FileNotFoundError`，不会退回包内默认 |
 
-显式参数优先于配置文件中的同名值；自定义站点写法 `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3', username='me', password='secret', hash_string='salt--{0}--')`。
-解析后的配置挂在 `c.config`，派生字段可读 `c.api_version` / `c.password_hash`（匿名时为 `None`）；每次请求后 `c.last_call` 是最新一次的 `API` 相对路径、最终 `url`（含查询串）、状态与响应头。
-配置结构见 [configuration.md](configuration.md)。
+用自建站时两个字段必须一起给：`Moebooru(site_url='https://example.org', api_version='1.13.0+update.3',
+username='me', password='secret', hash_string='salt--{0}--')`——只给 `site_url` 不给 `api_version` 会报错，
+因为列表路径形态没有默认值。
 
-## 站点
+构造完成后可以读这几个属性：`client.site_url`、`client.api_version`、`client.password_hash`
+（匿名时为 `None`）、`client.config`（整份配置）。
 
-清单是**样例，不是支持边界**：任何跑 Moebooru 引擎的站点都能用 `site_url=` + `api_version=` 接入；反过来，在清单里也不保证每个能力都启用。清单语义见 [configuration.md](configuration.md#sites-段)。
+## 站点清单
 
-| 键 | 地址 | 站点自述 API 版本 | 备注 |
+清单是**样例，不是支持边界**：任何跑 Moebooru 引擎的站点都能用 `site_url=` + `api_version=` 接入；
+反过来，在清单里也不代表该站每个能力都开着。
+
+| 配置键 | 地址 | 站点自述版本 | 备注 |
 | :--- | :--- | :--- | :--- |
 | `yandere` | `https://yande.re` | `1.13.0+update.3` | 上游项目的参考部署 |
-| `konachan` | `https://konachan.com` | `1.13.0+update.3` | `.net` 是同站的**过滤镜像**（会少掉部分帖子），要完整内容用 `.com` |
-| `sakugabooru` | `https://sakugabooru.com` | `1.13.0+update.3` | 动画作画片段站（视频向 fork），标签体系与图片站不同 |
+| `konachan` | `https://konachan.com` | `1.13.0+update.3` | `konachan.net` 是同站的过滤镜像，会少掉部分帖子 |
+| `sakugabooru` | `https://sakugabooru.com` | `1.13.0+update.3` | 动画作画片段的视频站，标签体系与图片站不同 |
 
-正常返回 JSON——这是网络侧限制，不代表引擎缺少对应路由。
+可达性取决于网络环境：`konachan.com` 对某些网络会返回 Cloudflare 的 “Just a moment…” 挑战页，
+换一条线路后同一域名同样路径正常返回 JSON。这是网络侧限制，不代表引擎没有这条路由。
 
 ## 认证
 
-不用 HTTP Basic：`password_hash = SHA1(hash_string.format(password))`，构造时算好、之后不再重算。`username` 与 `password` 都为空才是匿名；`GET` / `HEAD` 把 `login` 与 `password_hash` 放进查询串，其他动词放进表单体。
-`hash_string` 就是站点自己的 `CONFIG["password_salt"]` 加固定前后缀 `--`（上游
-`user.rb:95-96` 的 `SHA1("#{salt}--#{pass}--")`，帮助页 `help/api.en.html.erb:95` 会把它原文列出来），
-属于站点固定常量、不随版本变；取值与来源见 [configuration.md](configuration.md#sites-段)。
-服务端还接受 `username` + `api_key`、会话 Cookie、明文 `user[name]` 等方式，本库只实现密码哈希一种；细节见 [authentication.md](authentication.md)。
+不登录时什么认证字段都不发：只要 `username` 与 `password` 都为空，请求里就没有 `login` 与 `password_hash`。
 
-## 通用入口与返回值
+登录在构造时算好密码哈希，之后不再重算：
 
-没有原生方法的端点直接用它：`request(method, path, *, params=None, data=None, files=None)`。
-`params` 是查询串，`data` **恒为 Rails 表单**（嵌套 dict → `a[b]`，列表 → 重复键 `a[]`，
-`None` 不发送），`files` 非空时改为 multipart；传入的文件对象由调用者关闭。
+```text
+password_hash = SHA1(hash_string.format(password))
+```
+
+`hash_string` 是站点自己的 `CONFIG["password_salt"]` 加上固定前后缀 `--`，例如 yande.re 的
+`choujin-steiner--{0}--`，上游 `user.rb:95-96` 的 `SHA1("#{salt}--#{pass}--")` 就是这个格式；
+站点帮助页 `app/views/help/api.en.html.erb:95` 会把它原文列出来，因此它是站点固定常量、不随版本变。
+各站取值见 [configuration.md](configuration.md#sites-段)。
+
+发送位置：`GET` / `HEAD` 把 `login` 与 `password_hash` 放进查询串，其它动词放进表单体。
+服务端还接受 `username` + `api_key`、会话 Cookie、`user[name]` + `user[password]` 明文等几种方式，
+本库只实现 `password_hash` 这一种；细节见 [authentication.md](authentication.md)。
+
+## 通用入口 `request()`
+
+没有原生方法的端点直接用它：
+
+```text
+request(method, path, *, params=None, data=None, files=None)
+```
 
 ```python
 from anybooru import Moebooru
 
-with Moebooru('yandere') as c:
-    example = c.config['examples']['moebooru']
-    posts = c.request('GET', 'post', params={'tags': example['tags'], 'limit': example['limit']})
-    print([post['id'] for post in posts])
+with Moebooru('yandere') as client:
+    posts = client.request('GET', 'post', params={'tags': 'rating:s', 'limit': 1})
+    # GET https://yande.re/post.json?tags=rating%3As&limit=1
+    print(posts[0]['id'], posts[0]['md5'], posts[0]['jpeg_url'])
 ```
 
-| 服务端响应 | 返回值 |
+| 参数 | 说明 |
 | :--- | :--- |
-| JSON 正文 | 原样返回的 Python 对象（列表是数组，详情是单个对象），不改字段、不包装 |
-| `204` / 空正文 | `None` |
-| HTTP 错误 | `AnybooruHTTPError`（`http_code` / `url` / `body` / `data`；正文不是 JSON 时 `.data` 为 `None`） |
-| 2xx 但正文不是 JSON | `AnybooruAPIError` |
+| `method` | `'GET'` / `'POST'` / `'PUT'` / `'DELETE'` 等；本库不判断服务端允许哪个动词，传什么发什么 |
+| `path` | 相对路径，例如 `'post'`、`'post/similar'`、`'wiki/history'`；开头写不写 `/` 都行，写 `.json` 也会被去掉再重新补上 |
+| `params` | 查询串参数；嵌套字典变 `a[b]`，列表变重复键 `a[]`，布尔变小写 `true`/`false`，`None` 直接不发送 |
+| `data` | 请求体，**恒为 Rails 表单**（同一套编码）；不带文件时也是表单，没有 JSON 请求体这条路径 |
+| `files` | requests 的文件映射或 `(字段名, 文件)` 列表；给出后请求体变成 multipart，文件对象由调用者关闭 |
 
-各族的具体形态（顶层数组、`{success:true}`、被触及帖子的批量负载、重定向目标页的 JSON）见 [方法参考的响应形态](moebooru-api.md#响应形态)；异常类型见 [errors.md](errors.md)。
+路径形态有一条版本规则：`api_version` 是 `1.13.0`、`1.13.0+update.1`、`1.13.0+update.2` 时，
+**裸的集合路径**（如 `'post'`、`'tag'`）会被补成 `post/index.json`；现役站点自述
+`1.13.0+update.3`，走非 `/index` 形态，也就是 `post.json`。带动作段的路径（如 `'pool/show'`）不受影响。
 
-## 容易踩的坑
+返回值：
 
-1. **没有 `post_show` / `wiki_show`**：两者只渲染 HTML；单帖用 `post_list(tags='id:<id>')`（md5 用 `tags='md5:<hash>'`，空数组＝不存在或当前身份不可见），wiki 正文用 `wiki_list` / `wiki_history`。
-2. **两个 `api_version` 不是一回事**：构造参数选择列表**路径形态**，`post_list` 的查询参数 `api_version='2'` 选择响应**信封**（`{posts, pool_posts, pools, tags, votes}`）。
-3. **`note_list` 按帖子分页**：不带 `post_id` 时服务端先按帖子分页（每页 16 个有笔记的帖子）再展平笔记，`limit` 不生效、也不代表每页 16 条笔记。
-4. **`wiki_update` 的 `new_title`**：顶层 `title` 选中页面、`new_title` 才是改名，两个参数可同时传；必须至少给一个 `wiki_page[...]` 属性，否则 400。
-5. **重定向后的 200 不是写入确认**：校验失败只 flash 提示时也会重定向到同一目标页；别名/蕴含审批还会跳到 HTML-only 的任务页，可能拿到 500 或非 JSON；判定写入要对目标资源再查一次，不要盲目重试。
-6. **`comment_list` 必须带 `post_id`**：不传时查询恒为 `post_id=0` 并返回空数组；要按分页读评论流用 `comment_search(query='')`（空列表是正常结果）。
+| 服务端给了什么 | 你会拿到什么 |
+| :--- | :--- |
+| JSON 正文 | Python 对象：列表接口是数组（每项一个帖子/标签/评论…），详情接口是单个字典 |
+| `204` 或空正文 | `None`（例如 `forum_mark_all_read()`） |
+| HTTP 非 2xx | 抛 `AnybooruHTTPError`，带 `http_code`、`url`、`body`、`data`（正文不是 JSON 时 `data` 为 `None`） |
+| 2xx 但正文不是 JSON | 抛 `AnybooruAPIError` |
+| 连不上/超时/TLS 失败 | 原样抛 requests 的异常，本库不包装也不重试 |
 
-与 Danbooru 面的差异：Moebooru 没有 `search[...]` 字典（过滤条件在顶层）；`data` 恒为表单，没有 JSON 请求体；认证是 `login` + `password_hash` 而非 HTTP Basic；`api_version` 只在 Moebooru 面存在。
+每次请求后 `client.last_call` 是最新一次的情况：`API`（相对路径）、`url`（最终完整地址，含查询串）、
+`status_code`、`status`、`headers`。核对“参数到底发成什么样”看它：
 
-## 示例命令
+```python
+from anybooru import Moebooru
 
-五个脚本都匿名只读，参数全部来自配置 `examples.moebooru`（站点、标签、页码、条数等），不硬编码站点与代理；`--config` 指定配置（省略则读包内默认那份），`--site` 覆盖站点名：
+with Moebooru('yandere') as client:
+    client.post_list(tags='id:1269034')
+    print(client.last_call['status_code'], client.last_call['url'])
+    # 200 https://yande.re/post.json?tags=id%3A1269034
+```
+
+## 六个容易踩的坑
+
+1. **没有 `post_show`，也没有 `wiki_show`**：这两个动作只渲染 HTML 页面。单帖用
+   `post_list(tags='id:<帖子编号>')`（按 md5 用 `tags='md5:<哈希>'`），返回空数组表示不存在或当前身份看不见；
+   wiki 正文用 `wiki_list(query='title:<标题>')`，历史用 `wiki_history(title='<标题>')`。
+   对这两个路径请求 `.json` 会得到 404 空正文（`post/show` 写了 `format: false`）或 406，不是本库漏封。
+2. **两个 `api_version` 不是一回事**：构造参数那个决定列表路径要不要补 `/index`；
+   `post_list` 的查询参数 `api_version='2'` 决定返回结构——不带时是图片列表，带 `'2'` 时是 `{"posts": [...]}`。
+   想同时拿到标签、自己的投票或合集，分别加 `include_tags='1'`、`include_votes='1'`、`include_pools='1'`。
+3. **`note_list` 的页码是帖子页，不是笔记页**：不带 `post_id` 时服务端先按“有笔记的帖子”分页
+   （每页 16 个帖子），再把这些帖子的全部笔记铺平返回，所以一页拿到的笔记数不是 16，`limit` 也不生效。
+4. **`wiki_update` 的改名参数是 `new_title`**：顶层 `title` 用来选中页面，`new_title` 才是写进
+   `wiki_page[title]` 的新标题，两个可以同时传。另外必须至少给一个 `wiki_page[...]` 属性，否则服务端回 400。
+5. **跟随重定向拿到的 200 不是“写成功”**：只有 flash 提示的校验失败也会重定向到同一个目标页；
+   别名/蕴含的审批还会跳到只有 HTML 的任务页，可能拿到 500 或非 JSON。要确认写没写进去，写完后自己再查一次，
+   不要盲目重试。
+6. **`comment_list` 不带 `post_id` 只会查到空列表**：服务端把缺失的帖子编号当成 0，
+   所以它不是“全站最新评论”接口。要按页读评论流用 `comment_search(query='')`（空数组是正常结果，不是失败）。
+
+和 Danbooru 面的差别再列一次：Moebooru 没有 `search[...]` 字典（过滤条件在顶层）；`data` 恒为表单；
+认证是 `login` + `password_hash`；`api_version` 只在 Moebooru 面存在。
+
+## 可运行示例
+
+五个脚本全部匿名只读，`--config` 指定配置文件（省略即读包内默认那份），`--site` 覆盖站点名；
+站点与参数来自配置的 `examples.moebooru` 段，脚本没有硬编码站点或代理。例如配置里是
+`tags='rating:s'`、`limit=3`、`pages=[1, 2]`，脚本对应的调用就是
+`client.post_list(tags='rating:s', page=page, limit=3)`：
 
 ```bash
 .venv/Scripts/python.exe examples/moebooru/list_posts.py
@@ -101,18 +167,23 @@ with Moebooru('yandere') as c:
 .venv/Scripts/python.exe examples/moebooru/related_tags.py
 ```
 
-| 脚本 | 用途 |
+| 脚本 | 它调用什么、打印什么 |
 | :--- | :--- |
-| `list_posts.py` | 按标签分页列出帖子（打印 ID 与文件 URL） |
-| `list_tags.py` | 按 `order` 列出标签及计数 |
-| `wiki_list.py` | 搜索 wiki 页面标题 |
-| `list_comments.py` | 用 `comment_search` 读评论流并打印真实条数（当前观察到 `comments: 0`） |
-| `related_tags.py` | 查询相关标签，保留按查询标签分组的原始形态 |
+| `list_posts.py` | 按标签分页 `post_list`，每页打印帖子编号与 `file_url` |
+| `list_tags.py` | `tag_list(limit=3, order='count')`，打印标签名与使用计数 |
+| `wiki_list.py` | `wiki_list(query='touhou', limit=3)`，打印页面标题 |
+| `list_comments.py` | `comment_search(query='')`，打印条数（与 0 条也是正常结果）；有正文时再打印前若干字符 |
+| `related_tags.py` | `tag_related(tags='touhou', type='general')`，打印查询标签与共现标签、次数 |
+
+五个脚本的真实运行记录（退出码、真实打印）在 [verification.md](verification.md) 的 Moebooru 章节。
 
 ## 边界与未实测
 
-- 本页的调用只覆盖**匿名只读**；**写路径（上传、编辑、投票、删除、审核、账号动作）没有线上实测**，只按上游源码对齐。逐条状态与上游坐标见[契约审计附注](moebooru-contract-notes.md)，真实执行记录见 [verification.md](verification.md)。
-- 示例命令那五个脚本已实际运行并退出 0；`sakugabooru` 的加盐模板取自站点自述，**没有发登录请求验证服务端是否接受**。
-- 方法存在不等于站点启用了该能力：相似图服务、异步任务后端与站点自行关闭的功能都可能缺失，结果由服务端决定。
+* 本页只覆盖**匿名只读**。**写路径（上传、编辑、投票、删除、审核、账号动作）没有线上实测**，
+  只按上游源码对齐；逐条状态与上游坐标见[契约审计附注](moebooru-contract-notes.md)。
+* 示例里那五个脚本确实跑过并退出 0；`sakugabooru` 的加盐模板取自站点自述，**没有发登录请求**验证服务端是否接受。
+* 方法存在不等于站点开了该能力：相似图服务、异步任务后端、站点自己关掉的功能都可能缺失，
+  结果由服务端决定，本库不补默认值也不伪造替代响应。
 
-继续阅读：[方法参考](moebooru-api.md) · [能力总览](moebooru-capabilities.md) · [契约审计附注](moebooru-contract-notes.md) · [分页](pagination.md)。
+继续阅读：[方法参考](moebooru-api.md) · [能力总览](moebooru-capabilities.md) ·
+[契约审计附注](moebooru-contract-notes.md) · [分页](pagination.md)。

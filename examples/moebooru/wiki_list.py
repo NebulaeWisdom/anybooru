@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""列出 Moebooru 系站点的 wiki 页面。
+"""搜索 Moebooru 系站点的 wiki 页面标题。
 
-query 是顶层标题搜索参数，不使用 Danbooru 的 search 字典。
+调用 wiki_list(query='touhou', limit=3)，对应 GET /wiki.json?query=touhou&limit=3，打印命中页面的 title。
+Moebooru 没有 wiki_show：要看正文或全部版本，用 wiki_list(query='title:<标题>') 或 wiki_history(title=…)。
 """
 
 import argparse

@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""匿名读取 Moebooru 的最新评论；不发送写请求。"""
+"""匿名读取 Moebooru 系站点的评论流；不登录、不发写请求。
+
+调用 comment_search('')：空 query 表示不启用全文过滤，对应 GET /comment/search.json?query=，
+先打印真实条数，再打印前若干条评论的 id、post_id 与正文开头。打印 0 条是正常结果
+（线上常常为空，不是失败）。只读某一帖的评论要用 comment_list(post_id=…)，它必须带 post_id。
+"""
 
 import argparse
 

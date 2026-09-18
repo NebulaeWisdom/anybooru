@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""查询 Moebooru 相关标签，保留按查询标签分组的原始响应形态。"""
+"""查询 Moebooru 系站点的相关标签（与给定标签共现的标签）。
+
+调用 tag_related(tags='touhou', type='general')，对应 GET /tag/related.json?tags=touhou&type=general；
+返回值是对象 {"touhou": [["标签名", 共现次数], …]}（每组最多 25 项、没有 limit），
+脚本保留这个分组结构并按查询标签逐组打印前若干项。
+"""
 
 import argparse
 
