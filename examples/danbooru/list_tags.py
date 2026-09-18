@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
-"""列出标签。
+"""列出标签（GET /tags.json，匿名只读）。
 
-搜索条件放在 search 字典里（会编码成 search[...]），limit 是顶层参数。
+搜索条件放在 search 字典里（编码成 search[...]），limit 是顶层参数。
+examples.danbooru.tag_search = {'order': 'count'}、limit = 3，等价字面调用：
+Danbooru('danbooru').tag_list(search={'order': 'count'}, limit=3)
+请求 URL：https://danbooru.donmai.us/tags.json?search%5Border%5D=count&limit=3
+返回 tag 数组，这里打印 name 与 post_count；每项另有 id / category / is_deprecated。
 """
 
 import argparse

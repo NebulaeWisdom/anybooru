@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-"""列出 Danbooru 系站点的帖子。
+"""列出 Danbooru 系站点的帖子（GET /posts.json，匿名只读）。
 
-站点名、关键词、数量等参数全部来自配置文件的 examples 段（默认读包内 anybooru.json），
-可以用 --config / --site 覆盖，不使用环境变量。
+站点名、关键词、条数来自配置 examples.danbooru：site='danbooru'、tags='rating:g'、limit=3
+（默认读包内 anybooru.json），可以用 --config / --site 覆盖，不使用环境变量。
+等价字面调用：Danbooru('danbooru').post_list(tags='rating:g', limit=3)
+请求 URL：https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=3
+返回数组，每条含 id / rating / tag_string；过滤条件写在顶层 tags 元标签里，不吃 search 字典。
 """
 
 import argparse

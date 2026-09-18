@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
-"""分页示例：编号分页与按 ID 的游标分页。
+"""分页示例：编号分页与按 ID 的游标分页（GET /posts.json，匿名只读）。
 
-客户端不自动翻页，page / limit 原样传给服务端。
+客户端不自动翻页，page / limit 原样传给服务端：
+· 编号分页 = examples.danbooru.pages（[1, 2]）对应 page=1、page=2，即
+  GET https://danbooru.donmai.us/posts.json?tags=rating%3Ag&page=2&limit=3；
+· 游标分页 = page='b<id>'，<id> 换成当前页最后一条的 id，含义是“id 小于该值的记录”
+  （往更新方向是 'a<id>'），即 GET /posts.json?tags=rating%3Ag&page=b<id>&limit=3。
+两次调用都返回 post 数组，这里各打印一批 id 观察翻页效果。
 """
 
 import argparse

@@ -25,7 +25,8 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 
 方法名、路由与参数键都从 `anybooru/api_danbooru.py` 读取：路由是方法内 `self.request(...)` 调用的字面量
 （路径变量写成 `<id>`），参数键与括注直接摘自该方法的 docstring（英文原文，保留以不丢枚举值等事实）；
-状态列的口径见上一节。
+状态列的口径见上一节。带类型、取值范围、含义、不传时行为与可抄示例的**用户向参数表**在
+[方法参考](danbooru-api.md) 的对应小节，本节只保留源码原文与状态，避免两处漂移。
 
 <a id="sec-status"></a>
 
@@ -65,7 +66,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 | `post_copy_notes(post_id, other_post_id)` | `PUT posts/<id>/copy_notes.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `post_mark_as_translated(post_id, check_translation=None, partially_translated=None)` | `PUT posts/<id>/mark_as_translated.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `post_events_list(search=None, **params)` | `GET post_events.json` | — | 源码对齐，未实测（读） |
-| `post_versions_list(search=None, **params)` | `GET post_versions.json` | requires the archive service | 源码对齐，未实测（写/需权限） |
+| `post_versions_list(search=None, **params)` | `GET post_versions.json` | requires the archive service | 源码对齐，未实测（读，依赖 archive 服务） |
 | `post_version_undo(version_id)` | `PUT post_versions/<id>/undo.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `post_votes_list(search=None, **params)` | `GET post_votes.json` | — | 源码对齐，未实测（读） |
 | `post_vote_show(vote_id)` | `GET post_votes/<id>.json` | — | 源码对齐，未实测（读） |
@@ -301,7 +302,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 | `note_update(note_id, **attributes)` | `PUT notes/<id>.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `note_delete(note_id)` | `DELETE notes/<id>.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `note_revert(note_id, version_id)` | `PUT notes/<id>/revert.json` | requires login | 源码对齐，未实测（写/需权限） |
-| `note_preview(body)` | `POST notes/preview.json` | — | 源码对齐，未实测（写/需权限） |
+| `note_preview(body)` | `POST notes/preview.json` | 业务权限允许匿名，但仍受 CSRF 检查 | 本轮匿名POST返回403 InvalidAuthenticityToken；没有成功预览，不保存笔记 |
 | `note_versions_list(search=None, **params)` | `GET note_versions.json` | — | 源码对齐，未实测（读） |
 | `note_version_show(version_id)` | `GET note_versions/<id>.json` | — | 源码对齐，未实测（读） |
 
@@ -313,7 +314,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 - `note_update(note_id, **attributes)` — 顶层/属性：`note_id`（The note id）
 - `note_delete(note_id)` — 无参数（路径变量除外）
 - `note_revert(note_id, version_id)` — 顶层/属性：`note_id`（The note id）
-- `note_preview(body)` — 无参数（路径变量除外）
+- `note_preview(body)` — 顶层 `body`：必填的笔记 HTML 字符串；返回 `sanitized_body`。
 - `note_versions_list(search=None, **params)` — search：note_id, post_id, updater_id, is_active, x, y, width, height, body, version；顶层/属性：`limit`（Versions per page）
 - `note_version_show(version_id)` — 无参数（路径变量除外）
 
@@ -332,7 +333,7 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 | `pool_revert(pool_id, version_id)` | `PUT pools/<id>/revert.json` | requires login | 源码对齐，未实测（写/需权限） |
 | `pool_gallery(search=None, **params)` | `GET pools/gallery.json` | — | 源码对齐，未实测（读） |
 | `pool_element_create(post_id, pool_id=None, pool_name=None)` | `POST pool_element.json` | requires login | 源码对齐，未实测（写/需权限） |
-| `pool_versions_list(search=None, **params)` | `GET pool_versions.json` | requires the archive service | 源码对齐，未实测（写/需权限） |
+| `pool_versions_list(search=None, **params)` | `GET pool_versions.json` | requires the archive service | 源码对齐，未实测（读，依赖 archive 服务） |
 | `pool_version_diff(pool_version_id, other_id=None, type=None)` | `GET pool_versions/<id>/diff.json` | — | 源码对齐，未实测（读） |
 
 参数键：
@@ -650,6 +651,11 @@ SQL 与缓存行为、排除项和逐条状态记在这里。
 按原文整段迁入这里，作为上节自动生成表格的交叉核对底本：凡上节没有体现的凭据细节（如「需登录 +
 重新认证」「非 moderator 只看自己的」）与返回/语义注记，以本附录为准。本附录不再拆分到别处，也不在
 用户页复制。
+
+**已知取值错误**（保留原文以便对照，实际以模型为准，见「矛盾、易错点与客户端取舍」第 19 条）：
+`moderation_report_create` 的 `model_type`、`post_disapproval_create` 的 `reason`、
+`ban_create` 的 `duration`、`forum_topic_*` 的 `category_id`、`tag_update` 的 `category`、
+`reaction_create` 的 `model_type` / `reaction_id`。这些字段在本附录与源码 docstring 里都还是旧值。
 
 ### 状态与账号
 
@@ -978,7 +984,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
 | `job_run(job_id)` | `PUT jobs/<id>/run.json` | 需 admin | — |
 | `job_delete(job_id)` | `DELETE jobs/<id>.json` | 需 admin | — |
 | `dtext_links_list(search=None, **params)` | `GET dtext_links.json` | 匿名 | `search[id, link_type, link_target, model_type, model_id, linked_wiki, linked_tag]` |
-| `recommended_posts_list(search=None, **params)` | `GET recommended_posts.json` | 匿名 | `limit` ≤ 200；`search[...]` 透传给推荐服务 |
+| `recommended_posts_list(search=None, **params)` | `GET recommended_posts.json` | 匿名 | `limit` ≤ 200；`search[...]` 原样发给推荐服务 |
 
 ### 杂项
 
@@ -1013,7 +1019,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
 | 顶层参数 | `?limit=10&page=2&tags=...` | 分页、内容搜索、控制器直接读取的字段 |
 | 搜索参数 | `?search[x]=y` | 模型 `search` 方法认识的过滤条件 |
 
-* 列表方法签名统一为 `xxx_list(self, search=None, **params)`；`search` 整包透传成 `search[...]`，
+* 列表方法签名统一为 `xxx_list(self, search=None, **params)`；`search` 整包原样发成 `search[...]`，
   不做白名单拦截；`**params` 是顶层参数。
 * **帖子列表例外**（`post_list(**params)`）：查询走顶层 `tags` 元标签，不吃 `search` 字典
   （`app/controllers/posts_controller.rb:143` 读 `params[:tags]`，交给 `PostSets::Post`）。
@@ -1068,7 +1074,7 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
   `NotImplementedError`（`post_versions_controller.rb:42-45`），`PoolVersion.enabled?` 同理
   （`pool_versions_controller.rb:40-42`），由 `application_controller.rb:156-157` 渲染成
   `501 This feature isn't available: ...`。
-* IQDB 与推荐服务同样依赖站点配置，客户端不添加兜底。
+* IQDB 与推荐服务同样依赖站点配置，客户端不给它们任何本地替代行为。
 * **纠正旧摘要中的 IQDB=501 泛化**：`app/logical/iqdb_client.rb:139-142` 在未配置服务时直接返回 `[]`；
   `app/controllers/iqdb_queries_controller.rb:14-16` 也把 `IqdbClient::Error` 转为空匹配数组。
   这与 archive 的 `NotImplementedError → 501` 是不同分支；未新增请求验证。
@@ -1153,6 +1159,53 @@ User 的字段级可见性最强：匿名只能拿到 `id`、`created_at`、`nam
     `app/models/artist_url.rb:19-21,43-67`）。`any_name_or_url_matches` 按输入是否为完整地址在 URL
     与名称之间选择，`any_name_matches` 覆盖当前名、其他名与团体名（`app/models/artist.rb:250-259,285-307`）。
     这些是引擎通用契约，**没有任何「平台作者 ID → 标签」的转换客户端逻辑**。
+18. **部分方法的 docstring 前提与控制器/policy 事实不一致**（用户页按后者写，未实测）：
+    * `media_asset_delete` 见上文第 5 条（docstring `moderator`，policy 实为 admin）。
+    * `ip_bans_list` / `ip_ban_show`：docstring 没写前提，`IpBanPolicy#create?|index?|update?` 都是
+      `user.is_moderator?`（`app/policies/ip_ban_policy.rb:4-16`，`show?` 继承 `index?`），因此列表与
+      单条都要求 moderator 及以上。
+    * `moderation_reports_list` / `moderation_report_show`：docstring 写 "requires moderator level"，
+      但 `ModerationReportPolicy#index?|show?` 只要求非匿名（`app/policies/moderation_report_policy.rb:4-10`），
+      可见范围由 `ModerationReport.visible` 决定——moderator 看全部，其他登录用户只看自己的
+      （`app/models/moderation_report.rb:38-45`），用户页按这个口径写。
+    * `site_credential_show` / `site_credential_delete`：公开项与私有项的判定分别落在 admin/owner
+      与本人上，docstring 只写 "requires admin level"。
+    * `favorite_list` / `upload_list`：docstring 的 "requires login for other users' ..." 与
+      `visible(user)` 作用域一致——匿名仍能读公开收藏，登录后按归属过滤。
+    * `api_keys_list` 及 `api_key_create|update|delete`：控制器有
+      `before_action :requires_reauthentication`（`app/controllers/api_keys_controller.rb:4`），
+      而本库只发 HTTP Basic，没有会话重新认证流程——这几个方法在真实站点上可能过不了这道检查，
+      未实测（旧表记的「需登录 + 重新认证」就是指这个）。
+    * `note_preview`：`NotePolicy#preview?` 明确返回 true（`app/policies/note_policy.rb:4-6`）；控制器
+      只构造 `Note.new` 并返回 `sanitized_body`，不保存（`app/controllers/notes_controller.rb:64-68`）。
+      正文走 `NoteSanitizer`（`app/models/note.rb:137-139`），是 HTML，不是 docstring 所说的 DText。
+      本轮匿名 POST 实际被全局 CSRF 校验拒绝，返回403 `ActionController::InvalidAuthenticityToken`；
+      policy允许访问不等于能越过此校验，不能把它记成成功预览。
+19. **枚举值 docstring 与模型不符**（本轮逐条读上游模型后修正，用户页按模型写）：
+    * **举报对象的类型**：`ModerationReport::MODEL_TYPES = %w[Dmail Comment ForumPost]`
+      （`app/models/moderation_report.rb:4`），而客户端 docstring 与旧 API 表写的是
+      `Post, Comment or User`——帖子和用户**不可举报**。可举报性还由各自 policy 的 `reportable?`
+      决定：评论要非本人、作者非 moderator、未删除且一年内（`comment_policy.rb:12-14`），论坛帖子同理
+      （`forum_post_policy.rb:36-38`），站内信要属于本人、是收件人、非自动消息、发件人非 moderator
+      且一年内（`dmail_policy.rb:25-27`）。
+    * **不批准理由**：`PostDisapproval::REASONS = %w[disinterest poor_quality breaks_rules]`
+      （`app/models/post_disapproval.rb:5`），docstring 多写了 `borderline_quality` /
+      `borderline_safety`；`message` 另受 140 字符长度校验（同文件 `:15`）。
+    * **封禁期限**：`Ban::DURATIONS` 只有 1 day / 3 days / 7 days / 1 month / 3 months / 6 months /
+      1 year / `FOREVER = 100.years`，且 `validates :duration, presence: true`
+      （`app/models/ban.rb:4-5,36`）——docstring 的“blank is permanent”不成立；永久封禁要显式传
+      `100 years`。批量删除数据只覆盖最近 3 天（同文件 `MAX_DELETION_AGE`，`:8`）。
+    * **论坛分类**：`ForumTopic` 的 `category` 枚举只有 `General: 0` / `Tags: 1` /
+      `Bugs & Features: 2`（`app/models/forum_topic.rb:6-10`），旧表里的 `3 = bulk update requests`
+      不存在，传 3 会被枚举校验拒绝。
+    * **标签类别**：`TagCategory` 是 `GENERAL 0` / `ARTIST 1` / `COPYRIGHT 3` / `CHARACTER 4` /
+      `META 5`（`app/logical/tag_category.rb:9-13`），docstring 漏了 `5`（meta）。
+    * **反应**：`Reaction::MODEL_TYPES = %w[Post Comment ForumPost User Tag Pool]`，`reaction_id` 必须
+      来自站点配置的 `reactions` 键（`app/models/reaction.rb:4-6`，默认配置里 `reactions` 是空字典，
+      `config/danbooru_default_config.rb`），docstring 只列了前三种类型并举例 `"heart"`。
+    * **评论分组**：`group_by` 默认值只在带 `search` 时被补成 `"comment"`
+      （`app/controllers/comments_controller.rb:14-22`）；不带 `search` 的调用落到 `index_by_post`，
+      返回的是帖子列表——用户页已写明这一分支。
 
 ## SQL、缓存与服务端行为
 
@@ -1244,7 +1297,7 @@ post ID 为标识，走 `favorite_delete(post_id)`。
 | `explore/posts/searches` | 顶层 `date`、`scale`；Reportbooru 搜索排名 |
 | `explore/posts/missed_searches` | Reportbooru 未命中搜索排名 |
 
-后三项依赖站点 Reportbooru 服务配置，库不添加兜底。原生 `*_show(id)` 若没有 `**params` 形参而该路由
+后三项依赖站点 Reportbooru 服务配置，库不提供本地替代数据。原生 `*_show(id)` 若没有 `**params` 形参而该路由
 还接受 `only`、分页、签名 key 等参数，请用 `request('GET', '<资源>/<id>.json', params={...})` 传递。
 
 ## 排除项（不作为端点使用）
@@ -1301,4 +1354,6 @@ post ID 为标识，走 `favorite_delete(post_id)`。
 | 原 API 页的「验证状态」节 | 本文「状态口径与总量」+ `danbooru-api.md` 末尾「边界与未实测」 |
 | 原能力页引用的 `PostPolicy`/`UserPolicy` 等内部符号 | 本文「权限与字段级过滤器」，能力页改为用户可见的字段表现 |
 
-全量搬迁清单（含每个方法的旧条目 → 新位置）当时保存在维护者本机临时目录，未入库。
+* 本轮把枚举类事实逐条对回上游模型后修正了六处 docstring 偏差（举报对象类型、不批准理由、封禁期限、
+  论坛分类、标签类别、反应类型），明细见「矛盾、易错点与客户端取舍」第 19 条；用户页已按模型取值改写，
+  本次改动没有新增网络请求。

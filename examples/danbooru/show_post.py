@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
-"""先列一页帖子，再用列表里的 id 取详情。
+"""先列一页帖子，再用列表里的 id 取详情（GET /posts/<post_id>.json，匿名只读）。
 
-不直接使用 examples 段里的 post_id，避免依赖一个可能不存在的固定 ID。
+不直接使用 examples 段里的 post_id，避免依赖一个可能不存在的固定 ID：先从
+GET /posts.json?tags=rating%3Ag&limit=3 取回真实编号，再请求
+GET https://danbooru.donmai.us/posts/<post_id>.json。
+详情返回单个 post 对象，含 id / rating / tag_string / source / score；
+可见时另有 file_url、large_file_url、preview_file_url。
 """
 
 import argparse

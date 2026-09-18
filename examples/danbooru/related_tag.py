@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
-"""相关标签查询（GET /related_tag.json）。
+"""相关标签查询（GET /related_tag.json，匿名只读）。
 
 搜索条件放在 search 字典里（编码成 search[...]），limit 等顶层参数走 **params。
-返回一个对象，相关标签在 related_tags 里。
+examples.danbooru 的值：related_query='touhou'、related_category=0、related_order='frequency'、
+search_sample_size=1000、tag_sample_size=100、limit=3，等价字面调用：
+Danbooru('danbooru').related_tag(search={'query': 'touhou', 'category': 0,
+    'order': 'frequency', 'search_sample_size': 1000, 'tag_sample_size': 100}, limit=3)
+
+返回一个对象（不是数组）：query、post_count、tag、related_tags、wiki_page_tags；
+相关标签在 related_tags 里，每项含 tag（标签对象，含 name 与 post_count）。
 """
 
 import argparse
