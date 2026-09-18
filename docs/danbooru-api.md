@@ -1360,10 +1360,10 @@ with Danbooru('danbooru') as client:
 
 本节集中说明本家族的实测状态与不可用分支，主干条目里不再逐段插入免责声明。
 
-`note_preview` 返回403（`ActionController::InvalidAuthenticityToken`），这些不是成功响应。
-用户搜索 `fuzichoco` 返回200空列表，旧示例据此访问首项时越界；上面的示例已改为直接显示列表，修改后未重跑。
+`rating:g order:score` 的两组查询返回 500（`ActiveRecord::QueryCanceled`，数据库查询超时），`note_preview` 返回 403（`ActionController::InvalidAuthenticityToken`），这些不是成功响应。
+用户搜索 `fuzichoco` 返回 200 空列表，旧示例据此访问首项时越界；上面的示例已改为直接显示列表，修改后未重跑。
 
-**已实测（匿名只读，2026-09-15，`danbooru.donmai.us` 经代理，无凭据）**：15 次请求中 12 次 `200`，
+**已实测（匿名只读，2026-09-15，`danbooru.donmai.us`，无凭据）**：15 次请求中 12 次 `200`，
 3 次为预期失败（`404` 不存在的帖子、`410` 页码超限、`422` 标签数超限），另外单独验证了重定向端点
 `artist_show_or_new`（`302` → JSON）。覆盖的方法：`post_list`（含 `tags` 搜索与 `page=b<id>` 游标）、
 `post_show`、`tag_list`、`artist_list`（URL 匹配、布尔过滤、`order`、`any_name_matches`）、
