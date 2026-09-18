@@ -8,8 +8,10 @@
 | 运行时依赖 | [requests](https://requests.readthedocs.io/) >= 2.26（安装时自动拉取） |
 | 标准库依赖 | `json`、`os`（读取默认配置文件），无其他第三方依赖 |
 
-本库不依赖环境变量，也不会去当前工作目录或用户目录搜索配置文件；所有可调参数都在配置文件里显式
-声明，默认读随包安装的 `anybooru/anybooru.json`，见 [configuration.md](configuration.md)。
+本库不读环境变量，也不会去当前工作目录或用户目录搜索配置文件：所有可调参数都在一份 JSON 里显式声明，
+默认读随包安装的 `anybooru/anybooru.json`（里面有 9 个站点条目 `serika`、`danbooru`、`safebooru`、
+`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`，以及 `request` / `examples` /
+`verification` 三段），怎么改见 [configuration.md](configuration.md)。
 
 ## 从源码安装（当前开发版）
 
@@ -52,38 +54,50 @@ pip 支持显式指定代理，请不要用环境变量注入：
 .venv/Scripts/python.exe -c "import anybooru; print(anybooru.__version__)"
 ```
 
-输出当前源码版本号即安装成功。
+当前源码的版本号是 `0.1.0.dev1`，打印出这一行即安装成功。再用构造器确认包内配置能被解析
+（这段不发网络请求）：
+
+```python
+from anybooru import Danbooru
+
+with Danbooru('danbooru') as client:      # 'danbooru' 是包内配置 sites 段的键名
+    print(client.site_url)                # https://danbooru.donmai.us
+    print(client.timeout)                 # 30，来自 request.timeout
+```
 
 ## 配置文件放在哪
 
 安装包里自带一份 `anybooru/anybooru.json`，`Danbooru('danbooru')` 这类调用默认读它，**不需要**把它复制
-到工作目录。它的绝对路径是 `anybooru.DEFAULT_CONFIG_FILE`，可直接当模板来源：
-
-```bash
-# 源码安装：复制仓库里那份
-cp anybooru/anybooru.json /path/to/your-project/sites.json
-```
+到工作目录。要改站点或凭据时，可以拿包内那份当模板另存一份（`anybooru.DEFAULT_CONFIG_FILE` 就是它的
+绝对路径）：
 
 ```python
-import shutil, anybooru
+import shutil
+from anybooru import DEFAULT_CONFIG_FILE, Danbooru
 
-shutil.copy(anybooru.DEFAULT_CONFIG_FILE, 'config/sites.json')  # 用包内默认配置当模板
-client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指向自己那份
+print(DEFAULT_CONFIG_FILE)                             # 包内默认配置的绝对路径
+
+shutil.copy(DEFAULT_CONFIG_FILE, 'my-anybooru.json')   # 复制一份到当前目录，改这个副本
+
+with Danbooru('danbooru', config_file='my-anybooru.json') as client:
+    print(client.site_url)                             # https://danbooru.donmai.us
 ```
 
-库不会搜索当前工作目录、用户目录或其他隐藏位置，只读 `config_file` 指到的那份（默认即包内那份）。
-完整内容与逐键说明见 [configuration.md](configuration.md)。文件缺失时构造函数直接抛
-`FileNotFoundError`。
+库不会搜索当前工作目录、用户目录或其他隐藏位置，只读 `config_file` 指到的那份（默认即包内那份）；
+`my-anybooru.json` 不存在时构造函数立刻抛 `FileNotFoundError`，不会退回包内那份。
+逐键说明见 [configuration.md](configuration.md)。
 
 ## 目录结构
 
 | 路径 | 说明 |
 | :--- | :--- |
 | `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
-| `anybooru/anybooru.json` | 随包默认配置：站点、凭据、代理、超时、示例参数 |
+| `anybooru/resources.py` | 包内默认配置的路径 `DEFAULT_CONFIG_FILE`，以及把 Python 参数编成 Rails 查询串的 `encode_params` |
+| `anybooru/exceptions.py` | 三个公开异常 `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，见 [errors.md](errors.md) |
+| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（9 个站点条目）、`examples`、`verification` |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
-| `examples/` | 可运行示例脚本 |
-| 上游引擎仓库 | 可选的只读契约参考，不属于发布包；版本与源码入口见各家族契约审计附注 |
+| `examples/` | 各家族的匿名只读示例脚本，参数取自配置的 `examples` 段 |
+| 上游引擎仓库 | 可选的只读参考，不属于发布包；版本与源码入口见各家族的契约审计附注 |
 
 ## 上游引擎源码（可选）
 
@@ -95,9 +109,10 @@ git clone https://github.com/moebooru/moebooru.git
 git clone https://github.com/e621ng/e621ng.git
 ```
 
-Rails 三家的路由权威来源是各上游的 `config/routes.rb`，参数与权限见对应 `app/controllers/`
-及模型；e621ng 的帖子序列化位于 `app/blueprints/`。Serika 的独立路由结构与源码入口见
-[Serika 契约审计附注](serika-contract-notes.md)。所有上游参考都不随本包发布，也不参与提交。
+三个 Rails 引擎的路径规则以各自的 `config/routes.rb` 为准；参数、权限与响应形状看对应仓库的
+`app/controllers/`（Danbooru 另有 `app/policies/` 与 `app/logical/`，e621ng 的帖子序列化在
+`app/blueprints/`）。Serika 是自研 Next.js 站点，路由分散在 `app/api/v1/**/route.ts` 与 `app/api/**/route.ts`，
+入口见 [Serika 契约审计附注](serika-contract-notes.md)。所有上游参考都不随本包发布，也不参与提交。
 
-Zerochan 没有可供核对的上游引擎源码；契约只依据 API 页面快照与实际响应，不从其他引擎推断。
+Zerochan 没有可供核对的上游引擎源码；依据只有官方 API 页面快照与实际响应，不从其他引擎推断。
 出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。

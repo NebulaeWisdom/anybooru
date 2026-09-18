@@ -1,7 +1,10 @@
 # 从 Pybooru 4.x 迁移到 Anybooru
 
-Anybooru（`0.1.0.dev1`）以本地上游引擎源码为契约重写了对 Danbooru 面与 Moebooru 面的访问。
+Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
+
+Serika、e621ng 与 Zerochan 是 4.x 里不存在的家族：4.x 没有对应方法可对照，迁不迁移与本文无关，
+直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 
 ## 一、破坏性变更总览
 
@@ -19,8 +22,8 @@ client = Danbooru(site_url='https://danbooru.donmai.us')
 # Anybooru
 from anybooru import Danbooru
 client = Danbooru('danbooru')                       # sites 段的键名，读包内默认 anybooru.json
-client = Danbooru('danbooru', config_file='config/sites.json')   # 换一份自己维护的配置
-client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可显式覆盖
+client = Danbooru('danbooru', config_file='my-anybooru.json')   # 换成自己复制出来的那份（文件名自己取）
+client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可显式覆盖地址
 ```
 
 * 默认读的那份配置随包安装，缺不了；`config_file` 显式指到的文件不存在时抛 `FileNotFoundError`，
@@ -33,7 +36,7 @@ client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可
 # 4.x（内部方法，且每个方法带 auth= 开关）
 client._get('posts.json', {'tags': 'rating:g'})
 
-# Anybooru
+# Anybooru：GET https://danbooru.donmai.us/posts.json?tags=rating%3Ag，返回帖子数组
 client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 ```
 
@@ -58,7 +61,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `auth=False` 开关 | 无（凭据决定） |
 | 写方法逐个显式参数 | `xxx_create(**attributes)` / `xxx_update(id, **attributes)`，键名与 Rails strong params 一致 |
 | 本地 `raise PybooruAPIError(...)` 校验参数 | 不做本地校验，交给服务端 |
-| `limit > 1000` 触发 `warnings.warn` | 删除，`limit` 原样透传 |
+| `limit > 1000` 触发 `warnings.warn` | 删除，`limit` 原样发给服务端 |
 | 文件参数 `file_=open(...)` | 文件对象由调用者传入并负责关闭 |
 
 ### 4. 返回与异常
@@ -117,7 +120,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | :--- | :--- | :--- |
 | `post_list(**params)` | `post_list(**params)` | 顶层 `tags` / `page` / `limit` 照旧；posts 控制器不读取 `search[...]`，其他过滤写入 `tags` 元标签 |
 | `post_show(post_id)` | `post_show(post_id)` | 不变 |
-| `post_update(post_id, tag_string=..., ...)` | `post_update(post_id, **attributes)` | 旧的 `is_rating_locked` / `is_note_locked` / `is_status_locked` 已不在上游允许更新字段里；现在按 `post[...]` 透传 |
+| `post_update(post_id, tag_string=..., ...)` | `post_update(post_id, **attributes)` | 旧的 `is_rating_locked` / `is_note_locked` / `is_status_locked` 已不在上游允许更新字段里；现在以 `post[...]` 为键发送 |
 | `post_revert(post_id, version_id)` | `post_revert(post_id, version_id)` | 不变 |
 | `post_copy_notes(post_id, other_post_id)` | `post_copy_notes(post_id, other_post_id)` | 不变 |
 | `post_mark_translated(post_id, check_translation, partially_translated)` | `post_mark_as_translated(post_id, check_translation=None, partially_translated=None)` | 名字对齐路由 |
@@ -177,7 +180,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `artist_commentary_revert(id_, version_id)` | `artist_commentary_revert(post_id, version_id)` | 路径里的 `:id` 实为 **post_id**，4.x 文档描述有误导 |
 | `artist_commentary_versions(post_id, updater_id)` | `artist_commentary_versions_list(search=None, **params)` | 另有 `artist_commentary_version_show` |
 
-画师查询的参数与匹配语义见 [API 契约的 artists 节](danbooru-api.md#artists)。
+画师查询的参数与匹配语义见[方法参考的 artists 节](danbooru-api.md#artists)。
 
 ### 评论与笔记
 
@@ -209,7 +212,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `wiki_list(...)` | `wiki_page_list(search=None, **params)` | `search[creator_id]` / `[creator_name]` 已废；标题模糊用 `title_normalize` / `title_or_body_matches` |
 | `wiki_show(wiki_page_id)` | `wiki_page_show(id_or_title)` | 支持标题；标题需 URL 转义 |
 | `wiki_create(title, body, other_names=None)` | `wiki_page_create(title, **attributes)` | `body`、`other_names` 改为关键字属性 |
-| `wiki_update(page_id, ...)` | `wiki_page_update(page_id, **attributes)` | 4.x 声明的 `is_locked` / `is_deleted` 是死参数（从未发送），现在会真正透传 |
+| `wiki_update(page_id, ...)` | `wiki_page_update(page_id, **attributes)` | 4.x 声明的 `is_locked` / `is_deleted` 是死参数（从未发送），现在会真的以 `wiki_page[...]` 为键发出去 |
 | `wiki_delete(page_id)` | `wiki_page_delete(page_id)` | |
 | `wiki_revert(wiki_page_id, version_id)` | `wiki_page_revert(page_id, version_id)` | |
 | `wiki_versions_list(page_id, updater_id)` | `wiki_page_versions_list(search=None, **params)` | 修正：4.x 键名拼成 `earch[updater_id]`（永不发送） |
@@ -283,7 +286,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ## 四、迁移检查清单
 
-1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`Anybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
+1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`anybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
 2. 把 `Danbooru('danbooru')` 之外的站点构造改为 `sites` 段的键名，删掉对 `SITE_LIST` 的依赖；
 3. 除 `post_list(**params)` 与 `autocomplete_list(query, ...)` 外，列表过滤迁至 `search={...}`；分页保持顶层；
 4. 写接口改用 `**attributes` 形式，删掉 `auth=` 参数；

@@ -11,6 +11,14 @@ AnybooruError
 网络层错误（连不上、超时、TLS 失败等）**不包装**，直接抛出 requests 自己的异常
 （`requests.ConnectionError`、`requests.Timeout` 等）。
 
+对着现象找异常：
+
+| 你看到的情况 | 抛出的异常 | 从哪里读原因 |
+| :--- | :--- | :--- |
+| 服务端返回 `400` / `401` / `403` / `404` / `410` / `429` / `5xx` 等非 2xx | `AnybooruHTTPError` | `.http_code` 是状态码，`.url` 是实际请求地址，`.body` 是正文原文，`.data` 是正文按 JSON 解析的结果（不是 JSON 时是 `None`；Serika 的错误码在 `.data['code']`） |
+| 连不上、DNS 失败、连接或读取超时、TLS 握手失败 | requests 的异常，不被本库包装 | 异常类型与消息（例如 `requests.Timeout`） |
+| HTTP 是 2xx，但正文不是 JSON（被中间层换成 HTML 等） | `AnybooruAPIError` | `str(error)` 里含 URL 与解码错误，`.response` 是原始响应 |
+
 ## `AnybooruHTTPError`
 
 HTTP 状态码不在 `200..299` 时抛出，保留完整响应：
@@ -29,19 +37,21 @@ HTTP 状态码不在 `200..299` 时抛出，保留完整响应：
 404 Not Found: {"success":false,"error":"...","message":"That record was not found."} - URL: https://danbooru.donmai.us/posts/0.json
 ```
 
-用法：
+用法（`post_show(0)` 请求的是不存在的帖子，所以必然走异常分支）：
 
 ```python
 from anybooru import Danbooru, AnybooruHTTPError
 
-client = Danbooru('danbooru')
-try:
-    client.post_show(0)
-except AnybooruHTTPError as error:
-    print(error.http_code)                  # 404
-    print(error.url)                        # https://danbooru.donmai.us/posts/0.json
-    if error.data:                          # 站点返回的 JSON 错误体
-        print(error.data['message'])
+with Danbooru('danbooru') as client:
+    try:
+        # GET https://danbooru.donmai.us/posts/0.json
+        client.post_show(0)
+    except AnybooruHTTPError as error:
+        print(error.http_code)          # 404
+        print(error.url)                # https://danbooru.donmai.us/posts/0.json
+        print(error.body)               # 服务端返回的正文原文
+        if error.data:                  # 正文能按 JSON 解析时才是字典，否则是 None
+            print(error.data['message'])   # That record was not found.
 ```
 
 Danbooru 引擎的 JSON 错误体形如：

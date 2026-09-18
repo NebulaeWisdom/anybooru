@@ -7,11 +7,13 @@ Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用�
 凭据来自配置文件的 `sites` 段（见 [configuration.md](configuration.md)）：
 
 ```json
-"sites": {
-  "danbooru": {
-    "url": "https://danbooru.donmai.us",
-    "username": "your-username",
-    "api_key": "your-api-key"
+{
+  "sites": {
+    "danbooru": {
+      "url": "https://danbooru.donmai.us",
+      "username": "your-username",
+      "api_key": "your-api-key"
+    }
   }
 }
 ```
@@ -23,15 +25,29 @@ Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用�
 * 不会静默降级：凭据填错时服务端返回 `401`，客户端不会退回匿名；
 * 权限判断完全由服务端完成——本库不做客户端权限检查，也不会因为接口“需要登录”就提前报错。
 
-匿名状态下可以正常调用公开只读接口；写接口会因为服务端返回 `401` / `403` 而失败，
-错误里保留状态码与响应正文，见 [errors.md](errors.md)。
-
-也可以在构造函数里显式覆盖配置文件的凭据：
+匿名状态下可以正常调用公开只读接口，例如：
 
 ```python
 from anybooru import Danbooru
 
-client = Danbooru('danbooru', username='your-username', api_key='your-api-key')
+with Danbooru('danbooru') as client:          # 配置里 username 与 api_key 都为空 = 匿名
+    # GET https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=1
+    posts = client.post_list(tags='rating:g', limit=1)
+    print(posts[0]['id'], posts[0]['rating'], posts[0]['tag_string'])
+```
+
+写接口会因为服务端返回 `401` / `403` 而失败，错误里保留状态码与响应正文，见 [errors.md](errors.md)。
+
+也可以在构造函数里显式覆盖配置文件的凭据。下面这段是**写操作**（发表评论），需要账号与 API key，
+本仓库不带凭据、**未执行、未实测**，只示范参数怎么传：
+
+```python
+from anybooru import Danbooru
+
+# 未执行：凭据是占位符；真实调用会 POST https://danbooru.donmai.us/comments.json
+with Danbooru('danbooru', username='your-username', api_key='your-api-key') as client:
+    comment = client.comment_create(post_id=1, body='示例评论')
+    print(comment['id'], comment['post_id'])   # 返回新建评论对象里的这两个字段
 ```
 
 > Danbooru 的 API key 在站点个人设置页生成。请勿把填好的配置文件提交到仓库。
@@ -50,13 +66,15 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 两者都来自配置文件的站点条目：
 
 ```json
-"sites": {
-  "konachan": {
-    "url": "https://konachan.com",
-    "username": "your-username",
-    "password": "your-password",
-    "hash_string": "So-I-Heard-You-Like-Mupkids-?--{0}--",
-    "api_version": "1.13.0+update.3"
+{
+  "sites": {
+    "konachan": {
+      "url": "https://konachan.com",
+      "username": "your-username",
+      "password": "your-password",
+      "hash_string": "So-I-Heard-You-Like-Mupkids-?--{0}--",
+      "api_version": "1.13.0+update.3"
+    }
   }
 }
 ```
@@ -73,12 +91,12 @@ Serika 是五家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` �
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
-| 契约面 | 认证与交付边界 |
+| API 面 | 认证与可用范围 |
 | :--- | :--- |
-| 官方 v1：`api_index` / `stats` / `user_list` / `random_image` | 控制器允许匿名，示例只走这些公开方法 |
-| 官方 v1：其他 12 个方法 | API key + 对应权限；具体权限见契约审计附注 |
-| 站内非版本化 `internal_*` | 前端自用私有契约，只封装匿名公开读取；不实现浏览器 cookie 登录 |
-| 站内评论/投票/收藏/上传/管理/账号写操作 | 依赖 Serika Accounts 会话或属于写路径，不在本轮能力范围；API key 不是会话 token |
+| 官方 `/api/v1`：`api_index` / `stats` / `user_list` / `random_image` | 服务端允许匿名访问，示例只走这四个 |
+| 官方 `/api/v1` 其余 12 个方法 | 需要 API key 加对应权限，清单见附注 |
+| 站内 `/api/*`（方法名带 `internal_` 前缀） | 前端自用、没有版本保证的接口，本库只封匿名可读的那些；不实现浏览器 cookie 登录 |
+| 站内评论/投票/收藏/上传/管理/账号写操作 | 依赖 Serika Accounts 的账号会话或属于写路径，本库不提供；API key 不能当会话用 |
 
 客户端不预判权限、不自动换成站内接口、不在认证失败后退回匿名。服务端按 API key 限流。
 当前 v1 的缺 key、缺权限、超限都返回 `code: UNAUTHORIZED`，HTTP 分别为 `401` / `403` / `429`；
@@ -97,9 +115,11 @@ e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danboo
 | Basic 密码 | `sites.<站点>.api_key` |
 
 ```json
-"sites": {
-  "e621": { "url": "https://e621.net", "username": "your-username", "api_key": "your-api-key" },
-  "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
+{
+  "sites": {
+    "e621": { "url": "https://e621.net", "username": "your-username", "api_key": "your-api-key" },
+    "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
+  }
 }
 ```
 
@@ -128,8 +148,20 @@ e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danboo
 
 `Zerochan` 只提供 GET JSON 读取，不实现 Basic、API key 或账号/cookie 登录。
 站点配置只有 `url`；身份标识来自 `request.user_agent`，也可用构造参数 `user_agent` 显式覆盖。
-Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Zerochan 用户名**。
-包内默认 `Anybooru/0.1.0.dev1` 只有项目标识，**不满足完整要求**；请在自己的配置中补入用户名。
+Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Zerochan 用户名**，写成配置就是：
+
+```json
+{
+  "request": {
+    "timeout": 30,
+    "proxies": {},
+    "user_agent": "MyProject - MyZerochanUsername"
+  }
+}
+```
+
+包内默认 `Anybooru/0.1.0.dev1` 只有项目标识，**不满足完整要求**；请在自己的配置中补入用户名，
+或对单个客户端覆盖：`Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')`。
 这不是登录认证，也不意味着获得额外权限；匿名请求可能成功，仍有被封禁的风险。
 没有用户名时库不会编造一个，也不会自动申请账号。来源和实测边界见
 [Zerochan 契约审计附注](zerochan-contract-notes.md)与[验证记录](verification.md#zerochan匿名只读实测2026-09-18)。
