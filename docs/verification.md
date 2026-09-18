@@ -630,3 +630,77 @@ Z2 与 Z3 合计 **21 次匿名 GET：20×200、1×500**。没有写请求、没
 需要账号或会修改数据的代码均未执行；旧4.x对照块未执行。表格、索引与其它行内用例没有逐条实跑，
 未在记录中点名的组合仍为**未实测**。停止后没有再发请求或补做全项目核对。
 除Zerochan与e621两组已有相对链接审计外，其余组没有完成本轮全量锚点检查，不宣称全部链接已验证。
+
+## Gelbooru：匿名只读实测（2026-09-18）
+
+本轮没有账号、API key 或登录操作，没有发写请求。Gelbooru 站点上的执行合计 **6 次 GET，6×HTTP 200**：
+一个通过新客户端执行的补全请求，以及为核对资料和网页路由读取的四份 HTML、一个 JavaScript 文件。
+这不是六个原生方法都成功；五个 dapi 方法均未发送请求。
+
+以下命令中的 `python` 代表实际使用的项目虚拟环境解释器，配置和一次性读取工具的路径以占位符呈现；
+URL 和调用参数则按真实请求记录，不把占位符命令冒充另一轮执行。
+
+### G1：新客户端的匿名补全示例
+
+实际执行的脚本和参数：
+
+```bash
+python examples/gelbooru/autocomplete.py --config <配置文件>
+```
+
+开始时间为 `2026-09-18T05:35:23.029Z`，进程退出 `0`，stderr 为空。
+脚本真实导入 `from anybooru import Gelbooru`，站点条目里的 `api_key` / `user_id` 都为空；
+这次参数对应 `client.autocomplete('blue', type='tag', limit=3)`。
+
+| 实际 URL（GET） | `last_call['status_code']` | 实际结果 |
+| :--- | :--- | :--- |
+| `https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2` | 200 | JSON 数组，10 项；脚本从 `last_call['url']` 打印此 URL，未附加 `json` 或账号参数 |
+
+脚本输出的前三项如下，其余七项依次为 `blue_sky`、`blue_skirt`、`blue_background`、`blue_dress`、
+`blue_bow`、`blue_shirt`、`blue_jacket`：
+
+```json
+[
+  {"type":"tag","label":"blue eyes","value":"blue_eyes","post_count":"2817483","category":"tag"},
+  {"type":"tag","label":"blue hair","value":"blue_hair","post_count":"1362688","category":"tag"},
+  {"type":"tag","label":"blue archive","value":"blue_archive","post_count":"454986","category":"copyright"}
+]
+```
+
+关键差异：**请求 `limit=3`，实际返回 10 项**。所以“limit 是硬性的返回条数上限”不适用于这个响应。
+客户端不截断结果；也没有用更多请求推导服务器默认值、最大值或全部 limit 的行为。
+`post_count` 保留字符串，`type` 与 `category` 是不同的字段，版权项的 type 仍为 tag。
+
+### G2：资料与 HTML 路由复核
+
+实际执行的读取命令形态：
+
+```bash
+python <只读资料抓取脚本> --config <配置文件> --input <来源请求清单> --output <执行记录>
+```
+
+进程退出 `0`；按下表顺序各 GET 一次，无重试。下面时间是各响应的 HTTP `Date`（UTC），
+字节数是 requests 解码传输压缩后 `response.content` 的长度，不是压缩后的网络流量。
+
+| 实际 URL | HTTP / Content-Type | Date / 正文字节数 | 可核对的内容 |
+| :--- | :--- | :--- | :--- |
+| `https://gelbooru.com/index.php?page=wiki&s=view&id=18780` | 200 / `text/html; charset=UTF-8` | 05:32:28 / 10388 | 标题 `howto:api`；有认证、Posts/Tag/User/Comments List、Deleted Images；显示更新时间 `02/22/22 4:17 PM`；没有 dapi 响应字段表 |
+| `https://gelbooru.com/index.php?page=help&topic=dapi` | 200 / `text/html; charset=UTF-8` | 05:32:30 / 4563 | 页首 `This section is out of date`；post 的 hard limit 100，与 wiki 的 default limit 100 不同 |
+| `https://gelbooru.com/script/autocomplete3.js` | 200 / `application/javascript` | 05:32:31 / 11599 | 调用 `/index.php?page=autocomplete2`，发送 term/type/limit；`MAX_RESULTS=10`，读取 label/value/post_count/category 等属性 |
+| `https://gelbooru.com/index.php?page=tags&s=list` | 200 / `text/html; charset=UTF-8` | 05:32:32 / 21150 | `Tag Listing` HTML 表格；示例 `1girl`、`general`、计数 `9713939`；翻页链接第二页为 `pid=50`，不能当作 dapi 页码 |
+| `https://gelbooru.com/index.php?page=tags&s=implications` | 200 / `text/html; charset=UTF-8` | 05:32:34 / 13336 | 标题 `Tag Implication Listing`；关系含 `crossover_pairing → crossover`、`mechanical_magical_girl → magical_girl` |
+
+这些 HTML 读取只是页面状态与资料复核，不是新增的客户端方法，也没有把 HTML 解析结果当作 dapi JSON。
+其它网页的用途与地址列在[能力入口](gelbooru-capabilities.md#网页入口本库不封装)。
+
+### G3：边界与未实测
+
+* `post_list`、`post_deleted`、`tag_list`、`user_list`、`comment_list` **分别均未执行 / 未实测（需账号）**。
+  接口路由和参数取自官方页面；JSON 字段名、类型、包装、总数、分页、错误体和认证成功路径没有本轮响应证据。
+* 外部综合资料已有“匿名 dapi 401 空正文”的记录，本轮没有重发 dapi，也没有把该记录算入六次请求。
+  候选返回字段按 `[推断]` 标明，具体哪项来自文档、哪项仅是推断，见[方法参考](gelbooru-api.md)和[契约附注](gelbooru-contract-notes.md)。
+* 其它补全种类、空值、未知 type、空格输入、别名项、limit 边界和其它站点未实测；没有为了补齐数量遍历端点或换网络重跑。
+* 没有下载图片、抓取登录态、读取账号凭据或执行任何写操作。没有新增测试、checksum、护栏、重试，
+  未运行 formatter、lint、项目测试套件、分发包构建或发布；这轮证据仅限上述真实读取。
+
+[Gelbooru 客户端](gelbooru.md) · [方法参考](gelbooru-api.md) · [能力入口](gelbooru-capabilities.md) · [契约附注](gelbooru-contract-notes.md)
