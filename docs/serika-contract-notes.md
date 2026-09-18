@@ -1,10 +1,10 @@
 # Serika 契约审计附注
 
-面向维护者与契约核对者：上游出处、权限过滤器、官方文档矛盾、SQL 与缓存实现、逐条验证状态、排除项。
+面向维护者：上游文件与行号、权限过滤器、官方文档与实现的矛盾、SQL 与缓存实现、逐条线上状态、排除项。
 面向使用者的三页是 [客户端用法](serika.md)、[方法参考](serika-api.md)、[能力总览](serika-capabilities.md)；
-本页承载那三页搬走的源码级细节，原有事实不删除。
+本页只承载那三页没有重复写的源码级细节（方法参数与返回字段在方法参考里），原有事实不删除。
 
-## 契约来源与版本
+## 来源与版本
 
 - 只读 clone `Serika.art/`，本轮核对 HEAD `ef11dd12`（2026-09-15）；该 clone 未修改、未提交。
 - 权威顺序：`app/api/v1/**/route.ts` 与站内 `app/api/**/route.ts` 控制器 + `lib/apiAuth.ts` +
@@ -18,7 +18,7 @@
 - 本库侧实现是 `anybooru/api_serika.py` 的 `SerikaApi_Mixin`（`Serika` 客户端）；
   本页每个方法的 `Serika.request()` 调用就是它对应的路由。
 - Serika 自己仓库里对 Danbooru 的 `lib/danbooru.ts:177`（`get('/posts.json')`）是它作为
-  Danbooru **消费者**的导入器，不能反推它提供 Danbooru 契约。
+  Danbooru **消费者**的导入器，不能反推它提供 Danbooru 路由。
 - 规模：官方 `app/api/v1/` 是 **15 个 `route.ts` / 16 个导出动词**（`images/[id]/route.ts` 一个文件
   导出 `GET` + `DELETE`）；站内面本库封 **14 个**匿名读方法。
 
@@ -125,7 +125,7 @@
 `/api/images?page=1&limit=3&ratings=safe&sort=newest`、`/api/images/4237836`、`/api/tags?limit=3`、
 `/api/artists?page=1&limit=3`。
 
-## 全局契约（官方 v1 源码细节）
+## 全局规则（官方 v1 源码细节）
 
 ### 认证失败梯度（`lib/apiAuth.ts` 的 `validateApiKey`）
 
@@ -187,12 +187,12 @@ moderator/admin/owner。
   `Math.min(Math.max(10, rateLimit), maxRateLimit)`，`maxRateLimit` 按 rank 为 60/120/1000/10000。
 - 超限 HTTP `429`，正文 `code` 是 `UNAUTHORIZED`。
 
-### 响应信封与错误码
+### 成功与错误的正文结构
 
 - 成功（`apiResponse`）：`{"success": true, "data": <payload>, "meta": {"timestamp": ..., ...}}`。
 - 错误（`apiError`）：`{"success": false, "error": <文本>, "code": <代码>}`，HTTP 状态与 `code`
   语义同步。
-- 三个例外：`GET /api/v1` 是裸对象（无 `success`/`data`/`meta`）；
+- 三个例外：`GET /api/v1` 直接返回自述对象（没有 `success`/`data`/`meta` 三个键）；
   `GET /api/v1/users` 是 `{"success": true, "users": [...], "pagination": {...}}`（无 `data`，
   也无 `meta.timestamp`）；`GET /api/v1/random/:w/:h/image.png` 是图片字节。
 - 常见 `code`：`UNAUTHORIZED`(401/403/429)、`INVALID_ID`(400)、`NOT_FOUND`(404)、
@@ -228,7 +228,7 @@ moderator/admin/owner。
   `None` 直接不发送，列表→`key[]`；没有文件时请求体是 JSON（`json_params` 去掉 `None`
   但保留显式空数组）。
 - 服务端判定布尔用的是**字符串比较**（`=== 'true'`），所以 `ai`、`no_ai`、`blur`、`grayscale`、
-  `match_size`、上传的 `is_ai_generated` 只有落成小写字符串才生效。
+  `match_size`、上传的 `is_ai_generated` 只有编码成小写字符串才生效。
 - **CSV 参数**（`tags`、`ratings`、`exclude_tags`）只接受逗号分隔的**字符串**（例如
   `tags='blue archive,1girl'`）：客户端不做数组转换，也不解析 Rails 数组语法。
 - 官方分页在 `meta.pagination`（`page`、`limit`、`total`、`pages`；`has_next`/`has_prev`
@@ -249,6 +249,8 @@ moderator/admin/owner。
 ## 长尾方法参数与错误码
 
 本节顺序：官方长尾 12 个 → 官方常用方法的补充参数 → 站内长尾 10 个。
+逐参数表（名称 / 类型与取值 / 含义 / 不传时的行为 / 字面示例）与返回字段在
+[方法参考](serika-api.md)；这里保留服务端的钳位、分支与错误码这类源码级细节。
 
 官方长尾（12 个，全部需 key，成功路径未实测）：
 
@@ -417,7 +419,7 @@ AI 图 **14195**、非 AI 图 **4223648**、最近 24h 上传 **0**。
 `X-Original-Height`、`X-Rating`、`Cache-Control`。这条路由也是浏览器 `<img>` 直接可用的 URL
 （公开、无 key）。本轮实测请求
 `GET /api/v1/random/400/400/image.png?fit=cover&format=png&ratings=safe` 返回 `200` 与 PNG 字节，
-元数据头 `x-image-id`/`x-dbid` = **2796776**、`x-post-id` = **1416106**、`x-original-width` **1168**、
+响应头 `x-image-id`/`x-dbid` = **2796776**、`x-post-id` = **1416106**、`x-original-width` **1168**、
 `x-original-height` **2057**、`x-rating` `safe`。
 **无匹配时返回 `200` 的灰色占位 PNG**（`#808080`，带 `stale-while-revalidate` 缓存头），所以占位图与命中
 只能靠响应头区分（只有命中才带 `X-*` 标识）。控制器内部出错（抓源图、缩放失败等）走 `catch`：
@@ -487,7 +489,7 @@ wiki 时 `wiki` 为 `null`；画师标签本身不存在时 404。编辑 wiki �
 ### `internal_user_list(username)`
 
 **集合路径实际是"按用户名查单个用户"**，`username` 必填，缺失 400；没有"列出全部用户"的模式。
-先查本地 `users` 表（不区分大小写），**没有账号服务兜底**：查不到就是 404。返回
+先查本地 `users` 表（不区分大小写），**没有账号服务回退**：查不到就是 404。返回
 `{"success": true, "user": {id, username, avatarUrl, bannerUrl, rank, createdAt, isPremium,
 isVerified}}`；其中 `bannerUrl`、`isPremium`、`isVerified` 需要服务端用内部 service key 调
 `accounts.serika.dev`（5 秒超时，失败静默降级），所以它们可能是空/`false` 而其余字段正常，
@@ -520,9 +522,9 @@ service key 调账号服务，把结果 **upsert 进本地 `users` 表**（`ON C
 
 - 路径以 `api/` 开头，**没有 `.json` 后缀**，也不接受 Danbooru/Moebooru 那种格式后缀；这些路由都是
   Next.js App Router 的 route handler，动词由导出的 `GET`/`POST` 决定。
-- **站内原始 JSON 不统一拆封**：通常为 `{"success": true, ...}` 加各自资源键
+- **站内原始 JSON 不拆分**：通常为 `{"success": true, ...}` 加各自资源键
   （`images`、`image`、`comments`、`tags`、`tag`、`artists`、`artist`、`wiki`、`reviews`、`user`）；
-  用户活动接口为 `{success, likes?, comments?}`。它们不使用官方的 `data` / `meta` 信封。
+  用户活动接口为 `{success, likes?, comments?}`。它们不套官方的 `data` / `meta` 结构。
 - 失败分两类：**业务态**也在 `{"success": false, "error": ...}` 里（图片列表的
   `{"success": false, "error": "One or more specified tags were not found", "code":
   "TAG_NOT_FOUND"}` 就是这种，HTTP 同时是 404），**以及 5xx 的 `Failed to ...`**。
@@ -637,7 +639,7 @@ service key 调账号服务，把结果 **upsert 进本地 `users` 表**（`ON C
 
 `random/:w/:h/image.png` 的注释说"无匹配时回占位图"，实际实现是：只有**每个标签名都存在且存在同时含
 全部标签的图**时才给 SQL 加标签条件，否则条件被整体跳过，于是可能返回**不含**这些标签的随机图。
-同理 `tags` 未知时 v1 元数据路由的 404/空数组分支与 PNG 路由完全不同（见矛盾表第 7 条）。
+同理 `tags` 未知时 v1 的 `random` 列表路由的 404/空数组分支与 PNG 路由完全不同（见矛盾表第 7 条）。
 
 ## 排除项（有路由，但本库不封方法）
 

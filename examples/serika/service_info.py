@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
-"""读取官方 v1 的匿名索引、统计和用户目录；不调用需 key 路由。"""
+"""读取官方 v1 的三个匿名入口，不调用需 key 路由。
+
+三次调用各自的返回形态不同，正好当模板抄：
+
+* ``client.api_index()``  —— ``GET /api/v1``：整个自述对象，拿 ``info['name']`` / ``info['version']``；
+* ``client.stats()``      —— ``GET /api/v1/stats``：返回 ``data`` 的内容，整个 ``meta``（含 timestamp）
+  留在 ``client.last_call['meta']``；
+* ``client.user_list()``  —— ``GET /api/v1/users``：返回 ``users`` 数组，分页在
+  ``client.last_call['meta']['pagination']``（page / limit / total / pages）。
+
+参数从 ``examples.serika`` 读，默认配置下就是下面注释里那几个字面值。
+"""
 
 import argparse
 import json
@@ -19,17 +30,18 @@ def main():
 
     with Serika(site, config_file=args.config) as client:
         example = client.config['examples']['serika']
-        info = client.api_index()
+        info = client.api_index()             # GET https://serika.art/api/v1
         print(json.dumps({'method': 'api_index',
                           'status': client.last_call['status_code'],
                           'url': client.last_call['url'],
                           'name': info['name'], 'version': info['version']}))
-        statistics = client.stats()
+        statistics = client.stats()           # GET https://serika.art/api/v1/stats
         print(json.dumps({'method': 'stats',
                           'status': client.last_call['status_code'],
                           'url': client.last_call['url'],
                           'statistics': statistics,
                           'meta': client.last_call['meta']}))
+        # 默认配置下 = GET https://serika.art/api/v1/users?page=1&limit=1&sort=newest
         users = client.user_list(**example['user_query'])
         print(json.dumps({'method': 'user_list',
                           'status': client.last_call['status_code'],
