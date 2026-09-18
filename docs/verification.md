@@ -597,3 +597,36 @@ Z2 与 Z3 合计 **21 次匿名 GET：20×200、1×500**。没有写请求、没
 
 四份 Zerochan 文档的相对链接审计：**28 个相对链接、其中 7 个片段锚点、0 个缺失**。
 实际执行 `.venv/Scripts/python.exe <链接审计脚本> --output <记录文件> docs/zerochan.md docs/zerochan-api.md docs/zerochan-capabilities.md docs/zerochan-contract-notes.md`，退出 `0`。
+
+### 其余文档：已执行范围与停止点
+
+下列记录均在用户要求停止新增执行前完成；随后停止所有后续请求和核对，没有补跑行内示例。
+命令均为 `.venv/Scripts/python.exe <片段执行脚本> --config <配置文件> --manifest <片段清单> --output <记录文件>`。
+
+| 批次 | 已记录的实际结果 |
+| :--- | :--- |
+| 首批（Zerochan、e621ng、Moebooru、Serika） | 102 次调用收到 HTTP：97×200、1×400、3×404、1×500。Moebooru v2 例子另有一次 Python `KeyError: pools`，原因是例子误以为未请求的字段也会返回；不是 HTTP 失败 |
+| 续批（修正例子、共享指南、README、Danbooru） | 33×200、1×404 |
+| 补跑未取得响应的块 | 38×200、1×403、1×404、2×500；27 块正常结束。其余为两组排序查询 500、笔记预览 403，以及用户搜索 200 空列表后旧例子下标越界 |
+
+关键响应与修正：
+
+* e621ng 的31个匿名代码块全部正常结束，HTTP为30×200和1×404。
+  `/posts.json?tags=rating%3As&limit=2` 返回6715278/6715276；`/posts/0.json` 返回404和
+  `{"success":false,"reason":"not found"}`。按帖子分组的评论即使给 `limit=2` 也返回5个帖子。
+* Moebooru：`/post.json?tags=rating%3As&limit=3&api_version=2` 实际只返回 `{"posts": [...]}`，3张图。
+  加上 `include_tags=1&include_votes=1&include_pools=1` 后，实际键才是
+  `['pool_posts','pools','posts','tags','votes']`。例子修正后已重新执行，正常结束。
+  `/post/similar.json?id=1269034` 返回200、`success: true`、0个匹配；指定图片的笔记和评论查询返回空列表。
+* Serika：已执行的匿名例子取得正常响应；不存在图片的例子返回404 JSON，8×8随机图例子返回400纯文本。
+  普通 `request('GET', 'api/v1/stats')` 的键为 `data/meta/success`；选择 `data` 后才是统计字段。
+  补全与搭配标签使用的是只读查询POST，不是写操作；没有使用任何账号或API key。
+* Danbooru：两次 `rating:g order:score`（limit 分别为 10 和 2）返回 500，
+  `error: ActiveRecord::QueryCanceled`、`message: The database timed out running your query.`。
+  `POST /notes/preview.json` 只预览、不保存，但实际返回403、`ActionController::InvalidAuthenticityToken`，
+  不能写成成功预览。`/users.json?limit=1&search%5Bname_matches%5D=fuzichoco` 返回200空列表；
+  旧例子访问首项时越界，已改为直接显示列表，修改后未重跑。
+
+需要账号或会修改数据的代码均未执行；旧4.x对照块未执行。表格、索引与其它行内用例没有逐条实跑，
+未在记录中点名的组合仍为**未实测**。停止后没有再发请求或补做全项目核对。
+除Zerochan与e621两组已有相对链接审计外，其余组没有完成本轮全量锚点检查，不宣称全部链接已验证。
