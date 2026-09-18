@@ -1,6 +1,6 @@
 # Anybooru 文档
 
-Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan 与 Gelbooru 六类引擎图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru 与 e-shuushuu 七类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），
 再进对应家族的「三行上手」跑通第一个请求。
@@ -25,6 +25,7 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan 与 Gelbooru
 | e621ng（e621.net / e926.net） | [三行上手](e621.md) | [方法参考](e621-api.md) | [按任务找方法](e621-capabilities.md) | [上游契约与依据](e621-contract-notes.md) |
 | Zerochan（zerochan.net） | [三行上手](zerochan.md) | [两个原生方法](zerochan-api.md) | [按任务找方法](zerochan-capabilities.md) | [API 页面与实测依据](zerochan-contract-notes.md) |
 | Gelbooru（gelbooru.com） | [三行上手](gelbooru.md) | [六个原生方法](gelbooru-api.md) | [按任务找方法](gelbooru-capabilities.md) | [来源层级与未实测项](gelbooru-contract-notes.md) |
+| e-shuushuu（e-shuushuu.net） | [三行上手](shuushuu.md) | [公开读取与显式认证](shuushuu-api.md) | [按任务找方法](shuushuu-capabilities.md) | [OpenAPI 与实测依据](shuushuu-contract-notes.md) |
 
 Danbooru / Moebooru / e621ng 是三个互不相同的 Rails 引擎；Serika 是独立的 Next.js 引擎，提供官方 `/api/v1`
 与前端自用、没有公共兼容保证的 `/api/*`；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，
@@ -32,18 +33,20 @@ Danbooru / Moebooru / e621ng 是三个互不相同的 Rails 引擎；Serika 是�
 Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autocomplete2` 返回站内补全 JSON；
 `page=tags/post/wiki` 等浏览路由返回 HTML。依据是官方 wiki/帮助页、站点 JavaScript 和真实匿名响应，
 没有当前 PHP 服务端快照可引用，不能由前端字段推出 dapi 字段。
+e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据是站点自带 OpenAPI 和真实响应；
+没有本地上游服务端源码，不套用 Danbooru 或 Moebooru 的路由、标签字符串规则。
 不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，
 但返回的 JSON 结构完全不同。判断方法见
 [配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
-## 六个家族共用的用法
+## 七个家族共用的用法
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | Python 与依赖要求、源码安装步骤、装完怎么验证、包内文件都在哪 |
 | [配置](configuration.md) | 默认读哪份 JSON、怎么换一份自己的、`sites` 每个字段什么意思、`examples` 各键对应哪个调用、代理与超时写在哪 |
-| [认证](authentication.md) | Danbooru 用 username + API key 走 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、e621ng 同 Danbooru 但另一套引擎、Gelbooru 的 dapi 要账号的 api_key + user_id、Zerochan 没有认证只有 User-Agent 要求 |
-| [分页](pagination.md) | 六个家族各自的页码参数与每页上限、游标形式、超过上限报什么错 |
+| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id；Zerochan 无认证；Shuushuu 默认匿名，显式登录换 Bearer token |
+| [分页](pagination.md) | 七个家族各自的页码参数与每页上限、游标形式、超过上限报什么错 |
 | [错误处理](errors.md) | 三个异常类各自什么时候抛、HTTP 错误带哪些字段、各引擎的状态码含义、为什么不自动重试 |
 | [迁移](migration.md) | 从 Pybooru 4.x 改名/换参数/换返回值的逐方法对照表 |
 
@@ -51,13 +54,13 @@ Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autoc
 
 1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；
    不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
-2. **通用入口与原生方法**：六个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
+2. **通用入口与原生方法**：七个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
    有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
    有些方法会替你剥掉一层外层对象：Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、
    把 `meta` 放进 `client.last_call['meta']`；e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，
    而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆；Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，
-   详情路径直接是条目对象；Gelbooru 一个外层都不拆，服务端给什么就返回什么。返回 JSON 的完整原貌、
+   详情路径直接是条目对象；Gelbooru 与 Shuushuu 一个外层都不拆，服务端给什么就返回什么。返回 JSON 的完整原貌、
    以及哪些方法不拆，见各家族方法参考。
 4. **参数按各引擎的写法发**：Rails 引擎把嵌套字典编成 `a[b]`、列表编成重复键 `a[]`，布尔发成 `true` / `false`，
    值为 `None` 的键不发送；Danbooru 不带文件的 `data` 用 JSON 请求体，Moebooru 一律用 Rails 表单。
@@ -67,11 +70,13 @@ Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autoc
    标签写在路径上，要 JSON 得在查询串里带 `json` 标记，而不是给路径加 `.json`。
    Gelbooru 的路径固定是 `index.php`，用 `page` 选择入口，dapi 补 `json=1`，autocomplete2 本身返回 JSON；
    凭据只在 dapi 请求上发送。
+   Shuushuu 的 `tags='46,169'` 是数字 ID 逗号串，`status=[1, 2]` 是重复同名键；分页用 `page/per_page`，
+   标签搜索方法 `search` 用 `limit/offset`。构造从不登录；`user_ratings` 是显式私有读取，其余资源读取的实测范围见家族文档。
 
 ## 边界与未实测
 
 - 依据分两条路：Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注），
-  Zerochan 与 Gelbooru 没有可引用的上游源码，只有站点页面/脚本原文与真实响应。两条路都不是对每个下游
+  Zerochan、Gelbooru 与 Shuushuu 没有可引用的上游源码，依据站点页面、脚本或 OpenAPI 与真实响应。两条路都不是对每个下游
   站点的保证：站点可以自己关掉某个功能、按权限裁剪返回内容，也可能用反爬挡住你所在的网络。
 - 已经真实执行过的匿名读取：Danbooru 的 12 次成功与 3 次预期错误、Moebooru 的指定匿名读取、Serika 的
   官方公开入口与部分站内读取、e621ng 三个示例在 e621.net 与 e926.net 各跑一遍、Zerochan 的
@@ -85,6 +90,8 @@ Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autoc
   Zerochan 用户名是站点约定，本库照配置原样发送、不校验、不代填。Gelbooru 面同样没有写方法，
   使用 `page=dapi` 与 `page=autocomplete2` 两个 JSON 入口；`page=tags/post/wiki` 等 HTML 浏览页面
   不封装为 JSON 方法，也不抓取解析。
+- Shuushuu 默认匿名；公开图片、标签、评论、用户资料等读取不要求账号，但个人资料和管理 GET 不在此列。
+  登录、刷新、登出及账号写操作未实测；本次匿名冒烟与示例的实际范围见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
 
 ## 许可
 
