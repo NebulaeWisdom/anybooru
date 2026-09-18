@@ -16,6 +16,12 @@ dapi 例子假定 `my-anybooru.json` 已从包内模板复制，并填入账号�
 | `type` | 字符串；J 中有 `tag`、`tag_query`、`artist`、`pool`、`user`、`wiki_page`、`favorite_group`、`saved_search_label`、`mention` | T 记为 `tag`，J 没规定服务器默认值；客户端不补 | `client.autocomplete('blue', type='tag', limit=3)` |
 | `limit` | 整数，请求希望返回的条数；J 固定传 10，没有给范围 | T 记为 10，J 只证明前端发 10；客户端不补 | `client.autocomplete('blue', type='tag', limit=3)` |
 
+扩展实测把上面九个 `type` 各请求一次，**所有非空结果的 `type` 都是 `'tag'`**。例如
+`client.autocomplete('lozertuser', type='user', limit=3)` 返回的是 `category='character'` 的标签，
+不是带 `name/level` 的用户对象；`type='artist', term='fuzichoco'` 返回三项，包含 artist、character 和普通 tag 分类。
+`pool/favorite_group/saved_search_label` 配 `touhou` 得到标签建议；`wiki_page` 配 `howto` 也不是 wiki 条目。
+所以 `type` 表列的是脚本传参名，**不承诺服务端按它筛选资源种类**。每项 URL、数量和首项见[扩展实测 G4](verification.md#g4补全种类与空值边界)。
+
 ```python
 from anybooru import Gelbooru
 
@@ -178,7 +184,7 @@ with Gelbooru('gelbooru', config_file='my-anybooru.json') as client:
 
 ## 出错时保留状态码与正文
 
-下面是缺少账号时的处理例子，不是本轮发过的请求。T 记录匿名 dapi 为 401、空正文；捕获后查看服务器实际结果，不把错误改成空列表。
+下面调用的匿名拒绝路径已实测：`post_list(limit=1)` 返回 401、空正文，抛 `AnybooruHTTPError`；其余四个 dapi 方法也各取得同样结果。捕获后查看实际结果，不把错误改成空列表。需要账号的成功响应仍未实测。
 
 ```python
 from anybooru import AnybooruHTTPError, Gelbooru
@@ -196,16 +202,16 @@ with Gelbooru('gelbooru', api_key='', user_id='') as client:
 
 | 方法 | 本轮执行边界 |
 | :--- | :--- |
-| `autocomplete` | `term='blue', type='tag', limit=3` 实际 200、10 项；其余种类和参数组合未实测 |
-| `post_list` | 未执行 / 未实测（需账号）；列表、按编号、过滤、排序和分页成功响应均没有本站证据 |
-| `post_deleted` | 未执行 / 未实测（需账号）；记录编号与帖子编号关系、`last_id` 缺省及 `limit` 支持均未确认 |
-| `tag_list` | 未执行 / 未实测（需账号）；HTML 标签页和 J 的整数映射不是此接口的字段证明 |
-| `user_list` | 未执行 / 未实测（需账号）；用户名模式细则、列表字段与分页未确认 |
-| `comment_list` | 未执行 / 未实测（需账号）；`post_id` 的官方文字与外部解释有矛盾；非空正文未取得 |
+| `autocomplete` | 九个脚本 type、空 term、空格写法、taq/wiki 两个未知值均已跑；13 次都是 200，非空项全部为 type=tag |
+| `post_list` | 匿名已实测 401、空正文；需账号的成功返回未实测，含列表、详情、过滤排序和分页 |
+| `post_deleted` | 匿名已实测 401、空正文；成功返回未实测，记录编号含义、last_id 缺省及 limit 支持未确认 |
+| `tag_list` | 匿名已实测 401、空正文；成功返回字段未实测，HTML 和 J 不能代替字段证明 |
+| `user_list` | 匿名已实测 401、空正文；成功返回未实测，用户名模式细则与分页未确认 |
+| `comment_list` | 匿名已实测 401、空正文；成功返回未实测，post_id 含义矛盾和非空正文尚待核对 |
 
 * 五个 dapi 方法均只负责拼出文档给出的查询参数。**没有任何经本站响应验证的 dapi JSON 字段表**；上面的候选键仅供未来对照，不参与客户端解析。不保证数组、资源名外层键、`@attributes`、总数或下一页字段。
 * W 仅在 post/tag/user 章节明确写 `json=1`；客户端也对删除流、评论发送它，这是统一 JSON 请求的选择，不证明这两条分支已经返回过 JSON。
-* T 对未知 autocomplete `type` 既写“返回 `[]`”，又记录 `type=wiki` 返回标签，不能统一承诺；空格搜索返回空数组同样只来自 T。本轮没有额外探测这些边界。
+* `type='taq'` 和 `'wiki'` 配 `term='blue'` 实测都返回 10 个标签建议，不是 T 声称的未知值空数组；显式空 term 和 `'hatsune miku'` 则实测为 `[]`。这不证明任意未知 type 的行为，也没有证明专用用户/池/wiki 补全或别名字段；缺省 type 与其它 limit 未实测。
 * W 的默认 100 与 H 的硬上限 100 不同；客户端不钳位。错误里的 `success` 和消息来自 H 的文字说明，JSON 编码形式未实测。
 * `s=artist/pool/wiki` 没出现在官方 dapi 清单，本库无原生方法；HTML 的标签、别名、wiki、池、画师等入口见[能力页](gelbooru-capabilities.md#网页入口本库不封装)。
 

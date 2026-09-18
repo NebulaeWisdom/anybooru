@@ -38,24 +38,37 @@
 
 这些是 **HTML 网页而非官方 JSON API**，用浏览器查看。这里给出实际路由，便于找到 JSON 清单之外的功能；不是让调用者用 `request()` 把 HTML 当 JSON。路由来源为外部综合资料及站点页面链接，本轮实际读取的范围单列在文末。
 
-| 目的 | 网页地址 | 可以查看什么 |
-| :--- | :--- | :--- |
-| 浏览标签与计数 | [标签列表](https://gelbooru.com/index.php?page=tags&s=list) | 名字、分类、帖子数；过滤例子：`https://gelbooru.com/index.php?page=tags&s=list&tags=blue_*&sort=desc&order_by=index_count` |
-| 查某标签会自动带上哪些标签 | [标签蕴含](https://gelbooru.com/index.php?page=tags&s=implications) | 蕴含关系两端，例如前置标签与它蕴含的标签；可用 `tags=crossover_*` 过滤 |
-| 查旧标签名与正式名字 | [标签别名](https://gelbooru.com/index.php?page=alias&s=list) | 别名关系，不等于 `s=tag` 的 dapi 返回字段 |
-| 浏览图片搜索结果 | [帖子列表](https://gelbooru.com/index.php?page=post&s=list&tags=blue_sky) | 图片网页列表；网页分页 `pid` 不在客户端解释 |
-| 已知编号查看图片详情 | [编号 1 的帖子](https://gelbooru.com/index.php?page=post&s=view&id=1) | 图片、上传信息、尺寸、评级、来源和分类标签，不是 JSON 字段表 |
-| 找标签说明或帮助条目 | [wiki 搜索 howto](https://gelbooru.com/index.php?page=wiki&s=list&search=howto) | 条目名与可点开的编号 |
-| 阅读官方 API 文档 | [howto:api](https://gelbooru.com/index.php?page=wiki&s=view&id=18780) | dapi 资源、参数和认证格式；未提供 JSON 字段表 |
-| 阅读旧 API 帮助 | [旧 dapi 帮助](https://gelbooru.com/index.php?page=help&topic=dapi) | 删除流等路由；页首明确标注过时，不以它覆盖新 wiki |
-| 浏览池、画师或评论 | [池](https://gelbooru.com/index.php?page=pool&s=list) · [画师](https://gelbooru.com/index.php?page=artist&s=list) · [评论](https://gelbooru.com/index.php?page=comment&s=list) | HTML 列表；不是已确认的 `s=pool/artist` dapi |
-| 浏览讨论或来源追踪 | [论坛](https://gelbooru.com/index.php?page=forum&s=list) · [追踪列表](https://gelbooru.com/index.php?page=tracker&s=list) | 站内网页，不属于本客户端方法清单 |
+| 目的 | 网页地址 | 可以查看什么 | 扩展实测 |
+| :--- | :--- | :--- | :--- |
+| 浏览标签与计数 | [标签列表](https://gelbooru.com/index.php?page=tags&s=list) | 名字、分类、帖子数；可另传 tags/sort/order_by 过滤排序 | 200 HTML |
+| 查标签蕴含关系 | [标签蕴含](https://gelbooru.com/index.php?page=tags&s=implications) | 前置标签与它蕴含的标签；可另传 tags 过滤 | 200 HTML |
+| 查旧名与正式名字 | [标签别名](https://gelbooru.com/index.php?page=alias&s=list) | 别名关系，不等于 dapi 标签字段 | 200 HTML |
+| 浏览图片搜索结果 | [1girl 帖子列表](https://gelbooru.com/index.php?page=post&s=list&tags=1girl) | 图片网页列表；不在客户端解释网页 pid | 200 HTML |
+| 已知编号看详情 | [编号 1 的帖子](https://gelbooru.com/index.php?page=post&s=view&id=1) | 图片、上传信息、尺寸、评级、来源、分类标签，不是 JSON 字段表 | 200 HTML |
+| 找帮助或标签说明 | [wiki 搜索 howto](https://gelbooru.com/index.php?page=wiki&s=list&search=howto) | 条目名与编号 | 200 HTML |
+| 阅读官方 API 文档 | [howto:api](https://gelbooru.com/index.php?page=wiki&s=view&id=18780) | dapi 参数与认证，没有 JSON 字段表 | 200 HTML |
+| 浏览池 | [池列表](https://gelbooru.com/index.php?page=pool&s=list) | HTML 池列表，不代表已确认 s=pool dapi | 200 HTML |
+| 浏览画师 | [画师列表](https://gelbooru.com/index.php?page=artist&s=list) | HTML 画师列表，不代表已确认 s=artist dapi | 200 HTML |
+| 浏览评论 | [评论列表](https://gelbooru.com/index.php?page=comment&s=list) | 网页评论，不是 dapi 响应 | 200 HTML |
+| 浏览讨论 | [论坛](https://gelbooru.com/index.php?page=forum&s=list) | 站内讨论列表 | 200 HTML |
+| 浏览来源追踪 | [追踪列表](https://gelbooru.com/index.php?page=tracker&s=list) | 站内追踪页面 | 200 HTML |
+| 查看画师统计 | [画师统计](https://gelbooru.com/index.php?page=extras&s=artists) | 站内统计页面 | 200 HTML |
+| 阅读旧 API 帮助 | [旧 dapi 帮助](https://gelbooru.com/index.php?page=help&topic=dapi) | 页首自称过时，不以它覆盖新 wiki | 200 HTML |
+
+上表每个地址各 GET 一次，只记录状态与 Content-Type，**200 不等于已审查页面内容或表单功能**。
+补充过滤参数、其它页码没有随表遍历；客户端没有解析这些网页。
+
+## 图片 CDN：只验证初始跳转
+
+外部资料给定的原图、缩略图、样例图三个 `img4.gelbooru.com` 地址已各做一次不跟随跳转的 GET，
+全部返回 **302**，Location 指向 `gelbooru.com/hotlink.php`。完整三个 URL 与 Location 见[实测 G7](verification.md#g7图片-cdn-初始响应)。
+没有跟随到目标、没有读取或保存图片正文；不能把初始302写成已成功下载图片。本库不推导 CDN 地址。
 
 ## 边界与未实测
 
-* `post_list`、`post_deleted`、`tag_list`、`user_list`、`comment_list` **逐个均未执行 / 未实测（需账号）**。参数来自官方页面；返回 JSON 的键名、类型和外层结构均未证实，方法参考明确区分确认的数据、候选字段 [推断] 和无依据项。
-* 本次唯一匿名原生方法调用是 `autocomplete('blue', type='tag', limit=3)`，200 且 10 项。其它 `type` 在前端脚本中出现，不等于服务端成功路径已跑过。
-* 网页表中本轮读取的是标签列表、标签蕴含、官方 wiki、旧 help，均为 200 HTML；没有重跑其余网页、写表单、登录或账号选项。
-* 不提供 XML、HTML 解析、CDN 地址推导、写接口或自动翻页；不为 `artist/pool/wiki` 编造 dapi 方法。不用其它站的响应替代 gelbooru.com 证据。
+* 五个 dapi 方法已分别实测匿名401、空正文，异常为 `AnybooruHTTPError`；**需账号的成功响应仍未实测**，候选字段仍为推断。
+* 九种脚本type、空term、空格写法和taq/wiki两个未知值共13次补全请求均200；非空项全部type=tag，不能称为已证实用户/池/wiki专用补全。每条结果见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)。
+* HTML 14条只确认HTTP可达；未解析内容、未登录、未执行表单。账号选项和其它HTML条件未跑；CDN只看初始302，目标响应与媒体内容未知。
+* 不提供XML、HTML解析、CDN地址推导、写接口或自动翻页；不为artist/pool/wiki编造dapi方法。未使用其它站点替代本站证据。
 
 [客户端用法](gelbooru.md) · [参数和返回值](gelbooru-api.md) · [出处与差异](gelbooru-contract-notes.md) · [真实执行记录](verification.md#gelbooru匿名只读实测2026-09-18)

@@ -90,10 +90,11 @@ with Gelbooru('gelbooru') as client:
 
 ## 边界与未实测
 
-* `post_list`、`post_deleted`、`tag_list`、`user_list`、`comment_list` 均为**未执行 / 未实测（需账号）**；包括认证成功、字段类型、外层结构、分页、上限和错误正文。已有外部资料报告匿名 dapi 为 401 空正文，本轮没有重发这些请求。
-* 只有 `autocomplete('blue', type='tag', limit=3)` 的一组参数经本库实跑。其它补全种类、空查询、未知 `type`、空格名称、别名项及分页边界没有本轮响应证据。站点脚本出现的种类不等于每个服务端分支都已确认。
+* `post_list`、`post_deleted`、`tag_list`、`user_list`、`comment_list` 已逐个匿名请求，均为 **401、空正文**，抛 `AnybooruHTTPError`，`last_call` 保留 URL、401 与 Unauthorized。需账号的成功返回、字段类型、外层、分页、上限和业务错误正文仍未实测。
+* 九个脚本枚举 `type` 已逐个请求，非空项全部是 `type='tag'`，没有证明独立用户、池或 wiki 对象补全。拼错 `taq` 与未列举的 `wiki` 配 blue 均回 10 条标签；空 term 与 `'hatsune miku'` 回 `[]`。别名字段、缺省 type 和其它参数组合仍未实测；逐项见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)。
 * `limit=3` 本次收到 10 条；脚本固定发 10，也不能由此推导服务器的默认值或最大值。
 * 本库不封装 HTML 页面、不解析图片网页、不构造 CDN 地址，不做 XML、写操作、登录、自动翻页、限流或重试。标签列表、蕴含、别名、wiki 等网页的实际地址与用途见[网页入口表](gelbooru-capabilities.md#网页入口本库不封装)。
+* 14 条 HTML 路由各一次得到 200，只证明 HTTP 可达，未解析页面内容。三个给定 CDN 地址的初始响应均为 302，指向 `hotlink.php`；没有跟随跳转或读取图片内容，不能据此证明能下载到图片。
 * 没有能作为当前服务端契约的官方 PHP 源码快照，也没有其它部署的旁证。官方页面、站点 JavaScript、外部记录与推断分开列在[契约附注](gelbooru-contract-notes.md)。
 
 [方法参考](gelbooru-api.md) · [按目的找方法](gelbooru-capabilities.md) · [契约附注](gelbooru-contract-notes.md)

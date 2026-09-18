@@ -17,11 +17,11 @@ surface is six calls:
     * ``page=autocomplete2`` -- suggestions (``autocomplete``)
 
 Credentials:
-    The supplied reference reports anonymous dapi requests returning 401
-    with an empty body. Its account API needs the ``api_key`` and
-    ``user_id`` shown under "API Access Credentials" on
-    ``index.php?page=account&s=options``; this implementation has not sent
-    any dapi requests. ``autocomplete2`` is an anonymous JSON route.
+    Anonymous requests through all five dapi methods returned 401 with an
+    empty body. Account access uses the ``api_key`` and ``user_id`` shown
+    under "API Access Credentials" on ``index.php?page=account&s=options``.
+    Authenticated success responses have not been observed.
+    ``autocomplete2`` is an anonymous JSON route.
     ``user_id`` is the numeric account id, not the user name.
 
 Formats:
@@ -174,16 +174,16 @@ class GelbooruApi_Mixin(object):
             type (str): The site script binds ``tag``, ``tag_query``,
                 ``artist``, ``pool``, ``user``, ``wiki_page``,
                 ``favorite_group``, ``saved_search_label`` and ``mention``.
-                Script bindings do not prove that every backend branch is
-                available. Unknown values have contradictory reports.
+                Calls with all nine values returned tag suggestions when
+                nonempty; misspelled ``taq`` and unlisted ``wiki`` did too.
             limit (int): Requested suggestion count; the site script sends
                 10. The observed ``limit=3`` request still returned 10.
 
         Returns a JSON array. Observed tag suggestions carry ``type``,
         ``label`` (display form), ``value`` (the form to search with),
-        ``post_count`` (a string) and ``category``; ``user`` suggestions
-        may carry ``name`` / ``level`` instead of ``post_count``, and alias
-        suggestions add ``antecedent``. The client returns the array
-        unchanged.
+        ``post_count`` (a string) and ``category``. The site script also
+        reads ``name`` / ``level`` and ``antecedent`` in other rendering
+        branches, but no such fields were observed, including requests
+        with ``type='user'``. The array is returned unchanged.
         """
         return self.request("autocomplete2", params=dict(params, term=term))
