@@ -72,7 +72,8 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
       "hash_string": "er@!$rjiajd0$!dkaopc350!Y%)--{0}--"
     },
     "e621": { "url": "https://e621.net", "username": "", "api_key": "" },
-    "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
+    "e926": { "url": "https://e926.net", "username": "", "api_key": "" },
+    "zerochan": { "url": "https://www.zerochan.net" }
   },
   "examples": {
     "serika": {
@@ -125,6 +126,15 @@ client = Danbooru('danbooru', config_file=r'D:\app\sites.json')  # 绝对路径�
       "wiki_query": {"limit": 2},
       "wiki_title": "help:api",
       "pause_seconds": 1
+    },
+    "zerochan": {
+      "site": "zerochan",
+      "entry_query": {"p": 1, "l": 2, "s": "id"},
+      "tag_query": {"tags": "Genshin Impact", "l": 2},
+      "multi_tag_query": {"tags": ["Lumine", "Flower"], "l": 2},
+      "strict_query": {"tags": "Genshin Impact", "strict": true, "l": 2},
+      "entry_id": 3793685,
+      "pause_seconds": 1.2
     }
   }
 }
@@ -160,6 +170,25 @@ e621ng 示例使用 `examples.e621`，查询参数是 Rails 顶层参数与 `sea
 列出要跑的示例、`pause_seconds` 是间隔；`post_query` / `count_query` / `v2_query` / `only_query` /
 `related_search` 是返回形态与权限分支的复核输入；可运行示例的请求输入来自 `examples.e621`。
 
+Zerochan 示例使用 `examples.zerochan`；`tags` 从查询字典转为 URL 路径，其余单字母参数进入 HTTP 查询串：
+
+| 键 | 用途 |
+| :--- | :--- |
+| `site` | 要访问的配置站点键，包内为 `zerochan`；其它部署没有实测 |
+| `entry_query` | `entry_list` 的根路径查询：`p` 页码、`l` 每页条数、`s` 排序（`id` / `fav`） |
+| `tag_query` | 单标签过滤：`tags` 是一个标签名，传字符串即单标签路径 |
+| `multi_tag_query` | 多标签过滤：`tags` 是标签名数组，客户端逐个转义后用逗号连接成路径 |
+| `strict_query` | `tags` 配 `strict: true`，只匹配 primary 标签（客户端附加 `strict` 空标记） |
+| `entry_id` | `entry_show` 的条目 ID；详情路径形如 `/<id>` 加客户端的 `json` 查询标记 |
+| `pause_seconds` | 示例脚本两次调用之间的等待秒数，脚本自己 sleep，库不做限速 |
+
+`d`（尺寸）、`t`（人气取样窗口）、`c`（颜色）等可选查询值同样放在 `entry_query` 这类字典里原样透传，
+配置里没有默认值，客户端也不会补。两个匿名示例的命令见 [zerochan.md](zerochan.md#可运行示例)。
+`verification.zerochan` 的 `scripts` 列出要跑的示例、`pause_seconds` 是间隔，`default_query` 与
+`entry_query` / `tag_query` / `multi_tag_query` / `strict_query` / `entry_id` 是复核输入，
+`optional_queries` 是页码、排序窗口、尺寸与颜色这些可选参数的逐一复核清单；可运行示例的请求输入来自
+`examples.zerochan`。
+
 ## `request` 段
 
 | 键 | 类型 | 说明 |
@@ -183,11 +212,16 @@ e621ng 示例使用 `examples.e621`，查询参数是 Rails 顶层参数与 `sea
 
 支持范围由**引擎契约**决定，而不是由这份清单决定：Danbooru 引擎看
 [danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)，
-Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md](e621-api.md)。
+Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md](e621-api.md)，
+Zerochan 看 [zerochan-api.md](zerochan-api.md)。
 契约基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、
 `Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`），
 所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
 本库实现的是那份契约而不是某个站点的私有行为。按需增删站点键是正常用法，把清单当成“只支持这些站”会误判。
+
+Zerochan 是这条规则的**例外**：它没有公开的引擎源码可以引用，也没有上游 commit 或其它部署可供对照，
+契约基线是**官方 API 页面快照加真实请求实测**，逐条出处与排除项见
+[zerochan-contract-notes.md](zerochan-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
 
@@ -233,7 +267,7 @@ Moebooru 系站点（Moebooru 引擎）：
 > （`moebooru/app/controllers/post_controller.rb:338-362`），与这里的站点版本字符串无关，
 > 详见 [moebooru-api.md](moebooru-api.md)。
 
-Serika 系站点（四家族中的独立 Next.js 引擎）：
+Serika 系站点（五家族中的独立 Next.js 引擎）：
 
 | 键 | 类型 | 说明 |
 | :--- | :--- | :--- |
@@ -257,14 +291,27 @@ e621ng 系站点（e621ng 引擎，e621.net 与 e926.net 同引擎两站）：
 站点条目里没有 `password` / `hash_string` / `api_version`，客户端也没有路径版本开关。
 `safe_mode` 属于站点部署配置，不在上游仓库默认值内，本库不替站点补评级过滤。
 
-同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`），
+Zerochan 系站点（Zerochan 站点自有的只读 JSON API，**没有上游引擎源码**）：
+
+| 键 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `url` | string | 站点根地址，如 `https://www.zerochan.net` |
+
+**只有 `url` 一个字段**：`Zerochan` 构造时把共享传输的 `username` 置空，站点条目里没有 `username` /
+`api_key` / `password` / `hash_string` / `api_version`，本库不读也不要求这些键。
+API 页面要求请求头 `User-Agent` 含项目名与使用者自己的 Zerochan 用户名，这是**请求头约定而不是认证**：
+它取自共享的 `request.user_agent`（默认 `Anybooru/0.1.0.dev1`），本库不校验、不代替使用者填写；
+不满足时请求仍可能成功，但官方文档写明匿名项目有被封的风险。API 目前只读，条目里没有可用的凭据字段。
+官方文档写明限流 60 请求/分钟，本库不做客户端限速，示例两次调用之间的间隔由 `examples.zerochan.pause_seconds` 给出。
+
+同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`），
 选择哪个类由调用者决定。
 
 ### 样例清单里各条的实际状态
 
 清单是**样例**：每条的状态如下，别把「在清单里」等同于「支持」或「已测」。
 支持范围由引擎契约决定（[danbooru-api.md](danbooru-api.md)、[moebooru-api.md](moebooru-api.md)、
-[serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)）。
+[serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)、[zerochan-api.md](zerochan-api.md)）。
 
 | 键 | 引擎 | 本轮线上状态 |
 | :--- | :--- | :--- |
@@ -276,12 +323,14 @@ e621ng 系站点（e621ng 引擎，e621.net 与 e926.net 同引擎两站）：
 | `serika` | Serika | 见 [serika.md](serika.md) 与 [verification.md](verification.md) |
 | `e621` | e621ng | 匿名只读已实测：三个示例逐方法 `200`，另有 `post_count`、原始 `posts` 信封、`md5`、`only`、`v2` 五类返回形态复核；`related_tag` 匿名 `403` |
 | `e926` | e621ng | 匿名只读已实测：同一批示例在 e926 上同样 `200`，`post_count` 与 e621 同为 `240001` / `capped=true` |
+| `zerochan` | Zerochan | 见 [zerochan.md](zerochan.md) 与 [verification.md](verification.md)；本家族没有上游源码，状态按官方 API 页面快照与真实请求记录，不按源码对齐 |
 
 ### 怎么判断一个站点该用哪个类
 
 **库不做自动识别**，也没有探测引擎的代码路径，更不会失败后自动换类重试：`Danbooru`、`Moebooru`、
-`Serika`、`E621` 是四个并列的类，各自的传输、认证与参数编码按引擎写死，选错类不会有降级或回退。
-判断依据是你自己持有的信息：**站点自述**（页脚、仓库、上游路由）加上**一次真实响应契约**。
+`Serika`、`E621`、`Zerochan` 是五个并列的类，各自的传输、认证与参数编码按引擎写死，选错类不会有降级或回退。
+判断依据是你自己持有的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上**一次真实响应契约**
+（Zerochan 这类没有上游源码的站点，只能靠官方 API 页面与实测响应）。
 
 **路径形态不足以判定引擎**：
 
@@ -308,6 +357,12 @@ e621ng 系站点（e621ng 引擎，e621.net 与 e926.net 同引擎两站）：
 
 Serika 是另一个独立引擎，没有 Rails 的 `posts` 路径，只有自己的 `/api/v1` 与站内 `/api/*`，
 见 [serika.md](serika.md)。
+
+Zerochan 也是站点自有的路径形态：根路径 `/?p=1&json`（全部条目）、`/<标签>?json`（单标签）、
+`/<标签A>,<标签B>?json`（多标签）与 `/<id>?json`（单条目详情），取 JSON 靠查询串里的 `json` 标记——
+同一条 `/<id>` 不带 `json` 时返回的是 **HTML 页面**，所以「路径存在」不能说明拿到了 JSON 契约。
+公开 API 页面没有描述 Rails 的 `posts` 路径，也没有上游源码可对照，只能按页面与实测响应判断，
+见 [zerochan.md](zerochan.md)。
 
 选错类的表现是普通的 HTTP 错误或形状不对的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
 `404`（路径不存在）；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是带 `posts` 信封的对象、
@@ -338,10 +393,14 @@ Serika 是另一个独立引擎，没有 Rails 的 `posts` 路径，只有自己
 | `search_sample_size` / `tag_sample_size` | Danbooru | 相关标签查询的样本规模 |
 | `post_query` / `random_query` | e621ng | `post_list` / `post_random` 的顶层查询参数（`tags`、`limit`） |
 | `tag_query` / `artist_query` / `comment_query` / `pool_query` / `note_query` / `wiki_query` | e621ng | 各资源 `*_list` 的字典参数；评论的 `group_by` 也在字典里 |
-| `pause_seconds` | e621ng | 示例脚本两次调用之间的等待秒数，脚本自己 sleep |
+| `entry_query` / `tag_query` / `multi_tag_query` / `strict_query` | Zerochan | `entry_list` 的查询字典：根路径、单标签、多标签与 `strict` 过滤（见上文 Zerochan 示例表） |
+| `entry_id` | Zerochan | `entry_show` 的条目 ID |
+| `pause_seconds` | e621ng / Zerochan | 示例脚本两次调用之间的等待秒数，脚本自己 sleep |
 
 e621ng 段没有 `tags` / `limit` / `pages` 这些散键：查询一律放在 `*_query` 字典里，示例脚本用 `**` 展开。
-表中“Danbooru / Moebooru”项仅指这两个家族，Serika 与 e621ng 各自使用自己的查询字典配置。
+Zerochan 同样把查询放进 `entry_query` / `tag_query` / `multi_tag_query` / `strict_query` 这些字典，
+键就是站点自己的单字母参数或 `tags`，示例脚本原样透传。
+表中“Danbooru / Moebooru”项仅指这两个家族，Serika、e621ng 与 Zerochan 各自使用自己的查询配置。
 
 Moebooru 示例读 `comment_query`（评论流查询词，空串表示不做全文过滤）与 `preview_chars`（正文截断长度）；
 Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
@@ -352,6 +411,8 @@ Danbooru 示例读 `comment_body`。两者都可以按自己的脚本增删。
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
 .venv/Scripts/python.exe examples/danbooru/list_posts.py --config config/sites.json --site safebooru
 .venv/Scripts/python.exe examples/e621/list_posts.py --site e926
+.venv/Scripts/python.exe examples/zerochan/list_entries.py
+.venv/Scripts/python.exe examples/zerochan/filter_entries.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份；`--site` 显式覆盖站点名（省略该选项则取
@@ -392,5 +453,5 @@ client.config['examples']['danbooru']['tags']    # rating:g
 ## `verification` 段
 
 维护者做线上接口验证的脚本会在配置中额外使用一个 `verification` 段，它不是公开 API 的一部分，
-普通使用者不需要配置，文档也不对其逐键说明；Serika 与 e621ng 两个子段分别给这两轮验证列出要跑的
-示例、站点与调用间隔，具体命令见 [verification.md](verification.md)。
+普通使用者不需要配置，文档也不对其逐键说明；Serika、e621ng 与 Zerochan 三个子段分别给这几轮验证列出
+要跑的示例、要复核的查询输入与调用间隔，具体命令见 [verification.md](verification.md)。

@@ -69,7 +69,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 ## Serika 系站点
 
-Serika 是四家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
+Serika 是五家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
@@ -123,6 +123,16 @@ e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danboo
 
 `safe_mode` 由服务端决定（请求参数 `safe_mode`、账号设置或站点自己的部署配置），上游仓库默认值是关闭。
 本库不替站点补 `rating` 过滤，e926 那类安全内容站点的实际可见范围以该站配置为准。
+
+## Zerochan：User-Agent 身份标识
+
+`Zerochan` 只提供 GET JSON 读取，不实现 Basic、API key 或账号/cookie 登录。
+站点配置只有 `url`；身份标识来自 `request.user_agent`，也可用构造参数 `user_agent` 显式覆盖。
+Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Zerochan 用户名**。
+包内默认 `Anybooru/0.1.0.dev1` 只有项目标识，**不满足完整要求**；请在自己的配置中补入用户名。
+这不是登录认证，也不意味着获得额外权限；匿名请求可能成功，仍有被封禁的风险。
+没有用户名时库不会编造一个，也不会自动申请账号。来源和实测边界见
+[Zerochan 契约审计附注](zerochan-contract-notes.md)与[验证记录](verification.md#zerochan匿名只读实测2026-09-18)。
 
 ## 边界与未实测
 

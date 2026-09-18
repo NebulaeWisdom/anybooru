@@ -79,7 +79,7 @@ client = Danbooru('danbooru', config_file='config/sites.json')  # 再显式指�
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
+| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
 | `anybooru/anybooru.json` | 随包默认配置：站点、凭据、代理、超时、示例参数 |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 可运行示例脚本 |
@@ -98,3 +98,6 @@ git clone https://github.com/e621ng/e621ng.git
 Rails 三家的路由权威来源是各上游的 `config/routes.rb`，参数与权限见对应 `app/controllers/`
 及模型；e621ng 的帖子序列化位于 `app/blueprints/`。Serika 的独立路由结构与源码入口见
 [Serika 契约审计附注](serika-contract-notes.md)。所有上游参考都不随本包发布，也不参与提交。
+
+Zerochan 没有可供核对的上游引擎源码；契约只依据 API 页面快照与实际响应，不从其他引擎推断。
+出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。

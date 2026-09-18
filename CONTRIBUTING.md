@@ -6,15 +6,22 @@
 
 * [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown 文档。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng 四个家族的可运行示例。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan 五个家族的可运行示例。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
-上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
+前四个家族的上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
 
 * `danbooru/`：Danbooru 引擎（Ruby on Rails），路由见 `danbooru/config/routes.rb`。
 * `moebooru/`：Moebooru 引擎，路由见 `moebooru/config/routes.rb`。
 * `Serika.art/`：Serika 引擎，官方 v1 与站内路由见 `app/api/v1/**/route.ts` 与 `app/api/**/route.ts`。
 * `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`。
+
+**第五个家族 Zerochan 没有上游源码**：`zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，
+因此本仓库拿不到可引用的源码或行号。它的依据是**官方 API 页面快照 + 真实请求实测**，逐条出处、与实现的
+差异以及排除项（例如 `xml`、meta 标签、限流语义）记在
+[`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。改动这一个家族时请用真实请求核对
+行为，不要凭推测补参数或返回字段；也不要引用源码来给它“对齐依据”。四个源码家族与它是两条不同的依据路径，
+不存在“五个家族都已经过源码对齐”。
 
 ## 行为准则
 
@@ -44,8 +51,8 @@
 * 功能的详细说明
 * 为什么需要该功能、你会如何使用它、它能带来什么收益
 
-新增站点级用法时，请说明对应家族的上游引擎路由与控制器，而不是某个站点的私有行为；四家族的
-源码入口与依据见[契约审计附注导航](docs/index.md#按家族选文档)。
+新增站点级用法时，请说明对应家族的引擎路由与控制器（Zerochan 例外：它没有上游源码，请给出 API 页面出处
+与实测记录），而不是某个站点的私有行为；各家族的契约入口与依据见[契约审计附注导航](docs/index.md#按家族选文档)。
 
 ### 提交 Pull Request
 

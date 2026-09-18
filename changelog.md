@@ -40,6 +40,32 @@
   输入全部来自 `examples.e621`。
 - 需要成员权限的 `related_tag` / `related_tag_bulk` 成功路径仅源码对齐、未实测；本轮没有发写请求。
 
+### Zerochan 第五引擎
+
+- 新增 `Zerochan` 导出、`anybooru/zerochan.py` 与 `anybooru/api_zerochan.py`。**本家族没有上游引擎源码**：
+  `zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，所以依据是**官方 API 页面快照加真实请求
+  实测**，而不是源码对齐；逐条出处、文档与实现的差异和排除项记在
+  [docs/zerochan-contract-notes.md](docs/zerochan-contract-notes.md)。
+- 原生 API 为 **2 个只读方法**：`entry_list(tags=None, strict=False, **params)` 与 `entry_show(entry_id)`。
+  `entry_list` 省略 `tags` 走根路径、传字符串走单标签、传列表/元组把各标签名分别转义后用逗号连接；
+  `strict=True` 附加 `strict` 空标记。列表返回上游 `{"items": [...]}` 信封里的数组，详情原样返回对象，
+  不做形状猜测。
+- `request(path, *, params=None, envelope=None)` **恒为 `GET`**：API 目前只读，本面没有写方法；只发 JSON，
+  自动附加 `json` 查询标记而不是 `.json` 路径后缀，`xml` 不在覆盖范围内。查询值 `p` / `l` / `s` / `t` /
+  `d` / `c` 原样透传，客户端不补默认值。
+- 配置新增 `sites.zerochan`（**只有 `url` 一个字段**）、`examples.zerochan` 与 `verification.zerochan`。
+  `Zerochan` 构造时不带 `username` / `api_key`，站点条目里也没有这两个字段：官方要求的
+  “`User-Agent` 含项目名与自己的 Zerochan 用户名”仍走共享的 `request.user_agent`，属于配置项而不是认证，
+  默认值保持 `Anybooru/0.1.0.dev1`，使用者需要自己改成项目名与 Zerochan 用户名。
+- 官方 API 页面写明限流 60 请求/分钟；本库不做客户端限速，示例之间的间隔来自
+  `examples.zerochan.pause_seconds`。
+- `examples/zerochan/` 提供两个匿名只读示例：`list_entries.py`（条目列表与配置里的单条目详情）、
+  `filter_entries.py`（单标签、多标签与 `strict` 过滤），输入全部来自 `examples.zerochan`；
+  匿名只读请求与结果的逐条记录见 [docs/verification.md](docs/verification.md)。
+- Serika 的家族文档（`docs/serika.md`、`docs/serika-capabilities.md`）里“四家族/四个引擎客户端”的枚举
+  随本次新增改为五家族；README、`docs/index.md`、`docs/configuration.md`、CONTRIBUTING 与
+  `setup.cfg` 的家族表述同步。
+
 ### 配置与认证
 
 - 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `anybooru.json`，随包安装
@@ -125,7 +151,7 @@
 - 新增 e621ng 家族四份同构文档（`docs/e621.md` 客户端用法、`docs/e621-api.md` 方法参考、
   `docs/e621-capabilities.md` 能力入口、`docs/e621-contract-notes.md` 契约审计附注），并在
   `docs/index.md`、README、`docs/configuration.md`、`docs/authentication.md`、`docs/pagination.md`
-  与 changelog 中同步四类引擎的导航与能力表述。
+  与 changelog 中同步当时四类引擎的导航与能力表述。
 - 示例重写为从配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
 

@@ -78,7 +78,8 @@ Danbooru 引擎的 JSON 错误体形如：
 
 本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；
 Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见
-[e621ng 契约审计附注](e621-contract-notes.md)，不重复列出。
+[e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数、缺失条目或限流错误，
+不能套用其他家族的状态码；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。
 
 ### Danbooru 引擎
 

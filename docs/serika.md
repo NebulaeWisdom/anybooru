@@ -1,6 +1,6 @@
 # Serika 客户端用法
 
-`Serika` 与 `Danbooru` / `Moebooru` / `E621` 并列，是四个引擎客户端之一，访问 `serika.art` 及同引擎的
+`Serika` 与 `Danbooru` / `Moebooru` / `E621` / `Zerochan` 并列，是五个引擎客户端之一，访问 `serika.art` 及同引擎的
 自托管实例。它有两面：官方版本化 `/api/v1` 与站内未版本化 `/api/*` 的匿名只读；选哪面看
 [能力总览](serika-capabilities.md)，逐条签名看 [方法参考](serika-api.md)。
 

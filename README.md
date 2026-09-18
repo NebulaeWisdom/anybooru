@@ -1,9 +1,9 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问 Danbooru、Moebooru、Serika 与 e621ng 四类引擎的普通 Python API 客户端，
-不是某个站点的私有 SDK：一个原生方法对应一条 API 路由，参数按该引擎的规则编码，
+**Anybooru** 是访问 Danbooru、Moebooru、Serika、e621ng 与 Zerochan 五类引擎的普通 Python API 客户端，
+不是某个站点的私有 SDK：原生方法封装该家族的 API 路由，参数按该引擎的规则编码，
 服务端返回的数据字段原样给出，不拼装跨引擎的统一图库模型。
 
 部分原生方法按文档明确的契约拆开响应信封；需要保留完整 JSON 时可使用各家族的通用 `request()` 入口。
@@ -11,13 +11,17 @@
 
 本库按对应引擎的路由与控制器对齐契约，适用于运行相同引擎的实例，不只支持几个固定站点。
 Serika 是独立的 Next.js 引擎，其官方 v1 与前端私有的非版本化 API 分开标注；Danbooru、Moebooru、
-e621ng 是三个互不相同的 Rails 引擎，同名路由与相同的认证头不代表同一套契约。
+e621ng 是三个互不相同的 Rails 引擎，同名路由与相同的认证头不代表同一套契约。Zerochan 是**第五类**：
+站点自有的只读 JSON API，没有公开的引擎源码，契约依据是官方 API 页面快照加真实请求实测，
+与另外四类的对齐方式不同，见
+[docs/zerochan-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 
 本项目源自 [LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（上游最后一次发版是 2020 年的 4.2.2），
-但已经按上游引擎源码重写：新增 Serika 与 e621ng 两个家族、重构配置与文档结构、重做传输与错误处理。
+现已重写客户端并新增 Serika、e621ng 与 Zerochan 三个家族，重构配置、文档、传输与错误处理。
+前四个家族按上游引擎源码对齐，Zerochan 则依据 API 页面快照与真实响应。
 本仓库原名 `pybooru`，现名 `anybooru`；新的版本序列从 `0.1.0.dev1` 开始。
 除 changelog 里保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；原项目的 MIT 许可与
 版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
@@ -58,11 +62,21 @@ python -m venv .venv
   "sites": {
     "danbooru": { "url": "https://danbooru.donmai.us", "username": "", "api_key": "" },
     "e621": { "url": "https://e621.net", "username": "", "api_key": "" },
-    "e926": { "url": "https://e926.net", "username": "", "api_key": "" }
+    "e926": { "url": "https://e926.net", "username": "", "api_key": "" },
+    "zerochan": { "url": "https://www.zerochan.net" }
   },
   "examples": {
     "danbooru": { "site": "danbooru", "tags": "rating:g", "limit": 3, "post_id": 1, "comment_body": "示例评论" },
-    "e621": { "site": "e621", "post_query": { "tags": "rating:s", "limit": 2 }, "pause_seconds": 1 }
+    "e621": { "site": "e621", "post_query": { "tags": "rating:s", "limit": 2 }, "pause_seconds": 1 },
+    "zerochan": {
+      "site": "zerochan",
+      "entry_query": { "p": 1, "l": 2, "s": "id" },
+      "tag_query": { "tags": "Genshin Impact", "l": 2 },
+      "multi_tag_query": { "tags": ["Lumine", "Flower"], "l": 2 },
+      "strict_query": { "tags": "Genshin Impact", "strict": true, "l": 2 },
+      "entry_id": 3793685,
+      "pause_seconds": 1.2
+    }
   }
 }
 ```
@@ -87,7 +101,7 @@ client = Danbooru('danbooru', config_file='config/sites.json') # 读自己那份
 `api_version`）接入，见
 [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md#sites-段)。
 
-完整的默认配置样例（含四类引擎站点、`examples`、`verification` 段）见
+完整的默认配置样例（含五类引擎站点、`examples`、`verification` 段）见
 [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md)。
 
 ### 2. Danbooru 系站点
@@ -185,6 +199,43 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 完整方法、参数与返回形态见
 [docs/e621-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/e621-api.md)。
 
+### 6. Zerochan 系站点（zerochan.net）
+
+```python
+from anybooru import Zerochan
+
+# 'zerochan' 是 anybooru.json 中 sites 段的键名；该站点条目只有 url 一个字段。
+with Zerochan('zerochan') as client:
+    example = client.config['examples']['zerochan']
+
+    for entry in client.entry_list(**example['entry_query']):  # 返回 items 信封里的列表
+        print(entry['id'], entry['tag'], entry['md5'])
+
+    detail = client.entry_show(example['entry_id'])            # 原样返回详情对象
+    print(detail['id'], detail['primary'], detail['full'])
+```
+
+Zerochan 面只有 **2 个原生只读方法**：`entry_list(tags=None, strict=False, **params)` 与
+`entry_show(entry_id)`。`tags` 省略走根路径、传字符串走单标签、传列表/元组把各标签名分别转义后
+用逗号连接；`strict=True` 附加 `strict` 空标记（只匹配 primary 标签）。`p` / `l` / `s` / `t` / `d` / `c`
+等查询值原样透传，客户端不补默认值。`request(path, *, params=None, envelope=None)` **恒为 `GET`**，
+只发 JSON：自动附加 `json` 查询标记，而不是加 `.json` 路径后缀（`xml` 不在本库覆盖范围内）；
+API 目前只读，本面没有任何写方法。实测列表项字段为 `id` / `width` / `height` / `md5` / `thumbnail` /
+`source` / `tag` / `tags`，详情含 `small` / `medium` / `large` / `full` 等尺寸 URL——`md5` 与 `hash`
+都是服务端返回的字段，本库不计算校验值。
+
+按官方 API 页面，请求头 `User-Agent` **必须含项目名与自己的 Zerochan 用户名**；它来自
+`request.user_agent` 配置项，而不是认证凭据，`Zerochan` 构造参数没有 `username` / `api_key`。
+默认 `Anybooru/0.1.0.dev1` **未包含用户名，不满足完整要求**；请在自己的配置中补入。
+匿名请求即使成功，仍有被封禁的风险。文档限流为 60 请求/分钟，客户端不做限速，
+示例两次调用之间按 `examples.zerochan.pause_seconds` 暂停。
+
+本家族**没有公开的引擎源码**，契约依据是官方 API 页面快照加真实请求实测：逐条出处、文档与实现的
+差异和排除项见
+[docs/zerochan-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan-contract-notes.md)，
+方法参考见 [docs/zerochan-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan-api.md)，
+客户端用法见 [docs/zerochan.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan.md)。
+
 ## 文档
 
 文档全部为 `docs/` 下的中文 Markdown：
@@ -209,6 +260,9 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
 | [docs/e621.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/e621.md) | e621ng 客户端、`request()` 通用入口与信封规则 |
 | [docs/e621-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/e621-api.md) | e621ng 18 个原生只读方法、参数与返回形态 |
 | [docs/e621-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/e621-capabilities.md) | e621ng 能做什么、想做某件事该用哪个方法 |
+| [docs/zerochan.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan.md) | Zerochan 客户端、参数编码与 `request()` 通用入口 |
+| [docs/zerochan-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan-api.md) | Zerochan 两个原生方法、路由与返回形态 |
+| [docs/zerochan-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/zerochan-capabilities.md) | Zerochan 能做什么、想做某件事该用哪个方法 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 线上验证状态：已实测与未实测清单 |
 
@@ -225,6 +279,9 @@ e621ng 面按上游路由与控制器对齐，提供 **18 个原生只读方法*
   `random_image.py`（官方匿名图片字节），参数从 `examples.serika` 读取，不调用需 key 路由。
 - `examples/e621/`：`list_posts.py`（帖子列表、详情与随机帖）、`browse_resources.py`（标签、画师、
   评论、合集、笔记）、`wiki_pages.py`（wiki 列表与单个标题），匿名只读，参数从 `examples.e621` 读取。
+- `examples/zerochan/`：`list_entries.py`（条目列表与配置里的单条目详情）、`filter_entries.py`
+  （单标签、多标签与 `strict` 三种过滤），匿名只读，参数从 `examples.zerochan` 读取，两次调用之间按
+  `pause_seconds` 暂停。
 
 示例中的关键词、ID 等参数一律从配置文件的 `examples` 段读取，不在示例里硬编码站点、代理、
 分页。脚本默认读包内那份 `anybooru.json`，用 `--config` 可指向别处。
