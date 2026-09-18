@@ -13,12 +13,16 @@
 
 ### Serika 第三引擎
 
-- 新增 `Serika` 导出、Bearer 认证与官方 `data` / `meta` 信封拆封；users 目录的特殊信封单独处理。
-- 官方 v1 覆盖 15 个路由文件的全部 16 个动词；站内非版本化私有面提供 14 个匿名读方法，使用 `internal_` 前缀。
+- 新增 `Serika` 导出与 Bearer 认证。官方标准响应是 `{"success": true, "data": ..., "meta": {...}}`，方法直接
+  返回 `data`，整个 `meta` 留在 `last_call['meta']`；`api_index()` 没有 `data` 层（返回裸对象），
+  `user_list()` 把结果放在 `users` 数组、分页放在 `last_call['meta']['pagination']`，这两条单独处理。
+- 官方 v1 覆盖 15 个路由文件的全部 16 个动词；站内非版本化私有面提供 14 个匿名读方法，使用 `internal_`
+  前缀，原样返回站内 JSON（例如图片列表的 `{"success": true, "images": [...], "pagination": {...}}`）。
 - 共享传输新增独立 bytes 通路，随机图片原样返回字节；Danbooru / Moebooru 的 JSON 解码与 HTTP 错误处理保持原逻辑。
 - 配置新增 `sites.serika`（key 为空）、`examples.serika` 与 `verification.serika`；不实现站内 cookie 登录。
 - 三个匿名示例实际运行退出 0，共 8 个 HTTP 200；所有需 key 的 v1 方法仅源码对齐，未实测成功路径。
-- 文档区分官方 v1 / 站内私有 / 需 key 未实测，并记录内部 id 与 post_id、未知标签分支、限流 code 与 PNG 占位响应等契约差异。
+- 文档区分官方 v1 / 站内私有 / 需 key 未实测，并记录内部 id 与 post_id（实测同一张图 `id=7323837`、
+  `post_id=4237836`）、未知标签分支、限流 code 与 PNG 占位响应等契约差异。
 
 ### e621ng 第四引擎
 
@@ -29,9 +33,10 @@
   标签、画师、评论、合集、笔记、wiki 各自的 `*_list` / `*_show`，以及 `related_tag` /
   `related_tag_bulk`。**本面没有原生写方法**：上游的写路由要用通用 `request()` 显式调用，本库不把
   e621ng 的全部路由都包一遍。
-- 信封拆封按上游请求分支决定，是显式参数而不是形状猜测：列表拆 `posts`、详情拆 `post`、
-  `md5` 查询拆 `post`；`v2=true` 或带 `only` 的请求上游本身不套信封，客户端按同一分支不拆。
-  `request()` 保持原始正文返回，只有显式传入 `envelope` 才拆，键不存在就抛错，不回退到别的形状。
+- 返回哪一层由**请求参数**决定，不是猜响应形状：列表请求返回 `{"posts": [...]}`、详情与 `md5` 查询返回
+  `{"post": {...}}`，方法直接把里面的数组或对象给你；`v2=true` 或带 `only` 的请求上游本身不套外壳，
+  客户端按同一分支原样返回整个正文。通用 `request()` 默认也返回原始正文，只有显式传
+  `envelope='posts'` / `envelope='post'` 才取那一层，键不存在就抛错，不回退到别的形状。
 - 认证与 Danbooru 同形（HTTP Basic，用户名 + API key），但是另一套引擎：帖子负载是引擎自己的嵌套
   结构（`file` / `preview` / `sample` / `score` / `tags`），没有 `tag_string` / `file_url` / `media_asset`，
   评级词表是 `rating:s` / `rating:q` / `rating:e`。同名路由与相同认证头不代表同一套契约。
@@ -48,11 +53,13 @@
   [docs/zerochan-contract-notes.md](docs/zerochan-contract-notes.md)。
 - 原生 API 为 **2 个只读方法**：`entry_list(tags=None, strict=False, **params)` 与 `entry_show(entry_id)`。
   `entry_list` 省略 `tags` 走根路径、传字符串走单标签、传列表/元组把各标签名分别转义后用逗号连接；
-  `strict=True` 附加 `strict` 空标记。列表返回上游 `{"items": [...]}` 信封里的数组，详情原样返回对象，
-  不做形状猜测。
-- `request(path, *, params=None, envelope=None)` **恒为 `GET`**：API 目前只读，本面没有写方法；只发 JSON，
-  自动附加 `json` 查询标记而不是 `.json` 路径后缀，`xml` 不在覆盖范围内。查询值 `p` / `l` / `s` / `t` /
-  `d` / `c` 原样透传，客户端不补默认值。
+  `strict=True` 附加空的 `strict` 查询值。列表返回服务端 `{"items": [...]}` 里的数组（每项 `id` /
+  `width` / `height` / `md5` / `thumbnail` / `source` / `tag` / `tags`），详情返回单个条目对象
+  （`small` / `medium` / `large` / `full` 四种尺寸地址、`width` / `height` / `size` / `hash` / `source` /
+  `primary` / `tags`），不做形状猜测。
+- `request(path, *, params=None, envelope=None)` **恒为 `GET`**：API 目前只读，本面没有写方法；只取 JSON，
+  在查询串上自动附加空的 `json` 值（`?json=`）而不是追加 `.json` 路径后缀，`xml` 不在覆盖范围内。
+  查询值 `p` / `l` / `s` / `t` / `d` / `c` 原样传给服务端，客户端不补默认值。
 - 配置新增 `sites.zerochan`（**只有 `url` 一个字段**）、`examples.zerochan` 与 `verification.zerochan`。
   `Zerochan` 构造时不带 `username` / `api_key`，站点条目里也没有这两个字段：官方要求的
   “`User-Agent` 含项目名与自己的 Zerochan 用户名”仍走共享的 `request.user_agent`，属于配置项而不是认证，
@@ -154,6 +161,9 @@
   与 changelog 中同步当时四类引擎的导航与能力表述。
 - 示例重写为从配置 `examples` 段取参数，不再硬编码站点、代理与分页；
   删除引用旧接口的历史示例脚本。
+- README 与 CONTRIBUTING 重写为逐家族可复制执行的用例：字面参数、真实请求 URL 与返回字段写在代码旁，
+  不再用配置查找遮蔽参数；CONTRIBUTING 补齐五个家族各自的依据路径（四个上游源码家族与无源码的 Zerochan）、
+  issue / PR 需要提供的信息（`last_call['url']`、状态码、环境）以及文档写作规则。
 
 ### 工程整理
 
@@ -186,10 +196,17 @@
   [docs/configuration.md](docs/configuration.md#怎么判断一个站点该用哪个类)。
 - e621ng 面的匿名只读由 **37 次真实 GET** 覆盖（36×200、1×403）：三个示例在 e621.net 与 e926.net
   各跑一遍（6 条命令共 30 次调用，全部退出 0），另复核 `post_count`（两站同为 `240001` /
-  `capped=true`）、原始 `posts` 信封、`md5` 单帖对象、`only=` 只拆信封不筛字段、`v2=true` 的新蓝图，
-  以及 `related_tag` 匿名 `403`。逐条命令与摘要见 [docs/verification.md](docs/verification.md)。
+  `capped=true`）、原始 `{"posts": [...]}` 列表、`md5` 查询返回的单个 `post` 对象、`only=` 只是不再套
+  `posts` 外壳且**不筛字段**、`v2=true` 的新蓝图，以及 `related_tag` 匿名 `403`。逐条命令与摘要见
+  [docs/verification.md](docs/verification.md)。
 - e621ng 的成员路径（`related_tag` / `related_tag_bulk`）、全部写动作与邻接只读路由只有源码依据；
   本轮没有发过写请求，也没有新增或保留测试文件，未运行项目测试套件、formatter、lint 或构建。
+- Zerochan 面由 **21 次匿名 GET** 覆盖（20×200、1×500）：16 次逐端点与可选参数调用（`p` / `l` / `s` /
+  `t` / `d` / `c` 各覆盖一次，其中 `s=fav&t=0` 返回 `500`，正文是不完整 JSON），两个示例另发出 5 次
+  `200`。不传 `l` 时观察到 48 条列表项；`l=2`、单标签 / 多标签 / `strict`、`entry_show(3793685)`
+  （`primary: Yukihana Lamy`、`2976×4055`、`size: 5706752`）都有真实响应。逐条 URL 与摘要见
+  [docs/verification.md](docs/verification.md)；`xml` 格式、合规用户名 UA、meta 标签拒绝、限流/封禁响应
+  与其它参数组合未实测，写操作与 HTML 页面不在本库能力内。
 - 其他 Danbooru 系站点、站点可选能力（archive 版本历史、IQDB、上传链路）未验证。
 
 以下为上游 Pybooru 的历史发布记录。

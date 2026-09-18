@@ -1,3 +1,5 @@
+# 只构建 sdist 与 wheel 并作为构建产物留档：本文件不发布到 PyPI、不读取任何发布 token，
+# 推送、PR 与手动触发都一样。需要发布时必须先单独决定项目名、凭据与触发方式。
 name: Build distributions
 
 on:

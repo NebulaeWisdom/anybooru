@@ -1,83 +1,113 @@
 # 向 Anybooru 贡献
 
-感谢你有兴趣参与贡献！
+感谢你有兴趣参与贡献！本文件说明这个仓库的代码约定、文档约定和验收方式；动手前请先读完。
 
 ## 资源
 
-* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown 文档。
+* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，五个家族各四份（客户端用法 / 方法参考 /
+  能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan 五个家族的可运行示例。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan 五个家族共 20 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
-前四个家族的上游引擎源码是本项目的接口契约依据，本地只读参考，**不要修改、不要提交**：
+## 契约依据（只读参考，不要修改、不要提交）
 
-* `danbooru/`：Danbooru 引擎（Ruby on Rails），路由见 `danbooru/config/routes.rb`。
-* `moebooru/`：Moebooru 引擎，路由见 `moebooru/config/routes.rb`。
-* `Serika.art/`：Serika 引擎，官方 v1 与站内路由见 `app/api/v1/**/route.ts` 与 `app/api/**/route.ts`。
-* `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`。
+前四个家族的上游引擎源码是本项目的接口契约依据，它们各自是独立仓库，本地只读：
+
+* `danbooru/`：Danbooru 引擎（Ruby on Rails），路由见 `danbooru/config/routes.rb`，控制器在
+  `danbooru/app/controllers/`，默认配置在 `danbooru/config/danbooru_default_config.rb`。
+* `moebooru/`：Moebooru 引擎，路由见 `moebooru/config/routes.rb`，帮助文字在
+  `moebooru/app/views/help/api.en.html.erb`（帮助页有历史遗留的错误说法，以路由与控制器为准）。
+* `Serika.art/`：Serika 引擎，官方 v1 在 `app/api/v1/**/route.ts`，站内面在 `app/api/**/route.ts`。
+* `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`，帖子序列化在 `app/blueprints/`。
 
 **第五个家族 Zerochan 没有上游源码**：`zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，
-因此本仓库拿不到可引用的源码或行号。它的依据是**官方 API 页面快照 + 真实请求实测**，逐条出处、与实现的
-差异以及排除项（例如 `xml`、meta 标签、限流语义）记在
-[`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。改动这一个家族时请用真实请求核对
-行为，不要凭推测补参数或返回字段；也不要引用源码来给它“对齐依据”。四个源码家族与它是两条不同的依据路径，
-不存在“五个家族都已经过源码对齐”。
-
-## 行为准则
-
-**互相尊重，保持愉快！**
+因此本仓库拿不到可引用的源码或行号。它的依据是**官方 API 页面快照 + 真实请求实测**，逐条出处、与实现
+的差异以及排除项（`xml` 格式、meta 标签、限流语义）记在
+[`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。改动这个家族请用真实请求核对行为，
+不要凭推测补参数或返回字段，也不要给它安一个并不存在的上游源码。四个源码家族与它是两条不同的依据路径。
 
 ## 我能做什么？
 
 ### 报告 Bug
 
-报告前请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被提交。Bug 使用
-**Bug report** 模板创建：
+报告前请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被提交；
+Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包含：
 
-* 描述性的标题
-* 期望行为
-* 实际行为
-* 复现步骤（含代码）
-* 环境信息（Anybooru 版本、Python 版本、站点、操作系统）
+* 标题里写明家族或类名（例如 `Zerochan.entry_list`、`E621.post_list`）；
+* 期望行为与实际行为：贴出**完整调用**（类名、字面实参、`--config` / `--site` 取值）与它返回的东西；
+* 真实请求地址：`client.last_call['url']` 是含查询串的最终 URL，例如
+  `https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=3`——它比“请求失败”有用得多；
+* HTTP 状态码与正文：`AnybooruHTTPError` 带 `http_code` / `url` / `body` / `data`，`AnybooruAPIError`
+  表示 2xx 但正文不是 JSON；
+* 环境：Anybooru 版本（`anybooru.__version__`）、Python 版本、站点与操作系统。
 
-> 请勿在 issue、示例或提交中粘贴真实账号、API key、密码或代理凭据。
+> 请勿在 issue、示例或提交中粘贴真实账号、API key、密码、cookie 或代理凭据；也不要粘贴整份私有配置文件，
+> 只保留出问题的 `sites` / `examples` 片段。
 
 ### 功能请求
 
-请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被请求。功能请求使用
-**Feature request** 模板创建：
+请先搜索 [已有 issue](https://github.com/NebulaeWisdom/anybooru/issues)，确认尚未被请求；功能请求使用
+**Feature request** 模板创建，写明：
 
-* 描述性的标题
-* 功能的详细说明
-* 为什么需要该功能、你会如何使用它、它能带来什么收益
-
-新增站点级用法时，请说明对应家族的引擎路由与控制器（Zerochan 例外：它没有上游源码，请给出 API 页面出处
-与实测记录），而不是某个站点的私有行为；各家族的契约入口与依据见[契约审计附注导航](docs/index.md#按家族选文档)。
+* 属于哪个家族与哪个引擎，以及你期望的调用形态（方法名、参数、返回值里你要用到的字段）；
+* 依据：Danbooru / Moebooru / e621ng / Serika 请给出上游路由与控制器位置（文件与行号更好）；
+  Zerochan 请给出 API 页面出处与实测响应。**不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
 
-1. 先按独立目的规划提交边界：每个 commit 只承担一个明确目的，便于单独审查、回退和挑选；
-   存在依赖时按依赖顺序拆成多个小提交，不要把多个可分离的改动攒成一个大提交。
-2. 填写 [Pull Request 模板](.github/pull_request_template.md)。
-3. 遵循下方[代码风格](#代码风格)。
-4. 提交前在本地准备环境并冒烟验证：
+1. 先按独立目的规划提交边界：每个 commit 只承担一个明确目的（例如“修正 Moebooru 合集写操作的动词”、
+   “补齐 e621 标签的搜索字段”），便于单独审查、回退和挑选；存在依赖时按依赖顺序拆成多个小提交，
+   不要把多个可分离的改动攒成一个大提交。
+2. 填写 [Pull Request 模板](.github/pull_request_template.md)，在“如何验证”里写清你实际执行的命令与输出。
+3. 遵循下方[代码风格](#代码风格)与[文档风格](#文档风格)。
+4. 在本地准备环境并真跑一次改动涉及的路径：
 
    ```bash
    python -m venv .venv
    .venv/Scripts/python.exe -m pip install -e .        # Windows
    .venv/bin/python -m pip install -e .                # Linux / macOS
+
+   .venv/Scripts/python.exe examples/danbooru/list_posts.py
+   .venv/Scripts/python.exe examples/zerochan/list_entries.py
    ```
 
-   示例脚本从配置文件读取参数（默认是包内 `anybooru/anybooru.json`，见 [docs/configuration.md](docs/configuration.md)）。
+   示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
+   代理等请求设置来自 `request`，凭据来自 `sites`，示例查询值来自 `examples`。
+   示例按需真跑：运行过的记录命令、URL、状态与返回；没有运行的照实标“未实测”，不要求为补齐数量逐一请求。
+5. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
+   “未执行、未实测”，并写清依据的源码位置与请求体形状；不要为了凑验证去发写请求。
 
 ## 代码风格
 
-* **[PEP-8](https://peps.python.org/pep-0008/)**（不严格要求），
-* **[Google Python Docstrings](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)**。
+* [**PEP-8**](https://peps.python.org/pep-0008/)（不严格要求）与
+  [**Google Python Docstrings**](https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings)。
+* 库实现与仓库可运行示例的站点、凭据、代理、超时、User-Agent 和查询输入来自配置，不用环境变量注入。
+  **教学文档不同**：要直接写字面参数，不能让读者再查配置键才能知道这行代码做什么。
+* 不做隐式兜底、不自动重试、不猜站点上限、不写本地参数校验；服务端返回什么就原样暴露什么，
+  错误保持原状态码与正文。
+* 一个家族的客户端只包装**该引擎自己**的路由：不把别的引擎的参数名、默认值或返回结构搬过来，
+  也不为旧行为保留别名或垫片。
+* 新增方法要给出上游依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应），
+  并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 
-其他约定：
+## 文档风格
 
-* 站点地址、凭据、代理、超时、示例参数一律放在配置文件 `anybooru/anybooru.json`，禁止硬编码在代码里，
-  也禁止用环境变量注入。
-* 不做隐式兜底、不自动重试、不猜站点上限；服务端返回什么就原样暴露什么。
-* 文档改动请同时更新 `docs/` 下对应的中文 Markdown。
+* **第一标准是使用者看得懂、抄得走**：只复述方法名的句子（`post_list` → “获取帖子列表”）不合格；
+  每段要给出读者从方法名猜不到的信息——具体参数与取值、真实 URL、返回字段、状态码、数量或边界。
+* 每个方法写清“给什么 → 返回什么”，并且用**真实字段名**说。例子：`entry_show(3793685)` 给一张图的编号，
+  返回这张图的 `small` / `medium` / `large` / `full` 四种尺寸地址、`width` / `height`、`size`、
+  `source`、`primary`（primary 标签名）与 `tags`。
+* **参数表必须写全**：名称、类型与取值枚举、含义、不传时的行为（上游没写就写“未规定”）、一个可以直接
+  复制的例子。不要用抽象的 `**params` 描述代替已知参数表。
+* **教学代码块必须自足**：自己 `import`，用 `with Class('site') as client:`，参数写字面值，例如
+  `client.entry_list(tags='Genshin Impact', strict=True, l=2)`；不要写 `client.config['examples'][...]`
+  这类间接查找，也不要在代码里加默认值提取或模拟请求来制造成功。变量名要等于它装的内容
+  （`primary_tag_entries = ...`，不是 `strict = ...`）。
+* 需要凭据、写操作或无法匿名执行的代码单独列出并标注**未执行 / 未实测**，参数、请求体与源码依据仍要写全；
+  不能因为跑不了就把方法删掉，也不能伪称验证过。
+* 文档按文件分工，同一件事不写四遍：`docs/<家族>.md` 客户端怎么用、`docs/<家族>-api.md` 全部方法的参数与
+  返回字段、`docs/<家族>-capabilities.md` 想做什么 → 用哪个方法、`docs/<家族>-contract-notes.md` 出处与
+  排除项；真实执行记录集中写在 `docs/verification.md`。
+* 对外发布的文档与产物不得出现本机信息：代理地址、出口 IP、绝对路径、临时目录与本地证据文件名一律写成
+  中性表述或占位符。
