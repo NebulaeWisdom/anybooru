@@ -322,7 +322,7 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 | `examples/serika/` | `service_info.py`（官方索引、统计、用户目录）、`browse.py`（站内图片列表与详情、标签、画师）、`random_image.py`（读官方随机图片字节并打印 Content-Type，不落盘）——三个匿名只读脚本 |
 | `examples/e621/` | `list_posts.py`（帖子列表、单帖、随机帖）、`browse_resources.py`（标签、画师、评论、合集、笔记）、`wiki_pages.py`（wiki 列表与按标题取页）——三个匿名只读脚本 |
 | `examples/zerochan/` | `list_entries.py`（条目列表与单条目详情）、`filter_entries.py`（单标签、多标签、`strict` 三种过滤）——两个匿名只读脚本，调用之间按 `pause_seconds` 暂停 |
-| `examples/gelbooru/` | `autocomplete.py`（标签自动补全，打印建议条数与全部建议、`last_call` 的真实 URL 与状态码）——一个匿名只读脚本；dapi 的 5 个方法需要账号，没有示例，也没有发过请求 |
+| `examples/gelbooru/` | `autocomplete.py`（标签自动补全，打印建议条数与全部建议、`last_call` 的真实 URL 与状态码）——一个匿名只读脚本；dapi 的 5 个方法需要账号，没有成功调用示例，匿名拒绝见验证记录 |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -335,6 +335,32 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 
 哪些脚本真的跑过、每条命令的状态码与返回摘要，见
 [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md)。
+
+## 轻量匿名冒烟检查
+
+安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
+列表条数、分页、详情编号和预期错误。文件名对应 `sites`：`serika`、`danbooru`、`safebooru`、
+`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`。
+
+```bash
+python test/danbooru.py
+python test/zerochan.py --config <你的配置文件>
+python test/gelbooru.py --config <你的配置文件>
+```
+
+全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
+不重试、不跟随重定向、不切换站点。每站严格少于 10 次请求：Serika 最多 5 次、Gelbooru 最多 6 次、
+其余各最多 4 次；前置列表失败时跳过依赖的详情/翻页，不补发请求。两次请求之间按
+`smoke.pause_seconds` 暂停（默认 1.2 秒）。不依赖测试框架，不在 CI 自动运行。
+
+每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段/条数，最后汇总实际尝试次数；
+退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是
+**预期拒绝**，不是失败；网络失败也不会伪装成站点变化。这里不是全 API 覆盖或长期可用性保证。
+
+省略 `--config` 时读包内默认配置（不含代理）；若所在网络需要代理，必须用 `--config` 指向自己的
+完整配置。复制最新版 `anybooru/anybooru.json`，保留其中的 `smoke` 段，仅调整自己的 `request` 设置；
+不会合并旧配置或读取环境变量。参数说明见[配置文档](docs/configuration.md#smoke-段)，
+一次完整执行的结果见[验证记录](docs/verification.md)。脚本随仓库与源码分发包提供，不放入 wheel。
 
 ## 贡献
 

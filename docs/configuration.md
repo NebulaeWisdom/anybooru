@@ -493,6 +493,26 @@ with Danbooru('danbooru') as client:
     print(client.last_call)                               # {}，还没发过请求；发过之后是最近一次的 URL 与状态码
 ```
 
+## `smoke` 段
+
+只供仓库 `test/<站点>.py` 的匿名冒烟脚本使用，不改变库的请求行为；普通 API 调用不读取这段。
+脚本与完整默认参数都随源码分发，完整内容见 [`anybooru/anybooru.json`](../anybooru/anybooru.json)。
+自备覆盖配置必须保留这段；`--config` 读取整份文件，不和包内默认值合并。
+
+| 键 | 默认值与用途 |
+| :--- | :--- |
+| `pause_seconds` | `1.2`；上次请求结束后等待这些秒数，再发下一次 |
+| `limit` / `pages` | `2` / `[1, 2]`；每页只取两条，页码检查只使用这两个页码；Danbooru/e621 改用首批末项的 `b<id>` 游标 |
+| `missing_id` | `0`；Danbooru/e621 的缺失帖子、Moebooru 的缺失评论、Serika 的缺失图片 |
+| `danbooru.tags` / `moebooru.tags` / `e621.tags` | `rating:g` / `rating:s` / `rating:s`；正常读取的安全评级过滤 |
+| `moebooru.api_version` | `2`；检查带 `posts` 数组的返回对象，不误要求未请求的 tags/pools/votes |
+| `serika.ratings` / `serika.sort` | `safe` / `newest`；站内图片列表的评级与排序 |
+| `zerochan.sort` / `zerochan.missing_id` | `id` / `999999999`；编号倒序与缺失条目边界 |
+| `gelbooru` | `term='blue'`、`type='tag'`、`limit=3`；只检查标签建议结构，不把 limit 当返回条数上限；`post_id=1` / `last_id=0` 供两个匿名拒绝调用 |
+
+这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见
+[README](../README.md#轻量匿名冒烟检查)；真实结果只记在 [verification.md](verification.md)。
+
 ## `verification` 段
 
 维护者做线上验证时用的一段输入，**不属于公开 API**，普通使用者可以整段删掉。它按家族分组，记录的是

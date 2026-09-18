@@ -125,6 +125,18 @@
       "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
     }
   },
+  "smoke": {
+    "pause_seconds": 1.2,
+    "limit": 2,
+    "pages": [1, 2],
+    "missing_id": 0,
+    "danbooru": {"tags": "rating:g"},
+    "moebooru": {"tags": "rating:s", "api_version": 2},
+    "serika": {"ratings": "safe", "sort": "newest"},
+    "e621": {"tags": "rating:s"},
+    "zerochan": {"sort": "id", "missing_id": 999999999},
+    "gelbooru": {"term": "blue", "type": "tag", "limit": 3, "post_id": 1, "last_id": 0}
+  },
   "verification": {
     "serika": {
       "scripts": [

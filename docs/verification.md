@@ -813,3 +813,117 @@ python <匿名只读执行脚本> --config <配置文件> --input <请求清单>
 
 [客户端用法](gelbooru.md) · [方法参考](gelbooru-api.md) · [网页可达性](gelbooru-capabilities.md#网页入口本库不封装) · [依据与差异](gelbooru-contract-notes.md)
 
+
+## 轻量匿名冒烟脚本：十站单轮执行（2026-09-18）
+
+新增的 `test/<站点>.py` 各执行一次，没有为了让结果变绿而重跑。全部使用项目虚拟环境，按
+`smoke.pause_seconds=1.2` 在请求之间暂停；命令里的 `<配置文件>` 是本机覆盖配置的公开占位。
+所有构造器显式匿名（Zerochan 本来就没有凭据参数），十条命令均成功导入、读取配置和构造客户端。
+
+**合计 39 次 GET，全部收到 HTTP 响应：23×200、7×预期404、5×预期401、2×403、2×301。**
+8 个脚本退出 0，2 个退出 1；所有 stderr 均为空。脚本不重试、不跟随重定向、不登录、不写入、
+不下载媒体，实际请求数全部低于每文件 10 次上限。
+
+### 命令、次数与退出码
+
+| 实际脚本命令（配置路径以占位符表示） | 请求数 | 退出码 | 本轮结果 |
+| :--- | ---: | ---: | :--- |
+| `.venv/Scripts/python.exe test/gelbooru.py --config <配置文件>` | 6 | 0 | 1×200、5×401 |
+| `.venv/Scripts/python.exe test/serika.py --config <配置文件>` | 5 | 0 | 4×200、1×404 |
+| `.venv/Scripts/python.exe test/zerochan.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/danbooru.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/safebooru.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/e621.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/e926.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/konachan.py --config <配置文件>` | 2 | 1 | 2×403 |
+| `.venv/Scripts/python.exe test/yandere.py --config <配置文件>` | 4 | 0 | 3×200、1×404 |
+| `.venv/Scripts/python.exe test/sakugabooru.py --config <配置文件>` | 2 | 1 | 2×301 |
+
+### 逐检查的真实 URL 与输出
+
+下列摘要来自脚本 stdout；动态 ID、计数和文件大小只是此次快照。`setup` 不发 HTTP，未计入次数。
+Konachan 与 Sakugabooru 的列表失败后，各自跳过了详情与第二页，四个 SKIP 均没有发请求。
+
+| 站点 / 检查 | 真实 URL | HTTP / 判定 | 观察到的字段或条数 |
+| :--- | :--- | :--- | :--- |
+| gelbooru / `autocomplete` | `https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2` | HTTP 200 / PASS | `count=10 requested_limit=3 first=blue_eyes post_count='2817625'; type:str,label:str,value:str,post_count:str,category:str` |
+| gelbooru / `posts.anonymous_denied` | `https://gelbooru.com/index.php?limit=2&s=post&q=index&page=dapi&json=1` | HTTP 401 AnybooruHTTPError (expected) / PASS | `anonymous access denied as expected; body_chars=0 data=None` |
+| gelbooru / `tags.anonymous_denied` | `https://gelbooru.com/index.php?limit=2&s=tag&q=index&page=dapi&json=1` | HTTP 401 AnybooruHTTPError (expected) / PASS | `anonymous access denied as expected; body_chars=0 data=None` |
+| gelbooru / `users.anonymous_denied` | `https://gelbooru.com/index.php?limit=2&s=user&q=index&page=dapi&json=1` | HTTP 401 AnybooruHTTPError (expected) / PASS | `anonymous access denied as expected; body_chars=0 data=None` |
+| gelbooru / `comments.anonymous_denied` | `https://gelbooru.com/index.php?post_id=1&s=comment&q=index&page=dapi&json=1` | HTTP 401 AnybooruHTTPError (expected) / PASS | `anonymous access denied as expected; body_chars=0 data=None` |
+| gelbooru / `deleted.anonymous_denied` | `https://gelbooru.com/index.php?last_id=0&s=post&q=index&deleted=show&page=dapi&json=1` | HTTP 401 AnybooruHTTPError (expected) / PASS | `anonymous access denied as expected; body_chars=0 data=None` |
+| serika / `api_index` | `https://serika.art/api/v1` | HTTP 200 / PASS | `name:str,version:str; name=SerikaART API version=1.0.0` |
+| serika / `internal_image_list page 1` | `https://serika.art/api/images?page=1&limit=2&ratings=safe&sort=newest` | HTTP 200 / PASS | `success:bool,images:list,pagination:dict; images=2 post_ids=[4237836, 4237835] pagination:page:int,limit:int,total:int,pages:int,has_next:bool total=3499663 pages=1749832 has_next=True` |
+| serika / `internal_image_show first post_id` | `https://serika.art/api/images/4237836` | HTTP 200 / PASS | `id:int,post_id:int,rating:str,url:str; id=7323837 post_id=4237836 rating=safe url=https://cdn.serika.art/uploads/1788013605888-1788013605888-1q2b2g-danbooru-12074741.png` |
+| serika / `internal_image_list page 2` | `https://serika.art/api/images?page=2&limit=2&ratings=safe&sort=newest` | HTTP 200 / PASS | `success:bool,images:list,pagination:dict; images=2 post_ids=[4237834, 4237833] pagination:page:int,limit:int,total:int,pages:int,has_next:bool total=3499663 pages=1749832 has_next=True` |
+| serika / `internal_image_show missing id` | `https://serika.art/api/images/0` | HTTP 404 AnybooruHTTPError (expected) / PASS | `AnybooruHTTPError; body_chars=43 data=dict` |
+| zerochan / `entry_list page 1` | `https://www.zerochan.net/?p=1&l=2&s=id&json=` | HTTP 200 / PASS | `entries=2 page=1 ids=[4725835, 4725833]` |
+| zerochan / `entry_show first id` | `https://www.zerochan.net/4725835?json=` | HTTP 200 / PASS | `id:int,primary:str,full:str,width:int,height:int,size:int,tags:list; id=4725835 primary=Phoenix (Zenless Zone Zero) size=3299328 full=https://static.zerochan.net/Phoenix.%28Zenless.Zone.Zero%29.full.4725835.png` |
+| zerochan / `entry_list page 2` | `https://www.zerochan.net/?p=2&l=2&s=id&json=` | HTTP 200 / PASS | `entries=2 page=2 ids=[4725832, 4725829]` |
+| zerochan / `entry_show missing id` | `https://www.zerochan.net/999999999?json=` | HTTP 404 AnybooruHTTPError (expected) / PASS | `AnybooruHTTPError; body_chars=6 data=dict` |
+| danbooru / `post_list` | `https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=2` | HTTP 200 / PASS | `ids=[12213214, 12213213] rating=g` |
+| danbooru / `post_show` | `https://danbooru.donmai.us/posts/12213214.json` | HTTP 200 / PASS | `id:int,rating:str,tag_string:str tags=28` |
+| danbooru / `post_list_cursor` | `https://danbooru.donmai.us/posts.json?tags=rating%3Ag&limit=2&page=b12213213` | HTTP 200 / PASS | `cursor=12213213 ids=[12213212, 12213209]` |
+| danbooru / `post_show_missing` | `https://danbooru.donmai.us/posts/0.json` | HTTP 404 AnybooruHTTPError (expected) / PASS | `success=false error=ActiveRecord::RecordNotFound` |
+| safebooru / `post_list` | `https://safebooru.donmai.us/posts.json?tags=rating%3Ag&limit=2` | HTTP 200 / PASS | `ids=[12213214, 12213213] rating=g` |
+| safebooru / `post_show` | `https://safebooru.donmai.us/posts/12213214.json` | HTTP 200 / PASS | `id:int,rating:str,tag_string:str tags=28` |
+| safebooru / `post_list_cursor` | `https://safebooru.donmai.us/posts.json?tags=rating%3Ag&limit=2&page=b12213213` | HTTP 200 / PASS | `cursor=12213213 ids=[12213212, 12213209]` |
+| safebooru / `post_show_missing` | `https://safebooru.donmai.us/posts/0.json` | HTTP 404 AnybooruHTTPError (expected) / PASS | `success=false error=ActiveRecord::RecordNotFound` |
+| e621 / `post_list` | `https://e621.net/posts.json?tags=rating%3As&limit=2` | HTTP 200 / PASS | `ids=[6715854, 6715833] rating=s` |
+| e621 / `post_show` | `https://e621.net/posts/6715854.json` | HTTP 200 / PASS | `id:int,rating:str file=png 2048x2048 size=2452927 url=set tags=9 categories, general=33` |
+| e621 / `post_list_cursor` | `https://e621.net/posts.json?tags=rating%3As&limit=2&page=b6715833` | HTTP 200 / PASS | `cursor=6715833 ids=[6715826, 6715823]` |
+| e621 / `post_show_missing` | `https://e621.net/posts/0.json` | HTTP 404 AnybooruHTTPError (expected) / PASS | `success=false reason=not found` |
+| e926 / `post_list` | `https://e926.net/posts.json?tags=rating%3As&limit=2` | HTTP 200 / PASS | `ids=[6715854, 6715833] rating=s` |
+| e926 / `post_show` | `https://e926.net/posts/6715854.json` | HTTP 200 / PASS | `id:int,rating:str file=png 2048x2048 size=2452927 url=set tags=9 categories, general=33` |
+| e926 / `post_list_cursor` | `https://e926.net/posts.json?tags=rating%3As&limit=2&page=b6715833` | HTTP 200 / PASS | `cursor=6715833 ids=[6715826, 6715823]` |
+| e926 / `post_show_missing` | `https://e926.net/posts/0.json` | HTTP 404 AnybooruHTTPError (expected) / PASS | `success=false reason=not found` |
+| konachan / `post_list page 1` | `https://konachan.com/post.json?tags=rating%3As&page=1&limit=2&api_version=2` | HTTP 403 / FAIL | `ValueError: expected HTTP 200; AnybooruHTTPError; body_chars=5689` |
+| konachan / `comment_show 0` | `https://konachan.com/comment/show.json?id=0` | HTTP 403 / FAIL | `ValueError: expected HTTP 404; AnybooruHTTPError; body_chars=5505` |
+| yandere / `post_list page 1` | `https://yande.re/post.json?tags=rating%3As&page=1&limit=2&api_version=2` | HTTP 200 / PASS | `posts=2 ids=[1269052, 1269049] id:int,rating:str,tags:str,width:int,height:int` |
+| yandere / `post_list id:1269052` | `https://yande.re/post.json?tags=id%3A1269052&limit=2&api_version=2` | HTTP 200 / PASS | `posts=1 selected_id=1269052 id:int,rating:str,tags:str,width:int,height:int` |
+| yandere / `post_list page 2` | `https://yande.re/post.json?tags=rating%3As&page=2&limit=2&api_version=2` | HTTP 200 / PASS | `posts=2 ids=[1269048, 1269047] earlier_than=1269049` |
+| yandere / `comment_show 0` | `https://yande.re/comment/show.json?id=0` | HTTP 404 AnybooruHTTPError (expected) / PASS | `AnybooruHTTPError; data=None; body_chars=550` |
+| sakugabooru / `post_list page 1` | `https://sakugabooru.com/post.json?tags=rating%3As&page=1&limit=2&api_version=2` | HTTP 301 / FAIL | `ValueError: expected HTTP 200; AnybooruHTTPError; body_chars=162` |
+| sakugabooru / `comment_show 0` | `https://sakugabooru.com/comment/show.json?id=0` | HTTP 301 / FAIL | `ValueError: expected HTTP 404; AnybooruHTTPError; body_chars=162` |
+
+### 失败的含义与本轮边界
+
+* **Konachan**：列表与缺失评论均为 `403`，所以退出 1，详情与分页因此未发。该站的拒绝随网络环境变化，
+  不能据此断言 API 改版、客户端 bug 或站点不可用。
+* **Sakugabooru**：两个初始响应均为 `301`。脚本为控制请求数不跟随任何重定向，所以 200/404 检查失败、
+  详情与分页未发。历史 `200` 记录没有逐一列出初始跳转，**不足以证明最近发生站点改版或 API 不可用**；
+  也没有请求跳转目标或把 301 改判为通过。
+* **Zerochan**：新增缺失条目基线 `/999999999?json=` 实际 `404`，`AnybooruHTTPError.data` 为字典、
+  正文 6 字符。此前仅是脚本假设，这次取得真实响应。列表/详情/分页的字段类型与已有记录相符。
+* **其余成功项**：Danbooru 的 `tag_string` 仍是字符串；e621 的 `tags` 仍是分类对象、`file` 是嵌套对象；
+  yande.re 的 v2 返回含 `posts`，不误要求未请求的 tags/pools/votes；Serika 详情继续使用公开 `post_id`；
+  Gelbooru `post_count` 仍为字符串，`limit=3` 仍返回 10 个建议，五个 dapi 均为 401 空正文的预期匿名拒绝。
+  未在这些小样本中发现字段漂移或真实库 bug。
+
+没有测试框架、mock、CI 请求、格式化、lint、项目套件、构建或发布。`MANIFEST.in` 已声明把 `test/*.py`
+带入源码分发包；`setup.cfg` 的包清单不变，脚本不作为 wheel 包模块。本轮未构建归档核验入包结果。
+未再执行默认配置的联网、账号成功/写路径、媒体读取、Sakugabooru 跳转后行为、完整 API / 参数矩阵或
+其它解释器版本。上述 39 次即本轮全部请求。
+
+### Konachan 与 Sakugabooru 的实际响应（2026-09-18）
+
+`konachan.com` 四项检查全部取得预期响应；`sakugabooru.com` 的列表与缺失评论初始响应都是 `301`。
+
+| 检查 | 真实 URL | HTTP | 真实摘要 |
+| :--- | :--- | :--- | :--- |
+| `post_list page 1` | `https://konachan.com/post.json?tags=rating%3As&page=1&limit=2&api_version=2` | 200 | `posts=2 ids=[408602, 408601] id:int,rating:str,tags:str,width:int,height:int` |
+| `post_list id:408602` | `https://konachan.com/post.json?tags=id%3A408602&limit=2&api_version=2` | 200 | `posts=1 selected_id=408602 id:int,rating:str,tags:str,width:int,height:int` |
+| `post_list page 2` | `https://konachan.com/post.json?tags=rating%3As&page=2&limit=2&api_version=2` | 200 | `posts=2 ids=[408600, 408599] earlier_than=408601` |
+| `comment_show 0` | `https://konachan.com/comment/show.json?id=0` | 404 | `AnybooruHTTPError; error={'status': 404, 'error': 'Not Found'}` |
+| `post_list page 1` | `https://sakugabooru.com/post.json?tags=rating%3As&page=1&limit=2&api_version=2` | 301 | 未跟随重定向，判定失败 |
+| `comment_show 0` | `https://sakugabooru.com/comment/show.json?id=0` | 301 | 未跟随重定向，判定失败 |
+
+**Konachan 的错误体判据已更正**：早期脚本把 yande.re 的“404 正文是 HTML、`data` 为 `None`”要求套到了
+Konachan，所以那条检查一直失败。Konachan 的真实响应是 `404` 加一个 JSON 对象，判据现为：**HTTP `404`、
+正文是 JSON 对象、含 `status`（int 且等于 404）与 `error`（str）**；不锁死英文文案，也不接受 HTML、
+空正文或错误状态值。字段来自一次真实观测的响应体，固定字段后**未再联网复跑**，只用保存的响应做过
+离线核对（真样本通过、把 `status` 改成 `200` 的样本被拒）。
+
+**Sakugabooru 仍是失败**：`301` 不满足脚本要求的 `200`/`404`，为控制请求数不跟随任何重定向，所以详情与
+第二页没有执行，跳转目标后的 API 是否正常仍未验证。`test/yandere.py` 与 `test/sakugabooru.py` 的判据
+都没有改。

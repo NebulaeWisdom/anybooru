@@ -11,6 +11,13 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### 轻量匿名冒烟脚本
+
+- 新增 `test/<站点>.py`，与配置中的十个站点一一对应；每站最多 4–6 次匿名 GET，检查字段类型、
+  列表/详情/分页和预期错误，输出 URL、状态与次数，退出码为 0/1。没有重试、媒体下载、写请求或测试框架。
+- 查询输入与 1.2 秒间隔集中在配置的 `smoke` 段；脚本随源码分发包提供，不进入 wheel 或 CI。
+  执行方式见 README，真实执行结果追加于 `docs/verification.md`。
+
 ### Serika 第三引擎
 
 - 新增 `Serika` 导出与 Bearer 认证。官方标准响应是 `{"success": true, "data": ..., "meta": {...}}`，方法直接

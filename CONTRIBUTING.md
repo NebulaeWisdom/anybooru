@@ -88,6 +88,13 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
 5. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
    “未执行、未实测”，并写清依据的源码位置与请求体形状；不要为了凑验证去发写请求。
 
+### 轻量匿名冒烟
+
+`test/` 是唯一保留测试脚本的目录：一站点一文件，每文件最多 10 次匿名只读 HTTP 请求，
+不引入测试框架、mock、依赖或 CI 检查。例如 `python test/danbooru.py --config <你的配置文件>`；
+具体预算、输出与配置用法见 [README](README.md#轻量匿名冒烟检查)。按改动涉及的站点运行，
+不要为凑覆盖率重复请求；真实 URL、状态/异常、请求次数和退出码追加进 `docs/verification.md`。
+
 ## 代码风格
 
 * [**PEP-8**](https://peps.python.org/pep-0008/)（不严格要求）与
