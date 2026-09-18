@@ -1,9 +1,25 @@
 # -*- coding: utf-8 -*-
 """列出并取回 e621 系站点的标签、画师、评论、合集与笔记。
 
-每类资源先列一页，再用列表里第一项的 id 取详情；列表为空时只报零，不取详情、
-也不编造 ID。查询、数量、调用间隔与站点名全部来自配置文件 examples.e621 段
-（默认读包内 anybooru.json），可以用 --config / --site 覆盖。
+每类资源都是一次列表调用加一次详情调用（共 10 次匿名 GET）：
+
+1. ``tag_list(limit=2)`` → ``/tags.json``，再用首项 id 调 ``tag_show(id)`` → ``/tags/<id>.json``。
+2. ``artist_list(limit=2)`` → ``/artists.json``，再调 ``artist_show(id)`` → ``/artists/<id>.json``。
+3. ``comment_list(group_by='comment', limit=2)`` → ``/comments.json``，再调 ``comment_show(id)``
+   → ``/comments/<id>.json``。
+4. ``pool_list(limit=2)`` → ``/pools.json``，再调 ``pool_show(id)`` → ``/pools/<id>.json``。
+5. ``note_list(limit=2)`` → ``/notes.json``，再调 ``note_show(id)`` → ``/notes/<id>.json``。
+
+每行打印一个 JSON 对象：方法名、HTTP 状态码、真实 URL 与主题摘要。各 ``*_summary()``
+只取身份字段：标签取 id/name/category/post_count，画师取 id/name/group_name/is_active 与
+主页 URL 列表，评论取 id/post_id/creator_name/score 与正文长度，合集取 id/name/category/
+is_active/post_count，笔记取 id/post_id/坐标尺寸/is_active 与正文长度；评论与笔记正文只报
+字符数，不打印内容。
+
+查询、数量、调用间隔与站点名来自配置文件的 ``examples.e621`` 段（默认读包内
+``anybooru.json``），可以用 ``--config`` / ``--site`` 覆盖；不传 ``--site`` 时取
+``examples.e621.site``（包内为 ``e621``），传 ``--site e926`` 即换到安全内容镜像站。
+列表为空时只报零，不取详情、也不编造 ID。
 """
 
 import argparse
@@ -67,6 +83,7 @@ def main():
         def pause():
             time.sleep(example['pause_seconds'])
 
+        # 标签：GET /tags.json 取列表，GET /tags/<id>.json 取首项详情。
         tags = client.tag_list(**example['tag_query'])
         emit(client, 'tag_list', count=len(tags),
              tags=[tag_summary(tag) for tag in tags])
@@ -76,6 +93,7 @@ def main():
             emit(client, 'tag_show', tag=tag_summary(tag))
 
         pause()
+        # 画师：GET /artists.json 的每项带 urls；详情是 GET /artists/<id>.json。
         artists = client.artist_list(**example['artist_query'])
         emit(client, 'artist_list', count=len(artists),
              artists=[artist_summary(artist) for artist in artists])
@@ -85,6 +103,7 @@ def main():
             emit(client, 'artist_show', artist=artist_summary(artist))
 
         pause()
+        # 评论：GET /comments.json?group_by=comment 取评论列表，详情是 GET /comments/<id>.json。
         comments = client.comment_list(**example['comment_query'])
         emit(client, 'comment_list', count=len(comments),
              comments=[comment_summary(comment) for comment in comments])
@@ -94,6 +113,7 @@ def main():
             emit(client, 'comment_show', comment=comment_summary(comment))
 
         pause()
+        # 合集：GET /pools.json 的每项带 post_ids 与 post_count，详情是 GET /pools/<id>.json。
         pools = client.pool_list(**example['pool_query'])
         emit(client, 'pool_list', count=len(pools),
              pools=[pool_summary(pool) for pool in pools])
@@ -103,6 +123,7 @@ def main():
             emit(client, 'pool_show', pool=pool_summary(pool))
 
         pause()
+        # 笔记：GET /notes.json 的每项带坐标与尺寸，详情是 GET /notes/<id>.json。
         notes = client.note_list(**example['note_query'])
         emit(client, 'note_list', count=len(notes),
              notes=[note_summary(note) for note in notes])

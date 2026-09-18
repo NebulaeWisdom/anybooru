@@ -1,9 +1,19 @@
 # -*- coding: utf-8 -*-
 """列出 e621 系站点的 wiki 页面，再取配置里那个标题的页面。
 
-查询、数量、调用间隔、标题与站点名全部来自配置文件 examples.e621 段（默认读包内
-anybooru.json），可以用 --config / --site 覆盖。标题里的冒号会被 URL 转义，
-所以 "help:api" 这类标题可以直接传。
+两次匿名 GET：
+
+1. ``wiki_page_list(limit=2)`` → ``/wiki_pages.json``，得到页面数组，每项含 ``id``、``title``、
+   ``category_id``、``is_locked``、``other_names`` 与正文 ``body``。
+2. ``wiki_page_show('help:api')`` → ``/wiki_pages/help%3Aapi.json``：标题里的冒号由客户端按路径段
+   转义，所以带冒号的标题可以直接传。
+
+每行打印一个 JSON 对象：方法名、HTTP 状态码、真实 URL 与摘要。``page_summary()`` 只取 id、title、
+category_id、is_locked 与正文长度，不打印正文内容。
+
+查询、数量、调用间隔、标题与站点名来自配置文件的 ``examples.e621`` 段（默认读包内
+``anybooru.json``）：``wiki_query`` 对应列表调用、``wiki_title`` 对应详情调用的标题参数；
+可以用 ``--config`` / ``--site`` 覆盖，不传 ``--site`` 时取 ``examples.e621.site``。
 """
 
 import argparse
@@ -41,11 +51,13 @@ def main():
     with E621(site, config_file=args.config) as client:
         example = client.config['examples']['e621']
 
+        # GET /wiki_pages.json：页面数组，每项含 id/title/category_id/is_locked/body。
         pages = client.wiki_page_list(**example['wiki_query'])
         emit(client, 'wiki_page_list', count=len(pages),
              pages=[page_summary(page) for page in pages])
 
         time.sleep(example['pause_seconds'])
+        # GET /wiki_pages/help%3Aapi.json：按标题查单个页面，冒号已被转义。
         page = client.wiki_page_show(example['wiki_title'])
         emit(client, 'wiki_page_show', page=page_summary(page))
 
