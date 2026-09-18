@@ -73,6 +73,28 @@
   随本次新增改为五家族；README、`docs/index.md`、`docs/configuration.md`、CONTRIBUTING 与
   `setup.cfg` 的家族表述同步。
 
+### Gelbooru 第六引擎
+
+- 新增 `Gelbooru` 导出、`anybooru/gelbooru.py` 与 `anybooru/api_gelbooru.py`。**本家族没有可引用的上游
+  引擎源码**：`gelbooru.com` 的接口是站点自己的 `index.php`，依据是官方 wiki/帮助页与页面脚本加真实响应，
+  来源层级、dapi 与 HTML 页面的边界、未实测项记在
+  [docs/gelbooru-contract-notes.md](docs/gelbooru-contract-notes.md)。
+- 原生 API 为 **6 个只读 GET 方法**：`post_list(**params)`、`post_deleted(**params)`（同上再加
+  `deleted=show`）、`tag_list(**params)`、`user_list(**params)`、`comment_list(post_id, **params)` 与
+  `autocomplete(term, **params)`。`post_list(id=1)` 就是单帖查询，没有单独的 `post_show`；也没有写方法。
+- 所有方法都请求 `index.php`：只有 `page=dapi` 附带 `json=1`；另一个 JSON 入口是
+  `page=autocomplete2`（匿名补全）。`page=tags/post/wiki` 等是 HTML 浏览路由，本库不抓取解析。
+  原生方法固定 `s` / `q` 等路由参数，其它查询键原样转发；返回的 JSON **不拆任何外层**，
+  不按候选字段猜测数组或字典结构。
+- 认证形态是本项目的第四种写法：`api_key` 与 `user_id` 只在 dapi 请求上发送，留空即匿名；dapi 需要
+  gelbooru.com 的账号，本仓库没有凭据，**5 个 dapi 方法全部未实测**；只有 `autocomplete` 匿名可达，
+  它已用匿名请求实测（`200`，返回建议数组，`limit` 不决定返回条数——`limit=3` 实测返回 10 条），
+  逐条记录在 [docs/verification.md](docs/verification.md)。
+- 配置新增 `sites.gelbooru`（`api_key` / `user_id` 留空）、`examples.gelbooru`；
+  `examples/gelbooru/autocomplete.py` 是唯一的示例，匿名只读。
+- README、`docs/index.md`、`docs/configuration.md`、`docs/authentication.md`、`docs/pagination.md`、
+  `docs/migration.md`、CONTRIBUTING、`setup.cfg` 的家族表述与导航同步为六个家族。
+
 ### 配置与认证
 
 - 站点、凭据、代理、超时、User-Agent、示例参数集中到配置文件 `anybooru.json`，随包安装

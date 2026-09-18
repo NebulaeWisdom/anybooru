@@ -87,7 +87,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 ## Serika 系站点
 
-Serika 是五家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
+Serika 是六家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
@@ -166,13 +166,46 @@ Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Z
 没有用户名时库不会编造一个，也不会自动申请账号。来源和实测边界见
 [Zerochan 契约审计附注](zerochan-contract-notes.md)与[验证记录](verification.md#zerochan匿名只读实测2026-09-18)。
 
+## Gelbooru 系站点
+
+Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都不同：
+
+| 字段 | 值 |
+| :--- | :--- |
+| `api_key` | `sites.<站点>.api_key` |
+| `user_id` | `sites.<站点>.user_id`（该站账号的编号） |
+
+```json
+{
+  "sites": {
+    "gelbooru": {
+      "url": "https://gelbooru.com",
+      "api_key": "your-api-key",
+      "user_id": "123456"
+    }
+  }
+}
+```
+
+规则：
+
+* 这两项**只加在 dapi 请求上**（`page=dapi`，也就是 `post_list` / `post_deleted` / `tag_list` /
+  `user_list` / `comment_list`），其他请求不带；留空就是匿名；
+* **匿名只能用 `autocomplete`**（已用匿名请求实测 `200`，返回建议数组；`limit` 不决定条数）：站点的 dapi
+  需要账号，本仓库没有凭据，5 个 dapi 方法**全部未实测**；
+* 客户端不预判权限、不做参数校验、不拆返回的 JSON，服务端给什么就返回什么。
+
+来源层级（官方 wiki/帮助页与页面脚本，外加真实匿名响应）与未实测项见
+[Gelbooru 契约审计附注](gelbooru-contract-notes.md)；可调用能力见
+[Gelbooru 能力入口](gelbooru-capabilities.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
 12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。
 Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD
-`7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。源码对齐不保证具体站点授予权限，
-目标站点的权限模型为准。
+`7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要
+该站账号，同样只有站点文档依据、未发过请求。源码对齐不保证具体站点授予权限，目标站点的权限模型为准。
 
 ## 相关文档
 

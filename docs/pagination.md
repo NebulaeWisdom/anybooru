@@ -2,8 +2,8 @@
 
 ## 客户端行为
 
-五个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
-Zerochan 用 `p` / `l`。本库只负责把参数发对：
+六个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，tag 用 `after_id`，删除流用 `last_id`。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -205,6 +205,23 @@ with Zerochan('zerochan') as client:
 `client.entry_list(l=2, s='fav', t=0)`。默认每页条数与分页请求记录见
 [Zerochan 验证](verification.md#zerochan匿名只读实测2026-09-18)，参数说明见
 [Zerochan 方法参考](zerochan-api.md)。末页、越界页码和非法 `l` 会怎样，还没有实测。
+
+## Gelbooru 的分页
+
+Gelbooru 面同样不做任何本地分页：`post_list(**params)` 这类方法把你给的查询键原样拼进
+`index.php?page=dapi&…`，本库不补默认值、不裁剪、不自动翻页。
+
+| dapi 方法 | 分页输入（官方 wiki 的参数名） | 字面调用 |
+| :--- | :--- | :--- |
+| `post_list` / `user_list` | `pid` 页码、`limit` 每页数量；wiki 写默认数量 100，外部资料记页码从 0 开始 | `client.post_list(pid=1, limit=2)` |
+| `tag_list` | `after_id` 只取编号更大的标签、`limit` 数量，wiki 写默认 100 | `client.tag_list(after_id=100, limit=2)` |
+| `post_deleted` | `last_id` 只取大于给定编号的删除记录，默认值未规定 | `client.post_deleted(last_id=100)` |
+| `comment_list` | 只列 `post_id`，未列分页字段 | `client.comment_list(1)` |
+
+这些 dapi 调用均**未实测（需账号）**；表格是文档契约，不是成功结果。旧 help 对帖子写硬上限 100，
+与 wiki 的默认 100 不能混为一谈；也没有依据承诺响应一定含总数、当前页或下一页链接。
+完整自足代码见[Gelbooru 方法参考](gelbooru-api.md)，矛盾见[契约附注](gelbooru-contract-notes.md)。
+`autocomplete` 不提供已确认的分页参数；本次 `limit=3` 仍收到 10 条，库不按它截断结果。
 
 ## 相关文档
 

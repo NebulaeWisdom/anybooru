@@ -3,7 +3,7 @@
 **不知道有哪些接口，先看这页。** 逐条签名、参数与返回字段见[方法参考](serika-api.md)；
 源码出处、逐条线上状态与排除清单见[契约审计附注](serika-contract-notes.md)。
 
-* **Serika 是五家族中的独立引擎**：与 Danbooru、Moebooru、e621ng、Zerochan 都不同。站点是 Next.js
+* **Serika 是六家族中的独立引擎**：与 Danbooru、Moebooru、e621ng、Zerochan、Gelbooru 都不同。站点是 Next.js
   自研的 "Danbooru-style" 图站，对外**没有** `/posts.json`、`/post.json` 这类 Danbooru 路由；
   Serika 自己仓库里对 `/posts.json` 的调用是它作为 Danbooru **消费者**的导入器，不能反推它提供
   Danbooru 接口。

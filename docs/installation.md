@@ -9,9 +9,9 @@
 | 标准库依赖 | `json`、`os`（读取默认配置文件），无其他第三方依赖 |
 
 本库不读环境变量，也不会去当前工作目录或用户目录搜索配置文件：所有可调参数都在一份 JSON 里显式声明，
-默认读随包安装的 `anybooru/anybooru.json`（里面有 9 个站点条目 `serika`、`danbooru`、`safebooru`、
-`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`，以及 `request` / `examples` /
-`verification` 三段），怎么改见 [configuration.md](configuration.md)。
+默认读随包安装的 `anybooru/anybooru.json`（里面有 10 个站点条目 `serika`、`danbooru`、`safebooru`、
+`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`，以及 `request` /
+`examples` / `verification` 三段），怎么改见 [configuration.md](configuration.md)。
 
 ## 从源码安装（当前开发版）
 
@@ -91,10 +91,10 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
+| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` / `gelbooru` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
 | `anybooru/resources.py` | 包内默认配置的路径 `DEFAULT_CONFIG_FILE`，以及把 Python 参数编成 Rails 查询串的 `encode_params` |
 | `anybooru/exceptions.py` | 三个公开异常 `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，见 [errors.md](errors.md) |
-| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（9 个站点条目）、`examples`、`verification` |
+| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（10 个站点条目）、`examples`、`verification` |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 各家族的匿名只读示例脚本，参数取自配置的 `examples` 段 |
 | 上游引擎仓库 | 可选的只读参考，不属于发布包；版本与源码入口见各家族的契约审计附注 |
@@ -114,5 +114,7 @@ git clone https://github.com/e621ng/e621ng.git
 `app/blueprints/`）。Serika 是自研 Next.js 站点，路由分散在 `app/api/v1/**/route.ts` 与 `app/api/**/route.ts`，
 入口见 [Serika 契约审计附注](serika-contract-notes.md)。所有上游参考都不随本包发布，也不参与提交。
 
-Zerochan 没有可供核对的上游引擎源码；依据只有官方 API 页面快照与实际响应，不从其他引擎推断。
-出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。
+Zerochan 与 Gelbooru 都没有可供核对的上游引擎源码：Zerochan 的依据只有官方 API 页面快照与实际响应，
+Gelbooru 的依据是官方 wiki/帮助页与页面脚本加真实响应；两者都不从其他引擎推断。
+出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md) 与
+[Gelbooru 契约审计附注](gelbooru-contract-notes.md)。

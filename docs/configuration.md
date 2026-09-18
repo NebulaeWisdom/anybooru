@@ -82,7 +82,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     },
     "e621": { "url": "https://e621.net", "username": "", "api_key": "" },
     "e926": { "url": "https://e926.net", "username": "", "api_key": "" },
-    "zerochan": { "url": "https://www.zerochan.net" }
+    "zerochan": { "url": "https://www.zerochan.net" },
+    "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" }
   },
   "examples": {
     "serika": {
@@ -144,12 +145,16 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
       "strict_query": {"tags": "Genshin Impact", "strict": true, "l": 2},
       "entry_id": 3793685,
       "pause_seconds": 1.2
+    },
+    "gelbooru": {
+      "site": "gelbooru",
+      "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
     }
   }
 }
 ```
 
-三类“查询整块放进字典”的家族（Serika / e621ng / Zerochan）各有几个容易踩的点，键与对应调用见下文
+四类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru）各有几个容易踩的点，键与对应调用见下文
 [`examples` 段](#examples-段)的总表：
 
 * **Serika**：查询值是逗号分隔的字符串（`ratings='safe'`），不是 Rails 数组；站内详情示例从列表响应里取
@@ -159,6 +164,10 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 * **Zerochan**：`tags` 进 URL 路径（传字符串是单标签，传数组把各标签名转义后逗号连接），
   其余单字母参数进查询串；`d`（尺寸）、`t`（人气取样窗口）、`c`（颜色）等可选值同样放在字典里
   原样发给服务端，配置里没有默认值。两个匿名示例的命令见 [zerochan.md](zerochan.md#可运行示例)。
+* **Gelbooru**：只有 `autocomplete` 能匿名跑（已实测 `200`，返回建议数组，`limit` 不决定条数）；
+  配置键 `autocomplete_query` 里的 `term` / `type` / `limit` 就是字面实参；dapi 的 5 个方法需要该站账号的
+  `api_key` 与 `user_id`，本仓库没有凭据，没有对应示例。
+  一个匿名示例的命令见 [gelbooru.md](gelbooru.md)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入，两者互不替代（见下节）。
 
@@ -192,15 +201,16 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 支持范围由**各引擎自己的接口规则**决定，而不是由这份清单决定：Danbooru 引擎看
 [danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)，
 Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md](e621-api.md)，
-Zerochan 看 [zerochan-api.md](zerochan-api.md)。
+Zerochan 看 [zerochan-api.md](zerochan-api.md)，Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)。
 比对基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、
 `Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`），
 所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
 本库实现的是那份上游规则，而不是某个站点的私有行为。按需增删站点键是正常用法，把清单当成“只支持这些站”会误判。
 
-Zerochan 是这条规则的**例外**：它没有公开的引擎源码可以引用，也没有上游 commit 或其它部署可供对照，
-依据基线是**官方 API 页面快照加真实请求实测**，逐条出处与排除项见
-[zerochan-contract-notes.md](zerochan-contract-notes.md)。
+Zerochan 与 Gelbooru 是这条规则的**例外**：前者没有可引用的公开引擎源码；后者本轮没有找到能核对当前部署的
+官方 PHP 快照，也未对比其它部署。Zerochan 依据是**官方 API 页面快照加实测**，Gelbooru 是**官方 wiki/帮助页与站点脚本
+加真实响应**；逐条出处与排除项分别见 [zerochan-contract-notes.md](zerochan-contract-notes.md) 与
+[gelbooru-contract-notes.md](gelbooru-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
 
@@ -252,7 +262,7 @@ Moebooru 系站点（Moebooru 引擎）：
 > （上游 `moebooru/app/controllers/post_controller.rb:338-362` 按它选另一套序列化），与上面这个站点
 > 版本字符串无关，详见 [moebooru-api.md](moebooru-api.md)。
 
-Serika 系站点（五家族中的独立 Next.js 引擎）：
+Serika 系站点（六家族中的独立 Next.js 引擎）：
 
 | 键 | 类型与取值 | 含义与例子 |
 | :--- | :--- | :--- |
@@ -289,14 +299,28 @@ API 页面要求请求头 `User-Agent` 含项目名与使用者自己的 Zerocha
 不满足时请求仍可能成功，但官方文档写明匿名项目有被封的风险。API 目前只读，条目里没有可用的凭据字段。
 官方文档写明限流 60 请求/分钟，本库不做客户端限速，示例两次调用之间的间隔由 `examples.zerochan.pause_seconds` 给出。
 
-同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`），
-选择哪个类由调用者决定。
+Gelbooru 系站点（`index.php` 接口，本轮没有取得当前部署的官方 PHP 源码）：
+
+| 键 | 类型与取值 | 含义与例子 |
+| :--- | :--- | :--- |
+| `url` | string，站点根地址 | 所有请求都拼成 `<url>/index.php?page=…`。例子 `"https://gelbooru.com"` |
+| `api_key` | string | 该站账号的 API key；**只加在 dapi 请求上**，留 `""` 表示没有。例子 `"your-api-key"` |
+| `user_id` | string | 该站账号的编号，与 `api_key` 一起使用；同样只加在 dapi 请求上。例子 `"123456"` |
+
+条目里这三个键都要在：客户端直接按名字取，缺哪个都会在构造时抛 `KeyError`。
+`api_key` 与 `user_id` 都为空时请求就是匿名的：此时只有 `autocomplete` 这类页面脚本接口可用，
+`page=dapi` 的查询需要账号（本站文档说明，未在本仓库实测）。这两项与 Danbooru 的 `username` + `api_key`
+不是同一套东西，不要照抄。
+
+同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、
+`Gelbooru`），选择哪个类由调用者决定。
 
 ### 样例清单里各条的实际状态
 
 清单是**样例**：每条的状态如下，别把「在清单里」等同于「支持」或「已测」。
 支持范围由各引擎自己的接口规则决定（[danbooru-api.md](danbooru-api.md)、[moebooru-api.md](moebooru-api.md)、
-[serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)、[zerochan-api.md](zerochan-api.md)）。
+[serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)、[zerochan-api.md](zerochan-api.md)、
+[gelbooru-api.md](gelbooru-api.md)）。
 
 | 键 | 引擎 | 本轮线上状态 |
 | :--- | :--- | :--- |
@@ -309,10 +333,11 @@ API 页面要求请求头 `User-Agent` 含项目名与使用者自己的 Zerocha
 | `e621` | e621ng | 匿名只读已实测：三个示例逐方法 `200`，另有 `post_count`、原始 `posts` 结构、`md5`、`only`、`v2` 五类返回形态复核；`related_tag` 匿名 `403` |
 | `e926` | e621ng | 匿名只读已实测：同一批示例在 e926 上同样 `200`，`post_count` 与 e621 同为 `240001` / `capped=true` |
 | `zerochan` | Zerochan | 见 [zerochan.md](zerochan.md) 与 [verification.md](verification.md)；本家族没有上游源码，状态按官方 API 页面快照与真实请求记录，不按源码对齐 |
+| `gelbooru` | Gelbooru | `autocomplete` 匿名实测 `200`（返回建议数组；`limit` 不决定条数，实测 `limit=3` 返回 10 条），记录见 [verification.md](verification.md#gelbooru匿名只读实测2026-09-18)；5 个 dapi 方法需要账号，**未实测**；本家族没有上游源码，来源见 [gelbooru-contract-notes.md](gelbooru-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 
-**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan` 是五个并列的类，各自的
+**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru` 是六个并列的类，各自的
 传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成另一个类重试。
 判断依据只能是你自己手里的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上**发一次请求看响应**
 （Zerochan 这类没有上游源码的站点，只能靠官方 API 页面与实测响应）。
@@ -348,6 +373,12 @@ Zerochan 的路径也是站点自己的：根路径 `/?p=1&json`（全部条目�
 同一个 `/<id>` 不带 `json` 时返回的是 **HTML 页面**，所以「路径存在」不能说明拿到了 JSON。
 它也没有 Rails 的 `posts` 路径，更没有上游源码可对照，只能看官方 API 页面与实测响应，
 见 [zerochan.md](zerochan.md)。
+
+Gelbooru 的路径固定是 `index.php`，接口由 `page` 参数选择：`page=dapi`（再加 `json=1`）是站点的 dapi，
+需要账号；`page=autocomplete2` 是站点页面脚本用的自动补全接口，**返回 JSON 且匿名即可用**；
+`page=tags/post/wiki` 等浏览路由返回给人看的 **HTML**。本库只包装上述两个 JSON
+入口，不把 HTML 页面当 JSON 使用，也没有抓取页面的方法：`post_list` / `tag_list` / `user_list` /
+`comment_list` / `post_deleted` 属于 dapi，需要该站账号；`autocomplete` 匿名可达，见 [gelbooru.md](gelbooru.md)。
 
 选错类的表现是普通的 HTTP 错误或字段对不上的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
 `404`（路径不存在）；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是 `{"posts": [ … ]}` 这种外面包了
@@ -394,9 +425,11 @@ Zerochan 的路径也是站点自己的：根路径 `/?p=1&json`（全部条目�
 | Zerochan | `strict_query` = `{"tags":"Genshin Impact","strict":true,"l":2}` | `client.entry_list(tags='Genshin Impact', strict=True, l=2)`（只匹配 primary 标签） |
 | Zerochan | `entry_id` = `3793685` | `client.entry_show(3793685)`，打印 `id` / `primary` / `width` / `height` / `size` / `full` / `source` |
 | Zerochan | `pause_seconds` = `1.2` | `time.sleep(1.2)`，脚本自己等，库不做限速 |
+| Gelbooru | `site` = `"gelbooru"` | `Gelbooru('gelbooru')`（包内条目的 `api_key` / `user_id` 都为空，即匿名） |
+| Gelbooru | `autocomplete_query` = `{"term":"blue","type":"tag","limit":3}` | `client.autocomplete('blue', type='tag', limit=3)`（GET `https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2`，实测 `200`），返回建议数组，每条含 `type` / `label` / `value` / `post_count` / `category`；脚本打印建议条数与每一条建议、`last_call` 的真实 URL 与状态码。**`limit` 不决定本次返回几条**：实测 `limit=3` 返回 10 条 |
 
 两个约定：Danbooru 与 Moebooru 的示例读顶层散键（`tags` / `limit` / `pages`），
-Serika、e621ng 与 Zerochan 把查询整块放进 `*_query` 字典再展开；`comment_body` 只服务上面那条写操作，
+Serika、e621ng、Zerochan 与 Gelbooru 把查询整块放进 `*_query` 字典再展开；`comment_body` 只服务上面那条写操作，
 只读示例用的是列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
 
 示例脚本的用法：
@@ -407,6 +440,7 @@ Serika、e621ng 与 Zerochan 把查询整块放进 `*_query` 字典再展开；`
 .venv/Scripts/python.exe examples/e621/list_posts.py --site e926
 .venv/Scripts/python.exe examples/zerochan/list_entries.py
 .venv/Scripts/python.exe examples/zerochan/filter_entries.py
+.venv/Scripts/python.exe examples/gelbooru/autocomplete.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份（上面第一条就用包内那份；第二条换成自己复制出来的
@@ -425,6 +459,7 @@ Serika、e621ng 与 Zerochan 把查询整块放进 `*_query` 字典再展开；`
 | `username` / `api_key` | `sites.<键>.username` / `.api_key`（Danbooru、E621） | `Danbooru('danbooru', username='your-username', api_key='your-api-key')` |
 | `username` / `password` / `hash_string` / `api_version` | 同名的站点条目字段（Moebooru） | `Moebooru('yandere', api_version='1.13.0+update.3')` |
 | `api_key` | `sites.<键>.api_key`（Serika） | `Serika('serika', api_key='sk_serika_…')` |
+| `api_key` / `user_id` | `sites.<键>.api_key` / `.user_id`（Gelbooru；只随 dapi 请求发送） | `Gelbooru('gelbooru', api_key='your-api-key', user_id='123456')` |
 | `timeout` / `proxies` / `user_agent` | `request` 段同名键（所有家族，含 Zerochan 的 `user_agent`） | `Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')` |
 
 ```python

@@ -4,10 +4,10 @@
 
 ## 资源
 
-* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，五个家族各四份（客户端用法 / 方法参考 /
+* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，六个家族各四份（客户端用法 / 方法参考 /
   能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan 五个家族共 20 个可运行脚本。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru 六个家族共 21 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -21,11 +21,19 @@
 * `Serika.art/`：Serika 引擎，官方 v1 在 `app/api/v1/**/route.ts`，站内面在 `app/api/**/route.ts`。
 * `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`，帖子序列化在 `app/blueprints/`。
 
-**第五个家族 Zerochan 没有上游源码**：`zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，
-因此本仓库拿不到可引用的源码或行号。它的依据是**官方 API 页面快照 + 真实请求实测**，逐条出处、与实现
-的差异以及排除项（`xml` 格式、meta 标签、限流语义）记在
-[`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。改动这个家族请用真实请求核对行为，
-不要凭推测补参数或返回字段，也不要给它安一个并不存在的上游源码。四个源码家族与它是两条不同的依据路径。
+**Zerochan 与 Gelbooru 没有可引用的上游源码**：
+
+* `zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，本仓库拿不到可引用的源码或行号。依据是
+  **官方 API 页面快照 + 真实请求实测**，逐条出处、与实现的差异以及排除项（`xml` 格式、meta 标签、限流语义）
+  记在 [`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。
+* `gelbooru.com` 使用 `index.php`：dapi 用 `json=1` 请求 JSON，`autocomplete2` 本身返回 JSON，
+  标签页、帖子页和 wiki 是 HTML。本轮没有找到可核对当前部署的官方 PHP 源码；依据是**官方 wiki/帮助页与站点脚本
+  + 真实匿名响应**，来源层级、未实测项与排除项记在
+  [`docs/gelbooru-contract-notes.md`](docs/gelbooru-contract-notes.md)。不要拿旧版本的 PHP 代码当现役契约，
+  也不要从别家引擎的返回结构推断它的字段。
+
+改动这两个家族请区分页面说明、脚本行为与真实响应；候选字段的推断必须显式标明，不能当成返回值承诺。
+四个源码家族与它们是两条不同的依据路径，不存在“六个家族都有源码依据”。
 
 ## 我能做什么？
 
@@ -52,7 +60,8 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
 
 * 属于哪个家族与哪个引擎，以及你期望的调用形态（方法名、参数、返回值里你要用到的字段）；
 * 依据：Danbooru / Moebooru / e621ng / Serika 请给出上游路由与控制器位置（文件与行号更好）；
-  Zerochan 请给出 API 页面出处与实测响应。**不要以某个站点的私有行为当契约**。
+  Zerochan 请给出 API 页面出处与实测响应；Gelbooru 请给出官方 wiki/帮助页或页面脚本的出处与实测响应。
+  **不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
 
@@ -70,6 +79,7 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
 
    .venv/Scripts/python.exe examples/danbooru/list_posts.py
    .venv/Scripts/python.exe examples/zerochan/list_entries.py
+   .venv/Scripts/python.exe examples/gelbooru/autocomplete.py
    ```
 
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
@@ -88,8 +98,8 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   错误保持原状态码与正文。
 * 一个家族的客户端只包装**该引擎自己**的路由：不把别的引擎的参数名、默认值或返回结构搬过来，
   也不为旧行为保留别名或垫片。
-* 新增方法要给出上游依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应），
-  并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
+* 新增方法要给出依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应，Gelbooru 为官方
+  wiki/帮助页或页面脚本出处 + 实测响应），并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 
 ## 文档风格
 

@@ -1,6 +1,6 @@
 # Serika 客户端用法
 
-`Serika` 与 `Danbooru` / `Moebooru` / `E621` / `Zerochan` 并列，是五个引擎客户端之一，访问 `serika.art`
+`Serika` 与 `Danbooru` / `Moebooru` / `E621` / `Zerochan` / `Gelbooru` 并列，是六个引擎客户端之一，访问 `serika.art`
 及同引擎的自托管实例。同一个 `Serika` 类同时提供两套接口：
 
 * **官方接口 `/api/v1/*`**：带版本号，站点自述为 "SerikaART API 1.0.0"，共 16 个方法；其中只有 4 个
