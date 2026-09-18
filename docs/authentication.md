@@ -199,6 +199,16 @@ Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都�
 [Gelbooru 契约审计附注](gelbooru-contract-notes.md)；可调用能力见
 [Gelbooru 能力入口](gelbooru-capabilities.md)。
 
+## Gelbooru02（TBIB）：没有凭据
+
+`Gelbooru02` 的构造参数没有 `username/api_key/user_id`，不提供内置认证功能；
+站点条目只有 `url`。本轮帖子 JSON/XML、标签与空评论、分页请求
+均为匿名，没有发送凭据。站点账号功能是否有其它认证方式未实测。
+
+它和 `gelbooru.com` 那套需要账号的 dapi 凭据不是一回事：不要把
+`Gelbooru('gelbooru', api_key=…, user_id=…)` 的写法搬过来。见 [Gelbooru02 用法](gelbooru02.md) 与
+[Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)。
+
 ## Shuushuu：默认匿名，显式登录才建立会话
 
 公开图片、标签、评论、用户资料等读取不需要登录。`Shuushuu('shuushuu')` 只创建客户端，不发送任何登录请求。
@@ -224,6 +234,8 @@ Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 
 `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要
 该站账号，已实测匿名拒绝为401、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。
 Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。
+Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。
+其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。
 
 ## 相关文档
 
