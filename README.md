@@ -1,15 +1,15 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问六类图站引擎的 Python API 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问七类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
-与 Gelbooru（`gelbooru.com`）。
+、Gelbooru（`gelbooru.com`）与 e-shuushuu（`e-shuushuu.net`）。
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
-同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的六个例子里：
+同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的七个例子里：
 
 | 调用 | 真实请求 | 你拿到什么 |
 | :--- | :--- | :--- |
@@ -19,8 +19,9 @@ Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e9
 | Serika：`client.internal_image_list(page=1, limit=3, ratings='safe', sort='newest')` | `GET https://serika.art/api/images?page=1&limit=3&ratings=safe&sort=newest` | 字典的 `images` 是图片列表，`pagination` 有页码和总数；每张图同时有内部编号 `id` 与网页上使用的编号 `post_id` |
 | Zerochan：`client.entry_list(tags='Genshin Impact', l=2)` | `GET https://www.zerochan.net/Genshin+Impact?l=2&json=` | 返回 `{"items": [...]}` 里的图片列表；每张有编号 `id`、宽高、`thumbnail` 缩略图地址、`source` 来源、`tag` 主标签、`tags` 全部标签，以及 `md5` |
 | Gelbooru：`client.autocomplete('blue', type='tag', limit=3)` | `GET https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2` | 建议数组，每条含 `type` / `label`（如 `blue eyes`）/ `value`（如 `blue_eyes`）/ `post_count` / `category`（如 `tag`、`copyright`）。**`limit` 不决定本次返回几条**：实测 `limit=3` 仍返回 10 条 |
+| e-shuushuu：`client.image_list(tags='46', per_page=2)` | `GET https://e-shuushuu.net/api/v1/images?tags=46&per_page=2` | 完整对象中的 `images` 是图片数组，`total/page/per_page` 是本次查询的分页数据；图片带 `image_id`、`tags`、`url` 和 `thumbnail_url`。`tags` 收数字标签 ID，不收名字 |
 
-六类引擎的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
+七个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
 认证头不代表同一套契约；Serika 是独立的 Next.js 应用，官方版本化 `/api/v1` 与站内未版本化 `/api/*`
 两面分开标注；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，契约依据是官方 API 页面快照
 加真实请求实测——见
@@ -29,13 +30,15 @@ Gelbooru 走站点自己的 `index.php`：`page=dapi`（加 `json=1`）与页面
 JSON；`page=tags/post/wiki` 等浏览路由返回 HTML。依据是官方 wiki/帮助页与站点脚本
 加真实响应，见
 [docs/gelbooru-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-contract-notes.md)。
-前四个家族按上游引擎源码对齐，Zerochan 与 Gelbooru 按站点文档与真实响应核对，不存在“六个家族都有源码依据”。
+e-shuushuu 是独立的 FastAPI REST API，依据是站点自带的 [OpenAPI](https://e-shuushuu.net/api/openapi.json)
+与真实响应，不套 Danbooru/Moebooru 路径。前四个家族按上游源码对齐，后三个按站点契约核对；
+没有可引用的本地 e-shuushuu 服务端源码，见[契约附注](docs/shuushuu-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan
-  与 Gelbooru 四个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
+  、Gelbooru 与 e-shuushuu 五个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
   重新起算。除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；
   原项目的 MIT 许可与版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
 
@@ -63,7 +66,7 @@ python -m venv .venv
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 10 个条目，这里是四种典型形态）：
+包内文件的开头长这样（`sites` 段一共 11 个条目，这里是五种典型形态）：
 
 ```json
 {
@@ -76,13 +79,14 @@ python -m venv .venv
     "danbooru": { "url": "https://danbooru.donmai.us", "username": "", "api_key": "" },
     "yandere": { "url": "https://yande.re", "username": "", "password": "", "api_version": "1.13.0+update.3", "hash_string": "choujin-steiner--{0}--" },
     "zerochan": { "url": "https://www.zerochan.net" },
-    "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" }
+    "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" },
+    "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" }
   }
 }
 ```
 
 - 用命名站点：`site_name` 是 `sites` 段的键，例如 `Danbooru('danbooru')`、`Moebooru('yandere')`、
-  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
+  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Shuushuu('shuushuu')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
   显式构造参数优先。
 - 用清单外的站点：直接给 `site_url=`，例如
   `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3')`、`E621(site_url='https://e926.net')`。
@@ -98,8 +102,11 @@ python -m venv .venv
 - Gelbooru 的 `api_key` / `user_id`：两者都是**该站账号**的凭据，只加到 dapi 请求上（`page=dapi`），
   留空即匿名（匿名只能用 `autocomplete` 这类页面脚本接口，dapi 需要账号）。填好后本库会随 dapi 查询一起
   发送；这两项与 Danbooru 的 `username` + `api_key` 不是同一套东西，`user_id` 取的是该站的账号编号。
+- e-shuushuu 默认匿名：公开图片、标签、评论、用户资料等读取不需要登录。`username/password` 只供显式
+  `auth_login()` 使用，构造时即使填了它们也不登录；`access_token` 非空才随请求发 Bearer 头。
+  登录、刷新、登出只为主动使用账号的人保留，本次没有调用，详见[客户端用法](docs/shuushuu.md)。
 
-## 六个家族的第一次调用
+## 七个家族的第一次调用
 
 每段代码都可以直接复制执行（匿名只读），默认站点都来自包内配置。
 
@@ -268,16 +275,40 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 逐方法参数见
 [docs/gelbooru-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-api.md)。
 
+### e-shuushuu（e-shuushuu.net）
+
+```python
+from anybooru import Shuushuu
+
+with Shuushuu('shuushuu') as client:
+    tag_results = client.search(q='long hair', limit=5)
+    # GET https://e-shuushuu.net/api/v1/search?q=long+hair&limit=5
+    for tag in tag_results['hits']:
+        print(tag['tag_id'], tag['title'])
+
+    images_response = client.image_list(tags='46', per_page=2)
+    # GET https://e-shuushuu.net/api/v1/images?tags=46&per_page=2
+    for image in images_response['images']:
+        print(image['image_id'], image['url'], image['thumbnail_url'])
+    print(images_response['total'], client.last_call['status_code'])
+```
+
+`search` 搜的是标签，不是图片；先由 `hits[].tag_id` 找 ID，再用 `image_list` 筛图。
+多个 ID 写成 `tags='46,169', tags_mode='all'`，不能写 `46+169`；标签列表用 `per_page` 而非 `limit`。
+客户端提供 36 个资源 GET 方法（其中 `user_ratings` 是私有数据）和 5 个显式认证方法，
+全部保留完整 JSON，不自动分页或刷新 token；是否实际跑过，按方法参考的边界表与验证记录区分。
+公共读接口的参数、返回字段见[方法参考](docs/shuushuu-api.md)，按目的查[能力入口](docs/shuushuu-capabilities.md)。
+
 ## 文档
 
 文档全部是 `docs/` 下的中文 Markdown，每份只回答一类问题：
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；六个家族怎么选 |
+| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；七个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
-| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、Moebooru 密码哈希、Serika Bearer、Gelbooru 的 `api_key` + `user_id`、Zerochan 匿名 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、Moebooru 密码哈希、Serika Bearer、Gelbooru 查询凭据、Zerochan 匿名、Shuushuu 显式登录与 Bearer token |
 | [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法 |
 | [docs/errors.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/errors.md) | `AnybooruHTTPError` / `AnybooruAPIError`、状态码与错误正文 |
 | [docs/danbooru.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru.md) | Danbooru 客户端：构造、`request()`、参数编码、返回值、坑 |
@@ -304,12 +335,16 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 | [docs/gelbooru-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-api.md) | Gelbooru 6 个原生方法：参数、URL 与返回形态（dapi 需账号） |
 | [docs/gelbooru-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-capabilities.md) | Gelbooru：想做的事 → 用哪个方法、哪些匿名可用 |
 | [docs/gelbooru-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-contract-notes.md) | Gelbooru 的来源层级、dapi 与 HTML 页面的边界、未实测项 |
+| [docs/shuushuu.md](docs/shuushuu.md) | e-shuushuu 客户端：匿名默认、显式认证、逗号串与重复查询键 |
+| [docs/shuushuu-api.md](docs/shuushuu-api.md) | 36 个资源读取（含私有 user_ratings）与 5 个认证方法的参数、路由和 JSON 字段 |
+| [docs/shuushuu-capabilities.md](docs/shuushuu-capabilities.md) | e-shuushuu：按目的选方法与完整索引 |
+| [docs/shuushuu-contract-notes.md](docs/shuushuu-contract-notes.md) | OpenAPI 依据、权限分支、排除项及资料差异 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移到 0.1.x 的逐项对照 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 哪些端点真的跑过（含状态码与返回摘要）、哪些没有 |
 
 ## 可运行示例
 
-`examples/` 下 21 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
+`examples/` 下 23 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
 站点名与参数（标签、页码、条数、间隔）取自 `examples.<家族>` 段——例如上面 Zerochan 那段的
 `entry_list(p=1, l=2, s='id')` 对应 `examples.zerochan.entry_query`，`entry_show(3793685)` 对应
 `examples.zerochan.entry_id`。示例里不硬编码站点、代理与分页。
@@ -323,6 +358,7 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 | `examples/e621/` | `list_posts.py`（帖子列表、单帖、随机帖）、`browse_resources.py`（标签、画师、评论、合集、笔记）、`wiki_pages.py`（wiki 列表与按标题取页）——三个匿名只读脚本 |
 | `examples/zerochan/` | `list_entries.py`（条目列表与单条目详情）、`filter_entries.py`（单标签、多标签、`strict` 三种过滤）——两个匿名只读脚本，调用之间按 `pause_seconds` 暂停 |
 | `examples/gelbooru/` | `autocomplete.py`（标签自动补全，打印建议条数与全部建议、`last_call` 的真实 URL 与状态码）——一个匿名只读脚本；dapi 的 5 个方法需要账号，没有成功调用示例，匿名拒绝见验证记录 |
+| `examples/shuushuu/` | `search_images.py`（标签名换 ID、两页筛图、详情）、`browse_resources.py`（标签详情、评论、用户、新闻）——两个匿名只读脚本，各最多四次 GET |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -331,6 +367,7 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 .venv/Scripts/python.exe examples/e621/list_posts.py
 .venv/Scripts/python.exe examples/zerochan/list_entries.py
 .venv/Scripts/python.exe examples/gelbooru/autocomplete.py
+.venv/Scripts/python.exe examples/shuushuu/search_images.py
 ```
 
 哪些脚本真的跑过、每条命令的状态码与返回摘要，见
@@ -340,7 +377,7 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 
 安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
 列表条数、分页、详情编号和预期错误。文件名对应 `sites`：`serika`、`danbooru`、`safebooru`、
-`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`。
+`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`。
 
 ```bash
 python test/danbooru.py
@@ -349,9 +386,9 @@ python test/gelbooru.py --config <你的配置文件>
 ```
 
 全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
-不重试、不跟随重定向、不切换站点。每站严格少于 10 次请求：Serika 最多 5 次、Gelbooru 最多 6 次、
+不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu 最多 10 次、Serika 最多 5 次、Gelbooru 最多 6 次、
 其余各最多 4 次；前置列表失败时跳过依赖的详情/翻页，不补发请求。两次请求之间按
-`smoke.pause_seconds` 暂停（默认 1.2 秒）。不依赖测试框架，不在 CI 自动运行。
+`smoke.pause_seconds` 暂停（默认 1.2 秒），Shuushuu 单独取 `smoke.shuushuu.pause_seconds=2.1`。不依赖测试框架，不在 CI 自动运行。
 
 每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段/条数，最后汇总实际尝试次数；
 退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是

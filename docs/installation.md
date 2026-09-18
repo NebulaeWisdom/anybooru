@@ -91,10 +91,10 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` / `gelbooru` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
+| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` / `gelbooru` / `shuushuu` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
 | `anybooru/resources.py` | 包内默认配置的路径 `DEFAULT_CONFIG_FILE`，以及把 Python 参数编成 Rails 查询串的 `encode_params` |
 | `anybooru/exceptions.py` | 三个公开异常 `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，见 [errors.md](errors.md) |
-| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（10 个站点条目）、`examples`、`verification` |
+| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（11 个站点条目）、`examples`、`smoke`、`verification` |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 各家族的匿名只读示例脚本，参数取自配置的 `examples` 段 |
 | 上游引擎仓库 | 可选的只读参考，不属于发布包；版本与源码入口见各家族的契约审计附注 |
@@ -118,3 +118,5 @@ Zerochan 与 Gelbooru 都没有可供核对的上游引擎源码：Zerochan 的�
 Gelbooru 的依据是官方 wiki/帮助页与页面脚本加真实响应；两者都不从其他引擎推断。
 出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md) 与
 [Gelbooru 契约审计附注](gelbooru-contract-notes.md)。
+e-shuushuu 同样没有本地上游服务端源码，使用站点自带的 OpenAPI 与匿名响应核对，见
+[Shuushuu 契约审计附注](shuushuu-contract-notes.md)。

@@ -2,8 +2,9 @@
 
 ## 客户端行为
 
-六个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+七个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，tag 用 `after_id`，删除流用 `last_id`。
+Shuushuu 的资源列表用 `page` / `per_page`，标签搜索 `search` 用 `limit` / `offset`。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -222,6 +223,29 @@ Gelbooru 面同样不做任何本地分页：`post_list(**params)` 这类方法�
 与 wiki 的默认 100 不能混为一谈；也没有依据承诺响应一定含总数、当前页或下一页链接。
 完整自足代码见[Gelbooru 方法参考](gelbooru-api.md)，矛盾见[契约附注](gelbooru-contract-notes.md)。
 `autocomplete` 不提供已确认的分页参数；本次 `limit=3` 仍收到 10 条，库不按它截断结果。
+
+## Shuushuu 的分页
+
+`page` 从 1 开始，`per_page` 范围 1–100、默认20。客户端保留完整列表响应，如
+`{"total": 722909, "page": 1, "per_page": 2, "images": [...]}`，不拆掉页码和计数、不主动请求下一页。
+以下两个调用各发一次 GET：
+
+```python
+from anybooru import Shuushuu
+
+with Shuushuu('shuushuu') as client:
+    first_page = client.image_list(tags='46', page=1, per_page=2)
+    # https://e-shuushuu.net/api/v1/images?tags=46&page=1&per_page=2
+    second_page = client.image_list(tags='46', page=2, per_page=2)
+    # https://e-shuushuu.net/api/v1/images?tags=46&page=2&per_page=2
+    print(first_page['total'], second_page['page'])
+```
+
+`search(q='long hair', limit=2, offset=2)` 是标签搜索的偏移分页，`limit` 1–100 默认20，
+`offset` 0–500000 默认0；不要把它搬进 `tag_list`，标签列表没有 `limit` 参数。
+`image_reposts` 是不分页的 `total/items` 对象。各方法的精确字段见[方法参考](shuushuu-api.md)。
+同一标签的 `image_list(tags=...)`、`tag_images(id)` 和 `tag_show(id)` 总数口径不同，不应互换计数。
+`per_page=101` 的422及两页实际返回见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
 
 ## 相关文档
 

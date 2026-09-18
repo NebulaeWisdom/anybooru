@@ -11,6 +11,17 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### e-shuushuu 第七家族
+
+- 新增 `Shuushuu`、36 个资源 GET 方法（35 个公共资源读取入口、1 个私有 `user_ratings`）与 5 个显式认证方法。
+  按站点自带 OpenAPI 封装独立 `/api/v1` REST API，不套用 Danbooru/Moebooru 路由，保留完整 JSON 和分页字段。
+- 默认匿名。配置中的用户名/密码不会触发登录；主动 `auth_login` / `auth_refresh` 保存 Bearer token 与 Cookie，
+  不自动刷新、登录或重试。认证、私有数据和写操作未实测。
+- 标签筛图先查数字 ID，多个 ID 用英文逗号串；`status` 数组按重复键编码，分页上限由服务器处理，不做本地钳位。
+- 新增站点、示例、冒烟与验证配置，两个匿名示例及 `test/shuushuu.py`（最多10次GET），四份家族文档和公共导航。
+  冒烟本轮 `passed=10 failed=0`，两个示例各4次200；真实命令、URL与边界见
+  [验证记录](docs/verification.md#shuushuu-匿名只读实测2026-09-19)。
+
 ### 轻量匿名冒烟脚本
 
 - 新增 `test/<站点>.py`，与配置中的十个站点一一对应；每站最多 4–6 次匿名 GET，检查字段类型、
