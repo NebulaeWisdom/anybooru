@@ -52,6 +52,11 @@
     },
     "zerochan": {
       "url": "https://www.zerochan.net"
+    },
+    "gelbooru": {
+      "url": "https://gelbooru.com",
+      "api_key": "",
+      "user_id": ""
     }
   },
   "examples": {
@@ -114,6 +119,10 @@
       "strict_query": {"tags": "Genshin Impact", "strict": true, "l": 2},
       "entry_id": 3793685,
       "pause_seconds": 1.2
+    },
+    "gelbooru": {
+      "site": "gelbooru",
+      "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
     }
   },
   "verification": {
