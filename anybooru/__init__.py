@@ -3,8 +3,8 @@
 """
 Anybooru
 
-Anybooru is an API client for Danbooru, Moebooru, Serika, e621ng, Zerochan and
-Gelbooru based sites.
+Anybooru is an API client for Danbooru, Moebooru, Serika, e621ng, Zerochan,
+Gelbooru and e-shuushuu based sites.
 
 Anybooru requires "requests" package to work.
 
@@ -16,12 +16,14 @@ Anybooru modules:
     e621 -- Contains E621 main class for e621ng sites.
     zerochan -- Contains Zerochan main class.
     gelbooru -- Contains Gelbooru main class.
+    shuushuu -- Contains Shuushuu main class.
     api_moebooru -- Contains all Moebooru API functions.
     api_danbooru -- Contains all Danbooru API functions.
     api_serika -- Contains official v1 and internal Serika API functions.
     api_e621 -- Contains native e621ng API functions.
     api_zerochan -- Contains native Zerochan API functions.
     api_gelbooru -- Contains native Gelbooru API functions.
+    api_shuushuu -- Contains native e-shuushuu API functions.
     exceptions -- Manages and builds Anybooru errors messages.
     resources -- Packaged default parameters (DEFAULT_CONFIG_FILE) and encoding.
 """
@@ -38,5 +40,6 @@ from .serika import Serika
 from .e621 import E621
 from .zerochan import Zerochan
 from .gelbooru import Gelbooru
+from .shuushuu import Shuushuu
 from .exceptions import (AnybooruError, AnybooruAPIError, AnybooruHTTPError)
 from .resources import DEFAULT_CONFIG_FILE
