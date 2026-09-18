@@ -3,7 +3,7 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Serika、e621ng、Zerochan 与 Gelbooru 是 4.x 里不存在的家族：4.x 没有对应方法可对照，迁不迁移与本文无关，
+Serika、e621ng、Zerochan、Gelbooru 与 Shuushuu 是 4.x 里不存在的家族：4.x 没有对应方法可对照，迁不迁移与本文无关，
 直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 
 ## 一、破坏性变更总览
