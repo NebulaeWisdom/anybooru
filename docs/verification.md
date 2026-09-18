@@ -1003,3 +1003,109 @@ e-shuushuu 接入后的真实客户端调用，不是把收到的旧接口记录
 - 没有复测 `tag_images(46)` 与另两个计数入口的差异，没有用本轮暂时相同的722909否定T记录的不同统计口径。
 - 只读请求成功不代表冷却参数被API强制执行、没有Cloudflare限制或长期可用；没有探测限流、重试、其它身份或部署。
 - 没有运行格式化、lint、项目级测试套件、构建、安装归档或CI。只证明本节命令与请求，不扩写为发布验证。
+
+## Gelbooru02/TBIB：匿名只读实测（2026-09-19）
+
+### 引擎身份与格式证据
+
+`https://tbib.org/` 的 HTML 正文明写 **`Running Gelbooru 0.2`**，没有 generator meta 或更细的补丁版本号。
+这是站点自述，不是从页面外观或第三方资料猜测。帮助页列出旧式 `index.php?page=dapi` 路由；
+静态路径包括 `script/application.js.php?1`、`script/awesomplete.min.js?v5`，这些资源参数不是引擎版本号。
+没有取得服务端源码，不能确定具体提交或全部同族部署的契约。
+
+以下均为匿名 GET 的真实响应；`Content-Type` 按响应头保留，即使它与正文格式不一致。
+
+| 实际 URL | HTTP | Content-Type | 正文结构与关键事实 |
+| :--- | ---: | :--- | :--- |
+| `https://tbib.org/` | 200 | `text/html; charset=UTF-8` | HTML；页脚自述 `Running Gelbooru 0.2` |
+| `https://tbib.org/index.php?page=help` | 200 | `text/html; charset=UTF-8` | 站点帮助 HTML |
+| `https://tbib.org/index.php?page=post&s=list&tags=rating%3Asafe&pid=0` | 200 | `text/html; charset=UTF-8` | 帖子列表 DOM、`class="preview"`；不是 dapi JSON |
+| `https://tbib.org/index.php?page=help&topic=dapi` | 200 | `text/html; charset=UTF-8` | API Basics；列 `limit/pid/tags/cid/id`，删除流 `last_id`，评论 `post_id` |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&limit=1&tags=rating%3Asafe` | 200 | `text/xml;charset=UTF-8` | `<posts count="7928673" offset="0">`，一个 `<post>`；`id=28627153`、`rating=s`，媒体地址在 XML 属性里 |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&limit=1&tags=rating%3Asafe&json=1` | 200 | `text/html; charset=UTF-8` | JSON 数组一项，`id=28627153`、`rating=safe`；没有根计数和媒体 URL |
+| `https://tbib.org/index.php?page=dapi&s=tag&q=index&limit=1` | 200 | `text/xml;charset=UTF-8` | `<tags type="array">`，一条 `<tag id="3145728" name="aphinity" count="2" type="0" ambiguous="false"/>` |
+| `https://tbib.org/index.php?page=dapi&s=tag&q=index&limit=1&json=1` | 200 | `text/xml;charset=UTF-8` | 仍是相同 XML 根与标签属性，不是 JSON |
+| `https://tbib.org/index.php?page=dapi&s=comment&q=index&post_id=1&limit=1` | 200 | `text/xml;charset=UTF-8` | `<comments type="array"/>`，零子元素 |
+| `https://tbib.org/index.php?page=dapi&s=comment&q=index&post_id=1&limit=1&json=1` | 200 | `text/xml;charset=UTF-8` | 仍是空评论 XML，不能据此列非空评论字段 |
+| `https://tbib.org/index.php?page=dapi&s=deleted&q=index&limit=1` | 200 | `text/html; charset=UTF-8` | 空正文，不证明存在可用的删除流 |
+| `https://tbib.org/index.php?page=dapi&s=deleted&q=index&limit=1&json=1` | 200 | `text/html; charset=UTF-8` | 空正文，不是 JSON 数组 |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&deleted=show&last_id=0&limit=1` | 500 | `text/xml;charset=UTF-8` | 正文仅 `<?xml version="1.0" encoding="UTF-8"?><posts>` 加换行，没有闭合根 |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&deleted=show&last_id=0&limit=1&json=1` | 500 | `text/xml;charset=UTF-8` | 同样是不完整 XML，不改判为空列表 |
+| `https://tbib.org/index.php?page=autocomplete&q=blue&limit=1` | 302 | `text/html; charset=UTF-8` | 空正文；`Location: //tbib.org/`，没有取得补全数据 |
+| `https://tbib.org/index.php?page=autocomplete&q=blue&limit=1&json=1` | 302 | `text/html; charset=UTF-8` | 空正文；`Location: //tbib.org/` |
+| `https://tbib.org/index.php?page=autocomplete2&term=blue&limit=1` | 302 | `text/html; charset=UTF-8` | 空正文；`Location: //tbib.org/` |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&limit=101&tags=rating%3Asafe&json=1` | 200 | `text/html; charset=UTF-8` | JSON 数组 **101 项**；帮助页称 hard limit 100，但该请求没有按 100 截断，真正上限未证实 |
+| `https://tbib.org/index.php?page=dapi&s=post&q=index&limit=1&tags=rating%3Asafe&pid=1&json=1` | 200 | `text/html; charset=UTF-8` | JSON 数组一项 `id=28627160`；没有分页元数据 |
+| `https://tbib.org/tbib.js?v4=` | 200 | `application/javascript` | 脚本自述 NeverBlock Version 3.2，是广告脚本版本，不是 TBIB 的引擎版本 |
+
+帖子 JSON 实际键为 `directory/hash/height/id/image/change/owner/parent_id/rating/sample/sample_height/sample_width/score/tags/width`。
+其中 `sample` 为布尔值，`id/directory/height/width/change/parent_id/sample_height/sample_width/score` 为整数，
+其它上述字段为字符串。XML 则保留 `posts` 根的 `count/offset` 和 `post` 的全部属性，包括
+`file_url/sample_url/preview_url/md5`；`score`、`parent_id` 在所取 XML 样本里可为空字符串。
+客户端不把 XML 属性强转为 JSON 字段、不将 `rating=s` 改成 `safe`、不按 `directory/image/hash` 拼媒体地址。
+
+### 与 gelbooru.com 的差异及既有客户端实测
+
+gelbooru.com 一列沿用其已有实测与官方页面结论，没有为本节调用该站或改写原有家族文档。
+
+| 对比项 | gelbooru.com / `Gelbooru` | TBIB / `Gelbooru02` |
+| :--- | :--- | :--- |
+| 路由与搜索 | `index.php?page=dapi&s=post&q=index`；帖子 `tags/pid`，删除流 `deleted=show/last_id` | 同形路由；不是 REST `/posts.json`；`q=index` 是动作，不是标签串 |
+| 匿名 dapi | 五个原生方法均已观测 401 空正文；账号成功未实测 | 帖子、标签和评论样本 200，无 `api_key/user_id`；删除流 500 |
+| JSON 与 XML | 客户端一律请求 dapi `json=1` 并解 JSON；账号成功字段未观测 | 只有帖子取得 JSON 数组；标签与评论带 `json=1` 仍是 XML |
+| 补全参数 | `autocomplete2&term=blue` 取得 JSON 建议；`limit=3` 可回 10 条 | `autocomplete&q=blue` 和 `autocomplete2&term=blue` 均 302 到首页 |
+| 分页与上限 | 文档列 `pid`；default 100 与旧 help hard 100 的说法未由账号请求验证 | `pid=1,limit=2` 的 XML `offset=2`；JSON 无页码/总数；`limit=101` 回 101，真正上限未知 |
+
+直接把现有 `Gelbooru` 的 `site_url` 指向 TBIB，得到以下结果：
+
+| 方法与真实 URL | HTTP / Content-Type | 现有客户端结果 |
+| :--- | :--- | :--- |
+| `post_list(limit=1, tags='rating:safe')` → `https://tbib.org/index.php?limit=1&tags=rating%3Asafe&s=post&q=index&page=dapi&json=1` | 200 / `text/html; charset=UTF-8` | 成功返回 JSON 列表 |
+| `tag_list(limit=1)` → `https://tbib.org/index.php?limit=1&s=tag&q=index&page=dapi&json=1` | 200 / `text/xml;charset=UTF-8` | 抛 `AnybooruAPIError`，因为正文是 XML |
+| `comment_list(1, limit=1)` → `https://tbib.org/index.php?limit=1&post_id=1&s=comment&q=index&page=dapi&json=1` | 200 / `text/xml;charset=UTF-8` | 抛 `AnybooruAPIError`，因为正文是 XML |
+
+因此不是只加一个 `sites` 条目就能复用全部方法。独立 `Gelbooru02` 让帖子默认走 JSON，标签、评论及
+显式 XML 帖子返回 `response.text` 原文；不按响应猜格式，也不修复站点返回。用户/账号接口没有调用。
+
+### 已执行命令与客户端结果
+
+以下命令的 `my-anybooru.json` 是用户自己的完整配置文件占位写法；参数与站点条目来自新版包内模板，
+没有账号凭据。三份脚本的真实执行时间为 **UTC 2026-09-18 19:58:59–19:59:17**。
+
+```bash
+python -X utf8 test/tbib.py --config my-anybooru.json
+python -X utf8 examples/gelbooru02/list_posts.py --config my-anybooru.json
+python -X utf8 examples/gelbooru02/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本 | 退出码 | 实际请求 | 结果 |
+| :--- | ---: | ---: | :--- |
+| `test/tbib.py` | 0 | 6 | 全部 200；`SUMMARY tbib \| requests=6 \| passed=6 failed=0`，无 SKIP |
+| `examples/gelbooru02/list_posts.py` | 0 | 2 | JSON 列表与同帖 XML 均 200 |
+| `examples/gelbooru02/browse_resources.py` | 0 | 2 | 标签与空评论 XML 均 200 |
+
+三条命令 stderr 均为空；这十条客户端请求如下，不用 HTTP 200 代替字段检查。
+
+| 调用 | 实际 URL | HTTP / Content-Type | 返回字段与结果 |
+| :--- | :--- | :--- | :--- |
+| 冒烟 JSON 列表 | `https://tbib.org/index.php?pid=0&limit=2&tags=rating%3Asafe&s=post&q=index&page=dapi&json=1` | 200 / `text/html; charset=UTF-8` | 两项 `28627190/28627188`，`rating=safe`，上述 15 个 JSON 键及类型检查通过 |
+| 冒烟 JSON 单帖 | `https://tbib.org/index.php?id=28627190&limit=2&s=post&q=index&page=dapi&json=1` | 200 / `text/html; charset=UTF-8` | 一项，编号与列表选择相同，1200×1600、30 个标签 |
+| 冒烟 XML 单帖 | `https://tbib.org/index.php?id=28627190&s=post&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | 原文 `str`；调用方解析后 `posts count=1 offset=0`、`post id=28627190 rating=s`，三个媒体 URL 属性存在 |
+| 冒烟 XML 第二页 | `https://tbib.org/index.php?pid=1&limit=2&tags=rating%3Asafe&s=post&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | `offset=2,count=7928682`；两帖 `28627185/28627184`，均 `rating=s` |
+| 冒烟标签 | `https://tbib.org/index.php?limit=2&s=tag&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | 两个 tag：`aphinity`、`algol_(words_worth)`；`id/name/count/type/ambiguous` 属性检查通过 |
+| 冒烟评论 | `https://tbib.org/index.php?limit=2&post_id=1&s=comment&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | `<comments type="array"/>`，没有子元素 |
+| 示例 JSON 列表 | `https://tbib.org/index.php?tags=rating%3Asafe&pid=0&limit=2&s=post&q=index&page=dapi&json=1` | 200 / `text/html; charset=UTF-8` | 两帖 `28627190/28627188`，尺寸 1200×1600 / 3000×2250，标签数 30 / 27 |
+| 示例 XML 单帖 | `https://tbib.org/index.php?id=28627190&s=post&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | `md5=9304a0568bb9ddc0a57d8a23eea8c2f4`；`file_url` 与 `sample_url` 均为 `https://tbib.org/images/4905/7693b5d7bdff535e8c47ebcc32338235d24bedf9.jpg`；`preview_url=https://tbib.org/thumbnails/4905/thumbnail_7693b5d7bdff535e8c47ebcc32338235d24bedf9.jpg` |
+| 示例标签 | `https://tbib.org/index.php?limit=2&s=tag&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | tag `3145728/aphinity/count=2` 与 `78839808/algol_(words_worth)/count=1`；两者 `type=0,ambiguous=false` |
+| 示例评论 | `https://tbib.org/index.php?post_id=1&s=comment&q=index&page=dapi` | 200 / `text/xml;charset=UTF-8` | 空 `comments` 根，`type=array` |
+
+### 边界与未实测
+
+- 只确认站点自述 Gelbooru 0.2，没有更细版本或服务端源码证据；没有登记或实测其它同族站点。
+- 非空评论的子元素字段、`post_id` 的确切含义、标签过滤/排序/分页、帖子 `cid` 和更多元标签/排序组合均未实测。
+- 帮助页的 100 上限被一次 `limit=101` 的响应否定，但实际硬上限仍未知。没有客户端钳位或自动翻页。
+- 删除流只取得 500，不完整 XML 保留为站点错误；没有取得成功删除记录，`last_id` 游标推进未实测。
+  上表错误来自直接路由请求，六请求冒烟不重复调用已知失败的删除流。
+- 账号、凭据、用户接口、登录、写操作、私有数据均未调用；没有媒体下载或跟随补全的 302。
+- 新增客户端不解析 HTML，不包装补全或用户目录；原始 XML 即使不完整也不由客户端补齐。
+- 只执行了本节列出的匿名场景，没有构建、安装归档、CI、格式化、lint 或项目级套件验证。
