@@ -49,6 +49,9 @@
       "url": "https://e926.net",
       "username": "",
       "api_key": ""
+    },
+    "zerochan": {
+      "url": "https://www.zerochan.net"
     }
   },
   "examples": {
@@ -102,6 +105,15 @@
       "wiki_query": {"limit": 2},
       "wiki_title": "help:api",
       "pause_seconds": 1
+    },
+    "zerochan": {
+      "site": "zerochan",
+      "entry_query": {"p": 1, "l": 2, "s": "id"},
+      "tag_query": {"tags": "Genshin Impact", "l": 2},
+      "multi_tag_query": {"tags": ["Lumine", "Flower"], "l": 2},
+      "strict_query": {"tags": "Genshin Impact", "strict": true, "l": 2},
+      "entry_id": 3793685,
+      "pause_seconds": 1.2
     }
   },
   "verification": {
@@ -166,6 +178,32 @@
       "only_query": {"only": "id,rating"},
       "related_search": {"query": "wolf", "category_id": 0},
       "pause_seconds": 1
+    },
+    "zerochan": {
+      "site": "zerochan",
+      "scripts": [
+        "examples/zerochan/list_entries.py",
+        "examples/zerochan/filter_entries.py"
+      ],
+      "pause_seconds": 1.2,
+      "default_query": {},
+      "entry_query": {"p": 1, "l": 2, "s": "id"},
+      "tag_query": {"tags": "Genshin Impact", "l": 2},
+      "multi_tag_query": {"tags": ["Lumine", "Flower"], "l": 2},
+      "strict_query": {"tags": "Genshin Impact", "strict": true, "l": 2},
+      "entry_id": 3793685,
+      "optional_queries": [
+        {"name": "page", "params": {"p": 2, "l": 2, "s": "id"}},
+        {"name": "popularity_all", "params": {"l": 2, "s": "fav", "t": 0}},
+        {"name": "popularity_recent", "params": {"l": 2, "s": "fav", "t": 1}},
+        {"name": "popularity_extended", "params": {"l": 2, "s": "fav", "t": 2}},
+        {"name": "large", "params": {"l": 2, "d": "large"}},
+        {"name": "huge", "params": {"l": 2, "d": "huge"}},
+        {"name": "landscape", "params": {"l": 2, "d": "landscape"}},
+        {"name": "portrait", "params": {"l": 2, "d": "portrait"}},
+        {"name": "square", "params": {"l": 2, "d": "square"}},
+        {"name": "color", "params": {"l": 2, "c": "red"}}
+      ]
     }
   }
 }
