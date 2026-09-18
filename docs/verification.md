@@ -557,3 +557,43 @@ Z2 与 Z3 合计 **21 次匿名 GET：20×200、1×500**。没有写请求、没
   一次性编排脚本使用后删除。
 
 [Zerochan 客户端](zerochan.md) · [方法参考](zerochan-api.md) · [能力入口](zerochan-capabilities.md) · [契约审计附注](zerochan-contract-notes.md)
+
+## 文档字面代码复核（2026-09-18）
+
+本轮直接提取各 Markdown 的 Python 代码块执行，不重新手写一套“等价调用”。每块独立运行，
+保留原文代码、stdout、异常和真实响应；API 的字面参数没有替换。为使用同一份覆写配置，仅在临时执行进程
+把 `resources.DEFAULT_CONFIG_FILE` 指向内部覆盖配置，包内配置和源文件不改；不使用环境变量，也不加入凭据。
+每次请求前按配置等待 `1.2` 秒。需账号、会写入数据或旧 4.x 的代码不执行。
+
+命令形态（路径用占位符表示）：
+
+```bash
+.venv/Scripts/python.exe <片段执行脚本> --config <配置文件> --manifest <片段清单> --output <执行记录>
+```
+
+### Zerochan：重写后的全部教学片段
+
+`zerochan.md` 的 2 块、`zerochan-api.md` 的 9 块全部执行，合计 **13 次 GET：12×200、1×500**。
+11 块代码均正常结束；错误示例捕获了 `AnybooruHTTPError`，并不是把 500 当成成功响应。
+首个请求开始于 `2026-09-18T01:11:20.451200+00:00`。
+
+| 字面例子 | 实际 URL（根地址为 `https://www.zerochan.net`） | 真实输出摘要 |
+| :--- | :--- | :--- |
+| 第一页，`p=1, l=2, s='id'`（用法页及方法页各一次） | `/?p=1&l=2&s=id&json=` | 两次均 200；`4725815 Sin Mal`、`4725814 Sin Mal` |
+| 第二页，`p=2, l=2, s='id'` | `/?p=2&l=2&s=id&json=` | 200；`4725810`、`4725809` |
+| 原样 JSON，`request('/', params={'l': 2})` | `/?l=2&json=` | 200；顶层键 `['items']`，其中是两张图片的列表 |
+| 单标签，`tags='Genshin Impact', l=2` | `/Genshin+Impact?l=2&json=` | 200；`4034550 Genshin Impact`、`3793080 Yae Miko` |
+| 多标签，`tags=['Lumine', 'Flower'], l=2` | `/Lumine,Flower?l=2&json=` | 200；`4034550`、`4110668`，返回的 `tags` 包含所查标签 |
+| 主标签，`tags='Genshin Impact', strict=True, l=2` | `/Genshin+Impact?l=2&strict=&json=` | 200；两张图的 `tag` 都是 `Genshin Impact`；实际是 `strict=`，不是 `strict=true` |
+| 人气窗口，`l=2, s='fav', t=1` | `/?l=2&s=fav&t=1&json=` | 200；`4723740`、`4722756` |
+| 人气窗口，`l=2, s='fav', t=2` | `/?l=2&s=fav&t=2&json=` | 200；`4680768`、`4694831` |
+| 尺寸，`l=2, d='square'` | `/?l=2&d=square&json=` | 200；`4725807 1006×966`、`4725804 1024×1024` |
+| 颜色，`l=2, c='red'` | `/?l=2&c=red&json=` | 200；`4725810`、`4725807`，含 `thumbnail` 图片地址 |
+| 图片编号，`entry_show(3793685)` | `/3793685?json=` | 200；`3793685 Yukihana Lamy 2976 4055`，`full` 为该图的完整尺寸地址 |
+| 错误，`l=2, s='fav', t=0` | `/?l=2&s=fav&t=0&json=` | 500；打印 `error.http_code`、`error.url` 和 `repr(error.body)` |
+
+错误正文的实际输出仍是 `'{\r\n  "items": [\r\n}\r\n'`，不是合法 JSON。
+本轮没有重测不传 `l` 的默认条数；上次观察到的 48 条保留为历史事实，不写成页面保证。
+
+四份 Zerochan 文档的相对链接审计：**28 个相对链接、其中 7 个片段锚点、0 个缺失**。
+实际执行 `.venv/Scripts/python.exe <链接审计脚本> --output <记录文件> docs/zerochan.md docs/zerochan-api.md docs/zerochan-capabilities.md docs/zerochan-contract-notes.md`，退出 `0`。

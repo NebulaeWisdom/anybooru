@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""用单标签、多标签和 primary-tag strict 模式浏览 Zerochan。
+"""对比普通标签查询、两个标签查询，以及只匹配主标签的 strict 查询。
 
-原始标签名、条数与间隔来自 examples.zerochan。标签不使用 Danbooru 搜索语法，
-客户端负责逐个标签编码 URL；User-Agent 请配置项目名与自己的 Zerochan 用户名。
+examples.zerochan 给脚本提供标签、数量和间隔，例如 strict 对应
+entry_list(tags='Genshin Impact', strict=True, l=2)，打印图片编号和主标签。
+客户端把标签放进 URL；User-Agent 请配置项目名与自己的 Zerochan 用户名。
 """
 
 import argparse

@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""列出 Zerochan 条目，再读取配置中指定条目的详情。
+"""打印每张图片的编号、主标签和宽高，再按图片编号显示完整图片地址与来源。
 
-站点、查询、条目 ID 与调用间隔来自 examples.zerochan；--config / --site
-可显式覆盖。User-Agent 需在配置中补入使用者自己的 Zerochan 用户名。
+examples.zerochan 给脚本提供站点、参数、编号和间隔，例如列表调用是
+entry_list(p=1, l=2, s='id')，详情调用是 entry_show(3793685)。
+--config / --site 可换配置或站点；User-Agent 请补入自己的 Zerochan 用户名。
 """
 
 import argparse
