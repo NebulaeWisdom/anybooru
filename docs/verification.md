@@ -426,3 +426,134 @@ Successfully built anybooru-0.1.0.dev1.tar.gz and anybooru-0.1.0.dev1-py3-none-a
 这不是 GitHub Actions runner 实跑，也未触发或验证任何 PyPI 发布。临时分发产物检查后删除。
 
 [文档入口](index.md) · [Danbooru 审计](danbooru-contract-notes.md) · [Moebooru 审计](moebooru-contract-notes.md) · [Serika 审计](serika-contract-notes.md) · [e621ng 审计](e621-contract-notes.md)
+
+## Zerochan：匿名只读实测（2026-09-18）
+
+本节是 `anybooru==0.1.0.dev1` 新增 Zerochan 客户端后的真实执行，不计入上面的四家族历史批次。
+契约来自 [API 页面](https://www.zerochan.net/api)的
+[2024 年快照](https://web.archive.org/web/2024/https://www.zerochan.net/api)与实际响应；没有上游引擎源码。
+以下命令中的 `<配置文件>`、`<只读编排脚本>`、`<记录文件>`、`<输出目录>` 均为占位表示：
+实际配置从包内配置复制而来；没有使用环境变量，没有用户名、认证头或登录动作。
+User-Agent 为 `Anybooru/0.1.0.dev1`，**没有用户名，不满足页面的完整身份要求**；匿名成功不排除被封禁风险。
+
+### Z1：导入与包内配置
+
+使用项目虚拟环境实际导入 `Zerochan`，以 `Zerochan('zerochan')` 构造并读取 URL 与 UA，输出：
+
+```text
+Zerochan https://www.zerochan.net Anybooru/0.1.0.dev1 {}
+```
+
+退出 `0`、stderr 为空。此构造使用默认的包内配置（`proxies` 为空），线上请求则使用覆写配置。
+证明默认配置可构造，不把它记成连网成功。
+
+### Z2：逐端点与可选参数
+
+真实执行的命令形态：
+
+```bash
+.venv/Scripts/python.exe <只读编排脚本> --config <配置文件> --output <记录文件>
+```
+
+一次性编排调用真实的 `request` / `entry_list` / `entry_show`，输入全部来自 `verification.zerochan`。
+相邻请求完成后暂停配置的 `1.2` 秒，不并发、不重试；没有把客户端限速写进库。
+开始时间为 `2026-09-18T00:08:47.466210+00:00`，首个响应 `Date` 为 `Fri, 18 Sep 2026 00:08:48 GMT`。
+共 **16 次 GET：15×200、1×500**，全部收到 HTTP 响应，Content-Type 均为
+`application/json; charset=utf-8`。编排记录错误后继续其余请求，最终退出 `1`（不是全部通过）。
+
+下表 URL 均以 `https://www.zerochan.net` 为根；每行只有一次实际调用。
+
+| 配置项 / 调用 | 实际路径与查询串 | HTTP | 真实响应摘要 |
+| :--- | :--- | :--- | :--- |
+| `default_query` / `request('/')` | `/?json=` | 200 | 顶层只有 `items`，数组 **48 条**；首项 `4725815`，`tag: Sin Mal` |
+| `entry_query` / `entry_list` | `/?p=1&l=2&s=id&json=` | 200 | 2 条，`4725815` / `4725814` |
+| `tag_query` / `entry_list` | `/Genshin+Impact?l=2&json=` | 200 | `4034550`（`tag: Genshin Impact`）、`3793080`（`tag: Yae Miko`） |
+| `multi_tag_query` / `entry_list` | `/Lumine,Flower?l=2&json=` | 200 | `4034550` / `4110668`，两条 `tag` 均为 `Genshin Impact` |
+| `strict_query` / `entry_list` | `/Genshin+Impact?l=2&strict=&json=` | 200 | `4034550` / `4110668`，两条 `tag` 均为所查的 `Genshin Impact` |
+| `entry_id` / `entry_show` | `/3793685?json=` | 200 | 裸对象；`primary: Yukihana Lamy`，`2976×4055`，`size: 5706752` |
+| `optional_queries.page` | `/?p=2&l=2&s=id&json=` | 200 | 2 条，`4725810` / `4725809`，与上一页不同 |
+| `optional_queries.popularity_all` | `/?l=2&s=fav&t=0&json=` | **500** | `AnybooruHTTPError`；正文为不完整 JSON，见下文原文 |
+| `optional_queries.popularity_recent` | `/?l=2&s=fav&t=1&json=` | 200 | 2 条，`4723740` / `4722756` |
+| `optional_queries.popularity_extended` | `/?l=2&s=fav&t=2&json=` | 200 | 2 条，`4680768` / `4694831` |
+| `optional_queries.large` | `/?l=2&d=large&json=` | 200 | `4725814`（`3570×2008`）、`4725810`（`3010×4858`） |
+| `optional_queries.huge` | `/?l=2&d=huge&json=` | 200 | `4725814` / `4725810`，本次样本与 large 相同 |
+| `optional_queries.landscape` | `/?l=2&d=landscape&json=` | 200 | `4725814`（`3570×2008`）、`4725800`（`4131×2160`） |
+| `optional_queries.portrait` | `/?l=2&d=portrait&json=` | 200 | `4725815`（`1153×1684`）、`4725810`（`3010×4858`） |
+| `optional_queries.square` | `/?l=2&d=square&json=` | 200 | `4725807`（**`1006×966`**）、`4725804`（`1024×1024`） |
+| `optional_queries.color` | `/?l=2&c=red&json=` | 200 | 2 条，`4725810` / `4725807` |
+
+`optional_queries` 实际是按 `name` 命名的数组，上表点号表示其中一项，不是 JSON 对象的访问表达式。
+
+列表响应首项摘录（只选列以下字段，未展示完整 tags 数组）：
+
+```json
+{"items":[{"id":4725815,"width":1153,"height":1684,"md5":"00602349a494ad03942f1148208ca34a","thumbnail":"https://s3.zerochan.net/240/15/16/4725815.avif","tag":"Sin Mal"}]}
+```
+
+本批列表项观察到的完整键集为 `id, width, height, md5, thumbnail, source, tag, tags`；
+列表顶层没有 `total` / `page` / 下一页链接。默认 **48 条**只是本次不传 `l` 的观察，不是页面承诺或库默认。
+详情观察到 `id, small, medium, large, full, width, height, size, hash, source, primary, tags`，选列摘录：
+
+```json
+{"id":3793685,"width":2976,"height":4055,"size":5706752,"hash":"5ba73b33f6f045f62f938f63158704e0","primary":"Yukihana Lamy","full":"https://static.zerochan.net/Yukihana.Lamy.full.3793685.jpg","source":"https://www.pixiv.net/en/artworks/87283595"}
+```
+
+`s=fav&t=0` 的 **完整响应正文**为以下文本（原始换行是 CRLF）：
+
+```text
+{
+  "items": [
+}
+```
+
+HTTP 为 `500 Internal Server Error`，虽然 Content-Type 声明 JSON，但正文没有闭合数组，不能解析成 JSON。
+客户端先按 HTTP 状态抛 `AnybooruHTTPError`，保留 URL 与正文，没有把它转成成功空列表。
+API 快照把 `t=0` 列为 all time；**本次只有失败响应，成功行为未实测**，不删参数、不特判或换端点。
+同样不能把 `d=square` 解释成严格的宽高相等，或据两条样本推导 large/huge 的阈值。
+`c=red` 的成功响应不等于已审计服务端颜色分类算法。
+
+### Z3：两个可运行示例
+
+以下两条命令均真实执行，站点由配置选择（未传 `--site`），分别在 `00:09:50` 与 `00:09:54` UTC 开始：
+
+```bash
+.venv/Scripts/python.exe examples/zerochan/list_entries.py --config <配置文件>
+.venv/Scripts/python.exe examples/zerochan/filter_entries.py --config <配置文件>
+```
+
+两条命令均退出 **`0`**，stderr 为空；共 **5×HTTP 200**，每次调用都打印真实状态码和 URL。
+
+| 示例 | 真实输出片段 |
+| :--- | :--- |
+| `list_entries.py` | `entry_list`：`count: 2`，`4725815 Sin Mal` / `4725814 Sin Mal`；`entry_show`：`3793685 Yukihana Lamy`，`2976×4055`、`size: 5706752` |
+| `filter_entries.py` | 单标签 `4034550` / `3793080`；多标签 `4034550` / `4110668`；strict `4034550` / `4110668`，两条 primary 标签均为 `Genshin Impact` |
+
+Z2 与 Z3 合计 **21 次匿名 GET：20×200、1×500**。没有写请求、没有下载图片、没有触发登录。
+
+### Z4：wheel 入包
+
+实际构建一次：
+
+```bash
+.venv/Scripts/python.exe -m pip wheel . --no-deps --no-build-isolation --wheel-dir <输出目录>
+```
+
+退出 **`0`**，输出 `Successfully built anybooru`，生成 `anybooru-0.1.0.dev1-py3-none-any.whl`。
+读取归档确认含 `anybooru/zerochan.py`、`anybooru/api_zerochan.py`、`anybooru/anybooru.json`；
+包内 `sites.zerochan` 为 `{"url":"https://www.zerochan.net"}`。元数据 `Name: anybooru`、
+`Version: 0.1.0.dev1`，description/keywords 均包含 Zerochan。检查后删除分发产物与本轮构建目录。
+没有从 wheel 独立安装再运行，也没有执行 sdist、GitHub runner 或 PyPI 发布验证。
+
+### 既有探测、未解决与未实测
+
+* 实现前已取得的独立响应：裸 `json` 与空值 `json=` 均为 `200 application/json`；
+  `/3793685` 不带 json 时为 `200 text/html`。它们不计入 Z2/Z3，也没有把 HTML 当 API 解析。
+* live API 帮助页的直接抓取曾遇浏览器挑战，当前契约文字使用 2024 快照；没有声称取到了最新版正文。
+* `s=fav&t=0` 的成功响应仍未拿到；不把 500 原因推断成限流或其它外部因素。
+* 尚未验证合规用户名 UA、特殊字符标签在服务端的匹配、meta 标签拒绝、strict 多标签组合、其它颜色、
+  所有排序/过滤组合、空结果、末页、非法参数、缺失条目、限流/封禁响应与其它部署。
+* `xml` 是页面列出的格式，但本库只实现 JSON，XML 未实现也未实测；写操作、登录会话与 HTML 页面不在 API 能力内。
+* 没有新增测试、护栏或客户端限速，没有执行格式化、lint 或项目测试套件。原始证据留作本次交接，
+  一次性编排脚本使用后删除。
+
+[Zerochan 客户端](zerochan.md) · [方法参考](zerochan-api.md) · [能力入口](zerochan-capabilities.md) · [契约审计附注](zerochan-contract-notes.md)
