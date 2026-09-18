@@ -87,7 +87,7 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 
 ## Serika 系站点
 
-Serika 是六家族中的独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
+Serika 是独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
 不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
@@ -199,6 +199,23 @@ Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都�
 [Gelbooru 契约审计附注](gelbooru-contract-notes.md)；可调用能力见
 [Gelbooru 能力入口](gelbooru-capabilities.md)。
 
+## Shuushuu：默认匿名，显式登录才建立会话
+
+公开图片、标签、评论、用户资料等读取不需要登录。`Shuushuu('shuushuu')` 只创建客户端，不发送任何登录请求。
+`sites.shuushuu` 的 `username/password/access_token` 默认都为 `""`；即使填了用户名和密码也不会自动登录。
+
+| 主动选择 | 客户端行为 |
+| :--- | :--- |
+| 留空凭据 | 普通匿名读取，无认证头 |
+| 提供非空 `access_token` | 请求发送 `Authorization: Bearer <token>`，到期不自动续期 |
+| 显式 `auth_login(username, password)` | JSON body 发到 `/api/v1/auth/login`，保存响应 token 与同会话 Cookie |
+| 显式 `auth_refresh()` | 使用会话的 `refresh_token` Cookie，保存新的 access token；不在 JSON 里传 refresh token |
+| 显式 `auth_logout()` / `auth_logout_all()` | 请求服务器吊销当前 / 所有 refresh token；成功后清空客户端 token 与 Cookie |
+
+OpenAPI 描述 access token 有效 30 分钟，refresh token 30 天；服务端登出不立即撤销已经签发的 access token。
+登录、个人数据和写权限不是公共读取的前置步骤；`user_ratings` 只允许本人或具有 `USER_EDIT_PROFILE` 的版主，
+不能把“GET”当成匿名权限保证。参数与字面调用见 [Shuushuu 方法参考](shuushuu-api.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -206,6 +223,7 @@ Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都�
 Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD
 `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要
 该站账号，已实测匿名拒绝为401、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。
+Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。
 
 ## 相关文档
 
