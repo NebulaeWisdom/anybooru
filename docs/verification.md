@@ -704,3 +704,112 @@ python <只读资料抓取脚本> --config <配置文件> --input <来源请求�
   未运行 formatter、lint、项目测试套件、分发包构建或发布；这轮证据仅限上述真实读取。
 
 [Gelbooru 客户端](gelbooru.md) · [方法参考](gelbooru-api.md) · [能力入口](gelbooru-capabilities.md) · [契约附注](gelbooru-contract-notes.md)
+
+
+## Gelbooru：有界匿名扩展实测（2026-09-18）
+
+在上一批基础上按明确清单再执行 **35 次 GET：27×200、5×401、3×302**，每项一次。
+清单展开为 13 个补全查询、5 个 dapi 读取、14 个 HTML 路由和 3 个图片 CDN 地址；无额外探测、无重试、无网络切换。
+请求结束后等待配置的 **1.2 秒**再开始下一项；记录中的最小结束至下次开始间隔为 **1.201 秒**。
+所有请求匿名，只使用 gelbooru.com 及指定的 img4.gelbooru.com，没有登录、凭据或写请求。
+
+执行命令形态（python 代表项目虚拟环境解释器，内部路径以占位符表示）：
+
+```bash
+python <匿名只读执行脚本> --config <配置文件> --input <请求清单> --output <执行记录>
+```
+
+开始 `2026-09-18T06:38:45.036377+00:00`，结束 `2026-09-18T06:39:50.260422+00:00`，进程退出 0。
+异常被逐项记录后继续清单，不代表把 401 当成功；没有网络异常或无 HTTP 响应的项。
+下面与上一批独立记账，历史数字与历史“未执行”状态没有改写。
+
+### G4：补全种类与空值边界
+
+13 次均为 200、`application/json`，均发 `limit=3`。下表的首项字段来自真实响应，而非按请求 type 构造。
+
+| 实际 URL（GET） | HTTP | 返回条数 | 首项关键字段 |
+| :--- | :--- | :--- | :--- |
+| `https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"blue eyes","value":"blue_eyes","post_count":"2817587","category":"tag"}` |
+| `https://gelbooru.com/index.php?type=tag_query&limit=3&term=blue&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"blue eyes","value":"blue_eyes","post_count":"2817587","category":"tag"}` |
+| `https://gelbooru.com/index.php?type=artist&limit=3&term=fuzichoco&page=autocomplete2` | 200 | 3 | `{"type":"tag","label":"fuzichoco","value":"fuzichoco","post_count":"1017","category":"artist"}` |
+| `https://gelbooru.com/index.php?type=pool&limit=3&term=touhou&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"touhou","value":"touhou","post_count":"1021798","category":"copyright"}` |
+| `https://gelbooru.com/index.php?type=user&limit=3&term=lozertuser&page=autocomplete2` | 200 | 1 | `{"type":"tag","label":"lozertuser","value":"lozertuser","post_count":"1","category":"character"}` |
+| `https://gelbooru.com/index.php?type=wiki_page&limit=3&term=howto&page=autocomplete2` | 200 | 5 | `{"type":"tag","label":"howtodriveacar","value":"howtodriveacar","post_count":"2","category":"artist"}` |
+| `https://gelbooru.com/index.php?type=favorite_group&limit=3&term=touhou&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"touhou","value":"touhou","post_count":"1021798","category":"copyright"}` |
+| `https://gelbooru.com/index.php?type=saved_search_label&limit=3&term=touhou&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"touhou","value":"touhou","post_count":"1021798","category":"copyright"}` |
+| `https://gelbooru.com/index.php?type=mention&limit=3&term=lozertuser&page=autocomplete2` | 200 | 1 | `{"type":"tag","label":"lozertuser","value":"lozertuser","post_count":"1","category":"character"}` |
+| `https://gelbooru.com/index.php?type=tag&limit=3&term=&page=autocomplete2` | 200 | 0 | `[]`，没有首项 |
+| `https://gelbooru.com/index.php?type=tag&limit=3&term=hatsune+miku&page=autocomplete2` | 200 | 0 | `[]`，没有首项 |
+| `https://gelbooru.com/index.php?type=taq&limit=3&term=blue&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"blue eyes","value":"blue_eyes","post_count":"2817587","category":"tag"}` |
+| `https://gelbooru.com/index.php?type=wiki&limit=3&term=blue&page=autocomplete2` | 200 | 10 | `{"type":"tag","label":"blue eyes","value":"blue_eyes","post_count":"2817587","category":"tag"}` |
+
+* 九个脚本枚举值均已请求，但**所有非空项的返回 type 都是 tag**。artist=fuzichoco 甚至包含 character 与普通 tag 分类项；user=lozertuser 返回的是 category=character 的标签，不是用户对象。
+* pool/favorite_group/saved_search_label 配 touhou 得到标签建议，wiki_page 配 howto 得到 howtodriveacar 等标签，不是池、收藏组、保存搜索或 wiki 条目。只能证明这些输入取得上述响应，不能宣称那些独立资源的补全成功。
+* 拼错的 taq 与未列入脚本枚举的 wiki 配 blue 都返回 10 个标签建议，不是外部资料所说的空数组；这是服务器的响应，客户端没有替换 type 或切换接口。
+* 空 term 和空格写法 hatsune miku 均返回空数组，与外部资料一致；没有再补发下划线写法作对照。
+* 请求 limit=3 可得到 10、5、3、1、0 项，不能保证最多三项，也不能由此断言服务端对全部 limit 的算法。
+
+### G5：五个 dapi 方法的匿名拒绝
+
+通过原生方法实际执行；构造器显式给 `api_key=''`、`user_id=''`，URL 不含凭据。
+
+| 调用 | 实际 URL（GET） | HTTP / 异常 / 正文 |
+| :--- | :--- | :--- |
+| `post_list(limit=1)` | `https://gelbooru.com/index.php?limit=1&s=post&q=index&page=dapi&json=1` | 401 / `AnybooruHTTPError` / 0 字节 |
+| `tag_list(limit=1)` | `https://gelbooru.com/index.php?limit=1&s=tag&q=index&page=dapi&json=1` | 401 / `AnybooruHTTPError` / 0 字节 |
+| `user_list(limit=1)` | `https://gelbooru.com/index.php?limit=1&s=user&q=index&page=dapi&json=1` | 401 / `AnybooruHTTPError` / 0 字节 |
+| `comment_list(post_id=1)` | `https://gelbooru.com/index.php?post_id=1&s=comment&q=index&page=dapi&json=1` | 401 / `AnybooruHTTPError` / 0 字节 |
+| `post_deleted(last_id=0)` | `https://gelbooru.com/index.php?last_id=0&s=post&q=index&deleted=show&page=dapi&json=1` | 401 / `AnybooruHTTPError` / 0 字节 |
+
+五次均为 `Content-Type: text/html; charset=UTF-8`；异常的 `http_code=401`、`body=''`、`data=None`，
+响应体为空，不是错误 JSON。每次 `last_call` 都含 `API='dapi'`、表内 URL、`status_code=401`、
+`status='Unauthorized'` 和真实响应头；没有误抛 JSON 解析异常，也没有返回成功空数组。
+这确认了外部资料的匿名 401 边界，**没有验证任何 dapi 成功响应字段或认证成功路径**。
+
+### G6：HTML 路由可访问性
+
+只读状态与响应头，不解析页面内容；GET 使用 `Accept: text/html`、不跟随跳转。
+14 项均为 200，Content-Type 均为 `text/html; charset=UTF-8`。这里的“可达”只指收到 HTTP 200，
+不是对页面内容完整性或各表单功能的验证。
+
+| 实际 URL（GET） | HTTP | 结果 |
+| :--- | :--- | :--- |
+| `https://gelbooru.com/index.php?page=tags&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=tags&s=implications` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=alias&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=post&s=list&tags=1girl` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=post&s=view&id=1` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=wiki&s=list&search=howto` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=wiki&s=view&id=18780` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=pool&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=artist&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=comment&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=forum&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=tracker&s=list` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=extras&s=artists` | 200 | HTML 响应可达；未解析内容 |
+| `https://gelbooru.com/index.php?page=help&topic=dapi` | 200 | HTML 响应可达；未解析内容 |
+
+### G7：图片 CDN 初始响应
+
+对给定三个地址各 GET 一次，`allow_redirects=False`；使用流式响应只记录头，不读取或保存媒体正文。
+没有请求 Location 目标，不能声称跟随后取得图片。
+
+| 实际 URL（GET） | HTTP | Location |
+| :--- | :--- | :--- |
+| `https://img4.gelbooru.com/images/f3/82/f3824ad985f121187065c4eaeae22875.jpg` | 302 | `https://gelbooru.com/hotlink.php?hash=/images/f3/82/f3824ad985f121187065c4eaeae22875.jpg` |
+| `https://img4.gelbooru.com/thumbnails/f3/82/thumbnail_f3824ad985f121187065c4eaeae22875.jpg` | 302 | `https://gelbooru.com/hotlink.php?hash=/thumbnails/f3/82/thumbnail_f3824ad985f121187065c4eaeae22875.jpg` |
+| `https://img4.gelbooru.com/samples/f3/82/sample_f3824ad985f121187065c4eaeae22875.jpg` | 302 | `https://gelbooru.com/hotlink.php?hash=/samples/f3/82/sample_f3824ad985f121187065c4eaeae22875.jpg` |
+
+三项均为 302，目标是 gelbooru.com 的 hotlink.php，符合资料的初始跳转状态。
+原图与样例响应另带 `Retry-After: 10`、`X-RateLimit-Limit: 100`；本轮不重试，不能仅凭这两个头
+把 302 断定为限流或推出配额周期。
+
+### G8：本轮后仍未实测
+
+* dapi 的认证成功、JSON 字段/类型/外层、分页、排序、过滤、非认证错误体和配额仍未实测；候选字段仍是推断。
+* 补全返回中没有经确认的 user/pool/wiki 等专用对象、antecedent 别名样本或 name/level 样本；其它 term、缺省 type、limit 边界未覆盖。
+* HTML 只记录 HTTP 状态和类型，未解析网页或执行表单；CDN 未跟随跳转、未确认目标响应或图片内容，也未验证普遍地址规律。
+* 没有账号、写操作、其它部署、网络切换或重试；没有新增测试/checksum、运行格式化/lint/项目套件/构建。
+
+[客户端用法](gelbooru.md) · [方法参考](gelbooru-api.md) · [网页可达性](gelbooru-capabilities.md#网页入口本库不封装) · [依据与差异](gelbooru-contract-notes.md)
+
