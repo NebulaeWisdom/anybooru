@@ -83,7 +83,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     "e621": { "url": "https://e621.net", "username": "", "api_key": "" },
     "e926": { "url": "https://e926.net", "username": "", "api_key": "" },
     "zerochan": { "url": "https://www.zerochan.net" },
-    "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" }
+    "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" },
+    "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" }
   },
   "examples": {
     "serika": {
@@ -149,12 +150,24 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     "gelbooru": {
       "site": "gelbooru",
       "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
+    },
+    "shuushuu": {
+      "site": "shuushuu",
+      "search_query": {"q": "long hair", "limit": 5},
+      "tag_title": "long hair",
+      "image_query": {"tags_mode": "all", "tag_depth": 0, "per_page": 2, "sort_by": "favorites", "sort_order": "DESC"},
+      "pages": [1, 2],
+      "tag_id": 46,
+      "comment_query": {"image_id": 1118862, "per_page": 2},
+      "user_query": {"search": "whitekitten", "per_page": 2},
+      "news_query": {"per_page": 1},
+      "pause_seconds": 2.1
     }
   }
 }
 ```
 
-四类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru）各有几个容易踩的点，键与对应调用见下文
+五类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Shuushuu）各有几个容易踩的点，键与对应调用见下文
 [`examples` 段](#examples-段)的总表：
 
 * **Serika**：查询值是逗号分隔的字符串（`ratings='safe'`），不是 Rails 数组；站内详情示例从列表响应里取
@@ -168,6 +181,9 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
   配置键 `autocomplete_query` 里的 `term` / `type` / `limit` 就是字面实参；dapi 的 5 个方法需要该站账号的
   `api_key` 与 `user_id`，本仓库没有凭据，没有对应示例。
   一个匿名示例的命令见 [gelbooru.md](gelbooru.md)。
+* **Shuushuu**：公开读取默认匿名；`search(q='long hair')` 返回标签，`image_list(tags='46', per_page=2)` 才筛图。
+  `tags` 用数字 ID 的英文逗号串，`+` 不是组合运算符；`tag_list` 每页数用 `per_page`，不使用 `limit`。
+  两个示例都显式清空凭据，参数见下表与[客户端用法](shuushuu.md)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入，两者互不替代（见下节）。
 
@@ -201,7 +217,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 支持范围由**各引擎自己的接口规则**决定，而不是由这份清单决定：Danbooru 引擎看
 [danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)，
 Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md](e621-api.md)，
-Zerochan 看 [zerochan-api.md](zerochan-api.md)，Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)。
+Zerochan 看 [zerochan-api.md](zerochan-api.md)，Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)，
+Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)。
 比对基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、
 `Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`），
 所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
@@ -211,6 +228,8 @@ Zerochan 与 Gelbooru 是这条规则的**例外**：前者没有可引用的公
 官方 PHP 快照，也未对比其它部署。Zerochan 依据是**官方 API 页面快照加实测**，Gelbooru 是**官方 wiki/帮助页与站点脚本
 加真实响应**；逐条出处与排除项分别见 [zerochan-contract-notes.md](zerochan-contract-notes.md) 与
 [gelbooru-contract-notes.md](gelbooru-contract-notes.md)。
+Shuushuu 同样没有本地上游服务端源码；依据是站点的 [OpenAPI](https://e-shuushuu.net/api/openapi.json)
+与真实响应，不是 Danbooru/Moebooru 模板，详见[契约附注](shuushuu-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
 
@@ -262,7 +281,7 @@ Moebooru 系站点（Moebooru 引擎）：
 > （上游 `moebooru/app/controllers/post_controller.rb:338-362` 按它选另一套序列化），与上面这个站点
 > 版本字符串无关，详见 [moebooru-api.md](moebooru-api.md)。
 
-Serika 系站点（六家族中的独立 Next.js 引擎）：
+Serika 系站点（独立 Next.js 引擎）：
 
 | 键 | 类型与取值 | 含义与例子 |
 | :--- | :--- | :--- |
@@ -312,15 +331,29 @@ Gelbooru 系站点（`index.php` 接口，本轮没有取得当前部署的官�
 `page=dapi` 的五个方法已逐个实测匿名401、空正文，账号成功返回仍未实测。这两项与 Danbooru 的 `username` + `api_key`
 不是同一套东西，不要照抄。
 
+Shuushuu 站点（独立 REST API，公开读取默认匿名）：
+
+| 键 | 类型与取值 | 含义与例子 |
+| :--- | :--- | :--- |
+| `url` | string，站点根地址 | `"https://e-shuushuu.net"`，原生方法自行带 `/api/v1` |
+| `username` | string，默认 `""` | 仅显式 `auth_login()` 时读取；例如 `"your-username"`，构造不登录 |
+| `password` | string，默认 `""` | 同上，仅显式登录时作为 JSON 密码发送；不进 URL |
+| `access_token` | string，默认 `""` | 非空时发送 `Authorization: Bearer <token>`；不是永久 API key |
+
+调用方显式给出的构造参数优先，`None` 读取对应配置。填写用户名/密码不会自动换取 token；
+refresh token 只保存在同一个客户端会话的 Cookie 中，不存在配置字段或自动刷新任务。
+公开图片、标签、评论与用户资料不需要这些凭据，个人数据与写操作才需要登录。认证方法的调用方式及边界见
+[Shuushuu 用法](shuushuu.md)。
+
 同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、
-`Gelbooru`），选择哪个类由调用者决定。
+`Gelbooru`、`Shuushuu`），选择哪个类由调用者决定。
 
 ### 样例清单里各条的实际状态
 
 清单是**样例**：每条的状态如下，别把「在清单里」等同于「支持」或「已测」。
 支持范围由各引擎自己的接口规则决定（[danbooru-api.md](danbooru-api.md)、[moebooru-api.md](moebooru-api.md)、
 [serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)、[zerochan-api.md](zerochan-api.md)、
-[gelbooru-api.md](gelbooru-api.md)）。
+[gelbooru-api.md](gelbooru-api.md)、[shuushuu-api.md](shuushuu-api.md)）。
 
 | 键 | 引擎 | 本轮线上状态 |
 | :--- | :--- | :--- |
@@ -334,10 +367,11 @@ Gelbooru 系站点（`index.php` 接口，本轮没有取得当前部署的官�
 | `e926` | e621ng | 匿名只读已实测：同一批示例在 e926 上同样 `200`，`post_count` 与 e621 同为 `240001` / `capped=true` |
 | `zerochan` | Zerochan | 见 [zerochan.md](zerochan.md) 与 [verification.md](verification.md)；本家族没有上游源码，状态按官方 API 页面快照与真实请求记录，不按源码对齐 |
 | `gelbooru` | Gelbooru | 补全九种type的非空结果全部为tag建议，limit=3可回10条；五个dapi方法匿名均401空正文、账号成功返回未实测；HTML14项200、CDN三项初始302。逐条见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)，来源见[契约附注](gelbooru-contract-notes.md) |
+| `shuushuu` | e-shuushuu 自有 REST API | 公开读接口按 OpenAPI 封装；本次匿名冒烟与两个示例的逐请求结果见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)，认证及写路径未实测 |
 
 ### 怎么判断一个站点该用哪个类
 
-**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru` 是六个并列的类，各自的
+**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Shuushuu` 是七个并列的类，各自的
 传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成另一个类重试。
 判断依据只能是你自己手里的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上**发一次请求看响应**
 （Zerochan 这类没有上游源码的站点，只能靠官方 API 页面与实测响应）。
@@ -379,6 +413,10 @@ Gelbooru 的路径固定是 `index.php`，接口由 `page` 参数选择：`page=
 `page=tags/post/wiki` 等浏览路由返回给人看的 **HTML**。本库只包装上述两个 JSON
 入口，不把 HTML 页面当 JSON 使用，也没有抓取页面的方法：`post_list` / `tag_list` / `user_list` /
 `comment_list` / `post_deleted` 属于 dapi，需要该站账号；`autocomplete` 匿名可达，见 [gelbooru.md](gelbooru.md)。
+
+e-shuushuu 的 OpenAPI 自称 `Shuushuu API 2.0.0`，路径如 `/api/v1/images` 和 `/api/v1/tags`，
+列表保留 `total/page/per_page/images` 等字段。`/api/v1/search` 搜的是标签；不能因 Serika 也用
+`/api/v1` 就混用客户端，二者的标签输入、认证、返回对象都不同。
 
 选错类的表现是普通的 HTTP 错误或字段对不上的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
 `404`（路径不存在）；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是 `{"posts": [ … ]}` 这种外面包了
@@ -427,9 +465,15 @@ Gelbooru 的路径固定是 `index.php`，接口由 `page` 参数选择：`page=
 | Zerochan | `pause_seconds` = `1.2` | `time.sleep(1.2)`，脚本自己等，库不做限速 |
 | Gelbooru | `site` = `"gelbooru"` | `Gelbooru('gelbooru')`（包内条目的 `api_key` / `user_id` 都为空，即匿名） |
 | Gelbooru | `autocomplete_query` = `{"term":"blue","type":"tag","limit":3}` | `client.autocomplete('blue', type='tag', limit=3)`（GET `https://gelbooru.com/index.php?type=tag&limit=3&term=blue&page=autocomplete2`，实测 `200`），返回建议数组，每条含 `type` / `label` / `value` / `post_count` / `category`；脚本打印建议条数与每一条建议、`last_call` 的真实 URL 与状态码。**`limit` 不决定本次返回几条**：实测 `limit=3` 返回 10 条 |
+| Shuushuu | `site` = `"shuushuu"` | `Shuushuu('shuushuu', username='', password='', access_token='')`，示例明确匿名 |
+| Shuushuu | `search_query` = `{"q":"long hair","limit":5}`、`tag_title` = `"long hair"` | `client.search(q='long hair', limit=5)`，从 `hits` 中选 `title == 'long hair'` 的 `tag_id`，没有命中就结束，不猜 ID |
+| Shuushuu | `image_query`、`pages` = `[1,2]` | 对查到的 46 调 `client.image_list(tags='46', page=1, tags_mode='all', tag_depth=0, per_page=2, sort_by='favorites', sort_order='DESC')`；第二页用 `page=2`，再从非空第一页取 `image_id` 读详情 |
+| Shuushuu | `tag_id` = `46`、`comment_query` = `{"image_id":1118862,"per_page":2}` | `client.tag_show(46)`、`client.comment_list(image_id=1118862, per_page=2)`，读取标签关系与该图评论 |
+| Shuushuu | `user_query` = `{"search":"whitekitten","per_page":2}`、`news_query` = `{"per_page":1}` | `client.user_list(search='whitekitten', per_page=2)`、`client.news_list(per_page=1)` |
+| Shuushuu | `pause_seconds` = `2.1` | `time.sleep(2.1)`，示例在请求之间等，不代表服务端限流阈值 |
 
 两个约定：Danbooru 与 Moebooru 的示例读顶层散键（`tags` / `limit` / `pages`），
-Serika、e621ng、Zerochan 与 Gelbooru 把查询整块放进 `*_query` 字典再展开；`comment_body` 只服务上面那条写操作，
+Serika、e621ng、Zerochan、Gelbooru 与 Shuushuu 把查询整块放进 `*_query` 字典再展开；`comment_body` 只服务上面那条写操作，
 只读示例用的是列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
 
 示例脚本的用法：
@@ -441,6 +485,8 @@ Serika、e621ng、Zerochan 与 Gelbooru 把查询整块放进 `*_query` 字典�
 .venv/Scripts/python.exe examples/zerochan/list_entries.py
 .venv/Scripts/python.exe examples/zerochan/filter_entries.py
 .venv/Scripts/python.exe examples/gelbooru/autocomplete.py
+.venv/Scripts/python.exe examples/shuushuu/search_images.py
+.venv/Scripts/python.exe examples/shuushuu/browse_resources.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份（上面第一条就用包内那份；第二条换成自己复制出来的
@@ -460,6 +506,7 @@ Serika、e621ng、Zerochan 与 Gelbooru 把查询整块放进 `*_query` 字典�
 | `username` / `password` / `hash_string` / `api_version` | 同名的站点条目字段（Moebooru） | `Moebooru('yandere', api_version='1.13.0+update.3')` |
 | `api_key` | `sites.<键>.api_key`（Serika） | `Serika('serika', api_key='sk_serika_…')` |
 | `api_key` / `user_id` | `sites.<键>.api_key` / `.user_id`（Gelbooru；只随 dapi 请求发送） | `Gelbooru('gelbooru', api_key='your-api-key', user_id='123456')` |
+| `username` / `password` / `access_token` | 同名站点字段（Shuushuu） | `Shuushuu('shuushuu', username='', password='', access_token='')`，明确匿名，不自动登录 |
 | `timeout` / `proxies` / `user_agent` | `request` 段同名键（所有家族，含 Zerochan 的 `user_agent`） | `Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')` |
 
 ```python
@@ -509,6 +556,11 @@ with Danbooru('danbooru') as client:
 | `serika.ratings` / `serika.sort` | `safe` / `newest`；站内图片列表的评级与排序 |
 | `zerochan.sort` / `zerochan.missing_id` | `id` / `999999999`；编号倒序与缺失条目边界 |
 | `gelbooru` | `term='blue'`、`type='tag'`、`limit=3`；只检查标签建议结构，不把 limit 当返回条数上限；`post_id=1` / `last_id=0` 供两个匿名拒绝调用 |
+| `shuushuu.pause_seconds` | `2.1`，仅此站冒烟请求间隔，不取全局 `1.2` |
+| `shuushuu.search_query` / `tag_query` | `q='long hair', limit=2` / `search='long hair', per_page=2`；两个按名字查标签的入口 |
+| `shuushuu.image_query` / `required_tag_ids` | `tags='46,169', tags_mode='all', tag_depth=0, per_page=2, sort_by='favorites', sort_order='DESC', status=[1,2], include_comments=False` / `[46,169]`；检查实际图片包含指定标签，状态数组用重复键 |
+| `shuushuu.tag_id` / `comment_query` | `46` / `image_id=1118862, per_page=2`；标签详情及指定图片评论 |
+| `shuushuu.invalid_per_page` / `per_page_maximum` / `missing_image_id` | `101` / `100` / `999999999`；读取上限越界的422和不存在图片的404，不把错误改为空列表 |
 
 这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见
 [README](../README.md#轻量匿名冒烟检查)；真实结果只记在 [verification.md](verification.md)。
@@ -523,6 +575,7 @@ with Danbooru('danbooru') as client:
 | `verification.serika` | `scripts` 是要跑的示例脚本，`pause_seconds` 是间隔；请求输入仍取 `examples.serika` |
 | `verification.e621` | `sites` 决定在 `e621.net` 与 `e926.net` 各跑一遍，`scripts` 是要跑的示例，`pause_seconds` 是间隔；`post_query` / `count_query` / `v2_query` / `only_query` / `related_search` 是复核返回结构与权限分支用的输入 |
 | `verification.zerochan` | `scripts` 是要跑的两个示例，`pause_seconds` 是间隔，`default_query` 是不带过滤的根路径查询，`entry_query` / `tag_query` / `multi_tag_query` / `strict_query` / `entry_id` 与 `examples.zerochan` 相同，`optional_queries` 逐条列出页码、排序窗口（`t`）、尺寸（`d`）与颜色（`c`）等可选参数 |
+| `verification.shuushuu` | `site='shuushuu'`，`scripts` 列出两个示例，`smoke_script='test/shuushuu.py'`，`pause_seconds=2.1`；调用参数分别取 `examples.shuushuu` 和 `smoke.shuushuu` |
 | Danbooru / Moebooru 的顶层与 `moebooru` 子段 | 正常查询（`post_tags` / `tag_search` / `artist_search` / `related_search` / `wiki_search`）、故意不存在的 id 与超界页码（`missing_post_id` / `invalid_page` / `invalid_tags` / `invalid_date`）等，用来核对错误路径 |
 
 命令与真实结果一律记在 [verification.md](verification.md)，本文不重复。
