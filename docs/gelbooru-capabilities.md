@@ -62,6 +62,13 @@
 
 外部资料给定的原图、缩略图、样例图三个 `img4.gelbooru.com` 地址已各做一次不跟随跳转的 GET，
 全部返回 **302**，Location 指向 `gelbooru.com/hotlink.php`。完整三个 URL 与 Location 见[实测 G7](verification.md#g7图片-cdn-初始响应)。
+
+| 用途 | 实际 GET 地址 | 初始状态 |
+| :--- | :--- | :--- |
+| 原图 | `https://img4.gelbooru.com/images/f3/82/f3824ad985f121187065c4eaeae22875.jpg` | 302，未跟随 |
+| 缩略图 | `https://img4.gelbooru.com/thumbnails/f3/82/thumbnail_f3824ad985f121187065c4eaeae22875.jpg` | 302，未跟随 |
+| 样例图 | `https://img4.gelbooru.com/samples/f3/82/sample_f3824ad985f121187065c4eaeae22875.jpg` | 302，未跟随 |
+
 没有跟随到目标、没有读取或保存图片正文；不能把初始302写成已成功下载图片。本库不推导 CDN 地址。
 
 ## 边界与未实测

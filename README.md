@@ -258,9 +258,11 @@ Gelbooru 面固定 **6 个原生只读方法**，全部是 `GET`，返回的 JSO
 `page=autocomplete2`（匿名可达）；`page=tags/post/wiki` 等浏览路由返回 **HTML**，
 本库没有抓取 HTML 的方法。dapi 的查询参数原样转发（`s` / `q` / `json`
 由客户端补），本库不做参数校验、不补默认值、不拆外层、不猜返回结构。5 个 dapi 方法都需要 gelbooru.com
-的账号（`api_key` + `user_id`），本仓库没有凭据，**全部未实测**；`autocomplete` 已用匿名请求实测（`200`，
+的账号（`api_key` + `user_id`），**匿名已逐个实测401、空正文；账号成功返回仍未实测**。`autocomplete` 已用匿名请求实测（`200`，
 返回建议数组，且 `limit` 不决定条数——实测 `limit=3` 返回 10 条，逐条记录见
 [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md)）。
+扩展实测中，九个脚本 `type` 的非空结果全部为 `type='tag'`；`user`、`pool` 等传参不代表返回了用户或池对象。
+拼错 `taq` 与未列举的 `wiki` 也返回标签建议；逐项边界见[方法参考](docs/gelbooru-api.md)。
 边界与来源见
 [docs/gelbooru-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/gelbooru-contract-notes.md)，
 逐方法参数见

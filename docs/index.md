@@ -79,7 +79,7 @@ Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autoc
   10 条）。逐条命令、请求 URL 与结果见[验证记录](verification.md)。
 - 只有源码或站点文档依据、没有成功响应记录的部分：所有需要登录或 API key 的写路径、e621ng 需要成员权限的
   `related_tag` / `related_tag_bulk`、Serika 全部需 key 的 v1 方法、Gelbooru 全部 5 个 dapi 方法
-  （需要账号，未实测）。方法存在不等于测过。
+  （账号成功返回未实测，匿名已各取得401空正文）。方法存在不等于成功路径测过。
 - 只读范围并不相同：e621ng 面没有原生写方法，写路由要用通用 `request()` 自己拼方法与路径；
   Zerochan 的 API 本身只读，且只提供 JSON（不实现 `xml`），文档要求的 User-Agent 里含项目名与
   Zerochan 用户名是站点约定，本库照配置原样发送、不校验、不代填。Gelbooru 面同样没有写方法，

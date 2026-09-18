@@ -309,7 +309,7 @@ Gelbooru 系站点（`index.php` 接口，本轮没有取得当前部署的官�
 
 条目里这三个键都要在：客户端直接按名字取，缺哪个都会在构造时抛 `KeyError`。
 `api_key` 与 `user_id` 都为空时请求就是匿名的：此时只有 `autocomplete` 这类页面脚本接口可用，
-`page=dapi` 的查询需要账号（本站文档说明，未在本仓库实测）。这两项与 Danbooru 的 `username` + `api_key`
+`page=dapi` 的五个方法已逐个实测匿名401、空正文，账号成功返回仍未实测。这两项与 Danbooru 的 `username` + `api_key`
 不是同一套东西，不要照抄。
 
 同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、
@@ -333,7 +333,7 @@ Gelbooru 系站点（`index.php` 接口，本轮没有取得当前部署的官�
 | `e621` | e621ng | 匿名只读已实测：三个示例逐方法 `200`，另有 `post_count`、原始 `posts` 结构、`md5`、`only`、`v2` 五类返回形态复核；`related_tag` 匿名 `403` |
 | `e926` | e621ng | 匿名只读已实测：同一批示例在 e926 上同样 `200`，`post_count` 与 e621 同为 `240001` / `capped=true` |
 | `zerochan` | Zerochan | 见 [zerochan.md](zerochan.md) 与 [verification.md](verification.md)；本家族没有上游源码，状态按官方 API 页面快照与真实请求记录，不按源码对齐 |
-| `gelbooru` | Gelbooru | `autocomplete` 匿名实测 `200`（返回建议数组；`limit` 不决定条数，实测 `limit=3` 返回 10 条），记录见 [verification.md](verification.md#gelbooru匿名只读实测2026-09-18)；5 个 dapi 方法需要账号，**未实测**；本家族没有上游源码，来源见 [gelbooru-contract-notes.md](gelbooru-contract-notes.md) |
+| `gelbooru` | Gelbooru | 补全九种type的非空结果全部为tag建议，limit=3可回10条；五个dapi方法匿名均401空正文、账号成功返回未实测；HTML14项200、CDN三项初始302。逐条见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)，来源见[契约附注](gelbooru-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 

@@ -87,13 +87,20 @@
   原生方法固定 `s` / `q` 等路由参数，其它查询键原样转发；返回的 JSON **不拆任何外层**，
   不按候选字段猜测数组或字典结构。
 - 认证形态是本项目的第四种写法：`api_key` 与 `user_id` 只在 dapi 请求上发送，留空即匿名；dapi 需要
-  gelbooru.com 的账号，本仓库没有凭据，**5 个 dapi 方法全部未实测**；只有 `autocomplete` 匿名可达，
+  gelbooru.com 的账号；首次接入时没有发送 dapi 请求，只有 `autocomplete` 取得成功响应，
   它已用匿名请求实测（`200`，返回建议数组，`limit` 不决定返回条数——`limit=3` 实测返回 10 条），
   逐条记录在 [docs/verification.md](docs/verification.md)。
 - 配置新增 `sites.gelbooru`（`api_key` / `user_id` 留空）、`examples.gelbooru`；
   `examples/gelbooru/autocomplete.py` 是唯一的示例，匿名只读。
 - README、`docs/index.md`、`docs/configuration.md`、`docs/authentication.md`、`docs/pagination.md`、
   `docs/migration.md`、CONTRIBUTING、`setup.cfg` 的家族表述与导航同步为六个家族。
+
+### Gelbooru 匿名边界扩展
+
+- 有界追加35个GET，每次结束后间隔1.2秒：13次补全和14条HTML均200、五个dapi均401空正文、三条CDN地址初始302。
+- 九个脚本type的非空结果均为tag建议，不能视为已验证用户/池/wiki补全；未知taq/wiki也回标签，而显式空term与hatsune miku为空数组。
+- dapi实际抛`AnybooruHTTPError`，last_call保留401、Unauthorized和真实URL；认证成功、JSON字段与外层仍未实测。
+- HTML只复核状态，不解析内容；CDN不跟随到hotlink.php、不读取媒体正文。逐条URL、首项与状态见[扩展记录](docs/verification.md#gelbooru有界匿名扩展实测2026-09-18)。
 
 ### 配置与认证
 

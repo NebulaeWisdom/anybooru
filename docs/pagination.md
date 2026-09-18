@@ -218,7 +218,7 @@ Gelbooru 面同样不做任何本地分页：`post_list(**params)` 这类方法�
 | `post_deleted` | `last_id` 只取大于给定编号的删除记录，默认值未规定 | `client.post_deleted(last_id=100)` |
 | `comment_list` | 只列 `post_id`，未列分页字段 | `client.comment_list(1)` |
 
-这些 dapi 调用均**未实测（需账号）**；表格是文档契约，不是成功结果。旧 help 对帖子写硬上限 100，
+这些 dapi 的分页成功返回均**未实测（需账号）**；另有五方法匿名401空正文的真实记录。旧 help 对帖子写硬上限100，
 与 wiki 的默认 100 不能混为一谈；也没有依据承诺响应一定含总数、当前页或下一页链接。
 完整自足代码见[Gelbooru 方法参考](gelbooru-api.md)，矛盾见[契约附注](gelbooru-contract-notes.md)。
 `autocomplete` 不提供已确认的分页参数；本次 `limit=3` 仍收到 10 条，库不按它截断结果。
