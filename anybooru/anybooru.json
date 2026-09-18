@@ -57,6 +57,12 @@
       "url": "https://gelbooru.com",
       "api_key": "",
       "user_id": ""
+    },
+    "shuushuu": {
+      "url": "https://e-shuushuu.net",
+      "username": "",
+      "password": "",
+      "access_token": ""
     }
   },
   "examples": {
@@ -123,6 +129,18 @@
     "gelbooru": {
       "site": "gelbooru",
       "autocomplete_query": {"term": "blue", "type": "tag", "limit": 3}
+    },
+    "shuushuu": {
+      "site": "shuushuu",
+      "search_query": {"q": "long hair", "limit": 5},
+      "tag_title": "long hair",
+      "image_query": {"tags_mode": "all", "tag_depth": 0, "per_page": 2, "sort_by": "favorites", "sort_order": "DESC"},
+      "pages": [1, 2],
+      "tag_id": 46,
+      "comment_query": {"image_id": 1118862, "per_page": 2},
+      "user_query": {"search": "whitekitten", "per_page": 2},
+      "news_query": {"per_page": 1},
+      "pause_seconds": 2.1
     }
   },
   "smoke": {
@@ -135,7 +153,19 @@
     "serika": {"ratings": "safe", "sort": "newest"},
     "e621": {"tags": "rating:s"},
     "zerochan": {"sort": "id", "missing_id": 999999999},
-    "gelbooru": {"term": "blue", "type": "tag", "limit": 3, "post_id": 1, "last_id": 0}
+    "gelbooru": {"term": "blue", "type": "tag", "limit": 3, "post_id": 1, "last_id": 0},
+    "shuushuu": {
+      "pause_seconds": 2.1,
+      "search_query": {"q": "long hair", "limit": 2},
+      "tag_query": {"search": "long hair", "per_page": 2},
+      "image_query": {"tags": "46,169", "tags_mode": "all", "tag_depth": 0, "per_page": 2, "sort_by": "favorites", "sort_order": "DESC", "status": [1, 2], "include_comments": false},
+      "required_tag_ids": [46, 169],
+      "tag_id": 46,
+      "comment_query": {"image_id": 1118862, "per_page": 2},
+      "invalid_per_page": 101,
+      "per_page_maximum": 100,
+      "missing_image_id": 999999999
+    }
   },
   "verification": {
     "serika": {
@@ -225,6 +255,15 @@
         {"name": "square", "params": {"l": 2, "d": "square"}},
         {"name": "color", "params": {"l": 2, "c": "red"}}
       ]
+    },
+    "shuushuu": {
+      "site": "shuushuu",
+      "scripts": [
+        "examples/shuushuu/search_images.py",
+        "examples/shuushuu/browse_resources.py"
+      ],
+      "smoke_script": "test/shuushuu.py",
+      "pause_seconds": 2.1
     }
   }
 }
