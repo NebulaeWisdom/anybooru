@@ -2,12 +2,14 @@
 
 ## 客户端行为
 
-十个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+十一个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
 tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
 标签搜索 `search` 用 `limit` / `offset`。
 Anime-Pictures 的帖子列表用 **0 起步**的 `page` / `posts_per_page`，标签、用户与评论列表用 `limit` / `offset`。
+Cosine 的 `image_list` / `artist_list` 用 `page`（1 起）/ `pageSize`，`search` 用 `limit` / `offset`，
+`tag_images` 用 `start` / `limit`。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -377,6 +379,71 @@ with AnimePictures('anime_pictures') as client:
 （不是 `-1`）。客户端不做钳位、不补默认值、不替你算 `max_pages`，越界页返回空数组也不报错；
 参数与返回字段见[方法参考](anime-pictures-api.md)，逐条证据见
 [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
+
+## Cosine 的分页
+
+Cosine 面固定三套分页参数，互不通用；客户端原样转发，不补默认值、不裁剪、不自动翻页：
+
+| 方法 | 输入 | 返回里怎么看下一页 |
+| :--- | :--- | :--- |
+| `image_list(page=…, pageSize=…)` | `page` 是**页码**（1 起）、`pageSize` 是每页条数；两者都不传时站点自己给每页 10 条 | 外壳 `{"images": [...], "total": N}`；`total` 是真实条数，但响应里没有页码字段，翻页靠自己把 `page` 加 1 |
+| `artist_list(page=…, pageSize=…, sortBy=…)` | 同上 | 外壳 `{"artists": [...], "total": N, "hasNextPage": bool}`，另有 `hasNextPage` 布尔值提示是否还有下一页 |
+| `search(q=…, limit=…, offset=…)` | `limit` 是每页条数（站点缺省 20）、`offset` 是已经跳过的条数（缺省 0） | 外壳 `{"success": true, "data": {...}}`；`data` 里回显 `limit` / `offset` 与 `total`，但 `total` 被夹到 **1000** |
+| `tag_images(tag, start=…, limit=…)` | `start` 是已经跳过的条数、`limit` 是条数 | **裸数组、没有 `total`**：本页返回空数组就是到底了 |
+
+`page` 与 `offset` 不是同一件事：`page` 是页码（`image_list` 第二页写 `page=2`），`offset` 是跳过的条数
+（`search` 第二页写 `offset=2`，不是 `page=2`）。两者都不能按 `total` 反推总页数：`search` 的 `total` 是
+Meilisearch 的**估计值**且被服务端夹在 1000——本轮查空 `q`（命中全库）拿到的 `total` 就是 1000，
+它既不是本页条数也不是全库总量；`offset` 同样被夹到 1000，`offset=100000` 的样本回显 `offset=1000`
+且 `hits` 为空数组。另外搜索**只覆盖站点的搜索索引**，不是数据库本身：同一天只读索引进度报的是
+`totalImages` 4953、`indexedImages` 3353（`indexHealth` 为 `partial`），所以同一个标签在数据库路径与搜索路径
+上的条数本来就可能不同。**不要拿 `total` 当全库数量，也不要拿它算翻页。**
+
+```python
+from anybooru import Cosine
+
+with Cosine('cosine') as client:
+    # GET https://pic.cosine.ren/api/list?page=1&pageSize=2
+    first_page = client.image_list(page=1, pageSize=2)
+    # GET https://pic.cosine.ren/api/list?page=2&pageSize=2
+    second_page = client.image_list(page=2, pageSize=2)
+    print(first_page['total'], len(first_page['images']), len(second_page['images']))
+    for image in first_page['images']:
+        print(image['id'], image['pid'])            # 站内编号在 id，上游编号在 pid
+
+    # GET https://pic.cosine.ren/api/search?q=%E5%88%9D%E9%9F%B3&limit=2&offset=0
+    head = client.search(q='初音', limit=2, offset=0)['data']
+    # GET https://pic.cosine.ren/api/search?q=%E5%88%9D%E9%9F%B3&limit=2&offset=2
+    tail = client.search(q='初音', limit=2, offset=2)['data']
+    print(head['total'], head['offset'], tail['offset'])   # total 是估计值（空 q 的样本被夹到 1000），offset 原样回显
+
+    # GET https://pic.cosine.ren/api/tag?tag=GenshinImpact&start=0&limit=2
+    tag_page = client.tag_images('GenshinImpact', start=0, limit=2)
+    # 裸数组、没有 total：返回 [] 就是这一页没有了
+    print(len(tag_page), [image['id'] for image in tag_page])
+```
+
+`tag_list()` 是 Cosine 面**唯一不带分页参数**的列表方法：一次返回全量标签（本轮样本 2128 项）。
+它的 `count` 是标签行的行数，**不是**用了该标签的作品数——同一个 `RuanMei`，`tag_list` 里的 `count` 是
+`9`，而 `tag_images('RuanMei', limit=100)` 实际回了 10 行（只有 8 个不同的 `pid`，这些行的 `tags` 逐项算
+一共出现 14 次标签），`search` 的 `total` 又是另一个 `9`（搜索只覆盖索引），四个数字口径不同，
+不能互换、也不能把作品数组里的标签累加起来当计数。标签的 `#` 前缀与重复项在各路由不一致，
+本库不替你去重、不剥前缀，要匹配请先统一处理。
+
+本轮实测的边界：`image_list` 的 `page=1` 与 `page=2` 都回 `200`，`page=0` 与 `page=-1` 回 `500`，
+`page=100000` 与 `pageSize=0` 回 `200` 加空 `images`，`pageSize=-1` 回的是**最旧的 1 条**
+（站点自己的反向语义），`pageSize=100` 回 100 条、当天 `total` 是 `4953`；`artist_list` 试过
+`page=1&pageSize=2`（两行页的 `total` 是 `1708`、`hasNextPage` 为 `true`），`sortBy` 试过 `artworks`、
+`random`、`lastUpdate` 与一个不认识的值：不认识的那个也回 `200`，样本里首两项与 `artworks` 相同，
+所以“没报错”不等于取值生效；`search` 试过 `limit=2`、
+`offset=0` / `2` / `100000`（最后这个被夹到 `1000` 且 `hits` 为空），另外 `limit=-1`、`offset=-5` 与
+`sort=bogus` 都是 `500`；`limit=500` 回显 `limit: 100` 且 `hits` 100 条（**上限由站点夹**，客户端不钳位）；
+`tag_images` 试过 `start=0` / `2` 与 `limit=2`，`start=2&limit=2` 返回更靠后的行，空数组是这一页到底的表示。
+标签必须完整才能命中：`GenshinImpact` 与全小写的 `genshinimpact` 都有结果，`#GenshinImpact` 与逗号串
+`原神,GenshinImpact` 都回空数组；`search` 的 `tags=原神,GenshinImpact` 是**多标签 AND**（当天 `total` 160）。
+非数字页码与别的取值组合没有完整样本，所以客户端不做钳位、不补默认值、也不替你判末页。
+逐条参数与返回字段见[方法参考](cosine-api.md)，状态码样本见[错误处理](errors.md#cosine)，
+真实请求记录见[验证记录](verification.md#cosine匿名只读实测2026-09-20)。
 
 ## 相关文档
 
