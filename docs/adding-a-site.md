@@ -14,6 +14,8 @@
 - 有上游引擎源码的家族（`danbooru/`、`moebooru/`、`Serika.art/`、`e621ng/`）：以路由与控制器的**文件 + 行号**
   为第一依据。没有源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu）：以站点官方 API 页面、自带 OpenAPI、
   帮助页加**真实响应**为依据。依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
+- Sakuria 连官方 API 页面与 OpenAPI 都没有，证据等级更弱：只把本轮匿名响应支持的结论写成契约，
+  输入文档作为候选；未复测项集中标明，矛盾见 [sakuria-contract-notes.md](sakuria-contract-notes.md)。
 - 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
 ## 1. 摸契约（只读、匿名、串行）
@@ -45,7 +47,8 @@
 ## 3. 冒烟脚本 `test/<站点>.py`
 
 - 一站点一文件，**最多 10 次匿名只读请求**；不引入测试框架、mock、额外依赖或 CI。
-- 覆盖每个方法至少一次，外加一条预期错误路径（越界页码、不存在的 id）。账号与写操作一律不测。
+- 在十次预算内选代表性的列表、详情、分页与一条预期错误路径（越界页码、不存在的 id）。账号与写操作一律不测；
+  方法较多时不要为全覆盖突破预算，实际覆盖与未实测方法写进验证记录。
 - 每行一条：`PASS/FAIL <检查名> | <真实 URL> | HTTP <状态码> | <关键字段>`，末尾
   `SUMMARY <site> | requests=N | passed=… failed=…`；有失败就退出 1。样板 `test/tbib.py`。
 - 查询参数从 `smoke` 段读，不要硬编码在脚本里。
