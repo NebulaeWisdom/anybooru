@@ -2,11 +2,12 @@
 
 ## 客户端行为
 
-九个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+十个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
 tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
 标签搜索 `search` 用 `limit` / `offset`。
+Anime-Pictures 的帖子列表用 **0 起步**的 `page` / `posts_per_page`，标签、用户与评论列表用 `limit` / `offset`。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -321,6 +322,61 @@ with Sakuria('sakuria', access_token='') as client:      # 显式空串 = 匿名
 不能推广成「功能未实现」或「所有游标参数无效」。`/me/*` 的 17 个方法需要登录，分页语义未知。
 逐条命令与响应见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与
 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
+
+## Anime-Pictures 的分页
+
+Anime-Pictures 的帖子列表用 `page`（**0 起步**）与 `posts_per_page`（每页条数），不叫 `page` / `limit`；
+标签、用户与评论列表用的是 `limit` / `offset`。客户端原样转发，不补默认值、不裁剪、不自动翻页，
+也不按 `max_pages` 替你停手。
+
+```python
+from anybooru import AnimePictures
+
+with AnimePictures('anime_pictures') as client:
+    # GET https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2
+    first_page = client.posts_list(page=0, posts_per_page=2)
+    # 信封是 posts 数组 + 五个分页字段：response_posts_count 是本页实际条数，
+    # posts_per_page 是服务端实际使用的每页条数，page_number 回显请求页码（0 起步），
+    # posts_count 是当前过滤条件下的总数，max_pages 是最后一个可用页码（也 0 起步）
+    for post in first_page['posts']:
+        print(post['id'], post['score_number'])
+    print(first_page['page_number'], first_page['response_posts_count'],
+          first_page['posts_count'], first_page['max_pages'])
+
+    # GET https://api.anime-pictures.net/api/v3/posts?page=1&posts_per_page=2
+    second_page = client.posts_list(page=1, posts_per_page=2)
+    print([post['id'] for post in second_page['posts']])
+
+    # GET https://api.anime-pictures.net/api/v3/tags?tag=hatsune+miku&limit=20&offset=0
+    tags = client.tags_list(tag='hatsune miku', limit=20, offset=0)
+    # 标签、用户、评论列表的回显字段是 offset / limit / count（count 是匹配总数，不是本页条数）
+    print(tags['offset'], tags['limit'], tags['count'])
+```
+
+本轮实测（匿名、串行、每个请求只发一次）：`page=0` 与 `page=1` 都回 `200`，`page_number` 分别回显 `0` 与 `1`；
+`posts_per_page=2` 时 `response_posts_count` 是 `2`，当天全库 `posts_count=667906`、`max_pages=333952`。
+数量会变，字段与页码语义也只代表当前已测 API；客户端不会自动适配站点未来改动。
+`post_comments` 的实测响应里只有 `success` 与 `comments`，没有观察到分页字段——这不能反推「任意分页参数无效」。
+
+**已实测的边界**：
+
+| 输入 | 实测 |
+| :--- | :--- |
+| 不传 `page` / `page=abc` | `400` JSON，``{"errormsg":"Missing or invalid `page` parameter","success":false}``——页码必填 |
+| `page=-1` | `500` JSON，`{"errormsg":"Internal server error","success":false}` |
+| `page=999999`（远超末页） | `200`，`posts` 是空数组、`response_posts_count=0`，但 `posts_count` / `max_pages` 仍回全量值 |
+| `posts_per_page` 缺省 | `80` |
+| `posts_per_page=1` / `2` / `3` / `100` | 原值回显，本页条数等于该值（**没有**穷举 `1..100`） |
+| `posts_per_page=101` / `150` / `1000` / `0` | 回落成 `60` |
+| `posts_per_page=-1` | 回到 `80` |
+| 标签 / 用户 / 评论列表缺省 `offset` / `limit` | `0` / `20` |
+| 标签 `limit=1000`、用户与评论 `limit=101` | 都回到 `100` |
+| `offset=2` | 跳过基线的前两项（`offset` 回显请求值） |
+
+`max_pages` 不能无条件按公式推：`search_tag=zzzznotexist` 返回 `posts_count=0`、`posts=[]`、`max_pages=0`
+（不是 `-1`）。客户端不做钳位、不补默认值、不替你算 `max_pages`，越界页返回空数组也不报错；
+参数与返回字段见[方法参考](anime-pictures-api.md)，逐条证据见
+[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
 
 ## 相关文档
 
