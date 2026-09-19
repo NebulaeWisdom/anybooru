@@ -14,6 +14,7 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru�
 | 知道要做什么、不知道方法叫什么？ | **能力入口** `<family>-capabilities.md` | 「我要做什么 → 用哪个方法」对照表，加该家族全部方法的一行式索引 |
 | 要维护客户端、核对依据？ | **契约审计附注** `<family>-contract-notes.md` | 每个方法的出处（上游文件与行号，或 API 页面原文）、权限分支、写动作边界、明确排除的路由、已知的文档与实现差异 |
 | 想确认哪些场景真的跑过？ | **验证记录** [verification.md](verification.md) | 实际执行的命令、请求 URL、状态码与响应摘要；哪些只对过源码、哪些没测，分开列 |
+| 要接一个新站或新引擎？ | **新增图站流程** [adding-a-site.md](adding-a-site.md) | 从陌生站点到能用的家族：怎么定引擎、怎么摸契约、客户端与冒烟写在哪、四份文档和导航补什么、提交怎么拆 |
 
 ## 按家族选文档
 
