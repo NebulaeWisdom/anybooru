@@ -4,7 +4,7 @@
 Anybooru
 
 Anybooru is an API client for Danbooru, Moebooru, Serika, e621ng, Zerochan,
-Gelbooru, e-shuushuu, Gelbooru 0.2 based sites, Sakuria and Anime-Pictures APIs.
+Gelbooru, e-shuushuu, Gelbooru 0.2 based sites, Sakuria, Anime-Pictures and Cosine APIs.
 
 Anybooru requires "requests" package to work.
 
@@ -20,6 +20,7 @@ Anybooru modules:
     gelbooru02 -- Contains Gelbooru02 main class for Gelbooru 0.2 sites.
     sakuria -- Contains Sakuria main class for the Sakuria API.
     anime_pictures -- Contains AnimePictures main class.
+    cosine -- Contains Cosine main class.
     api_moebooru -- Contains all Moebooru API functions.
     api_danbooru -- Contains all Danbooru API functions.
     api_serika -- Contains official v1 and internal Serika API functions.
@@ -30,6 +31,7 @@ Anybooru modules:
     api_gelbooru02 -- Contains native Gelbooru 0.2 API functions.
     api_sakuria -- Contains native Sakuria API functions.
     api_anime_pictures -- Contains native Anime-Pictures API functions.
+    api_cosine -- Contains native Cosine Gallery API functions.
     exceptions -- Manages and builds Anybooru errors messages.
     resources -- Packaged default parameters (DEFAULT_CONFIG_FILE) and encoding.
 """
@@ -50,5 +52,6 @@ from .shuushuu import Shuushuu
 from .gelbooru02 import Gelbooru02
 from .sakuria import Sakuria
 from .anime_pictures import AnimePictures
+from .cosine import Cosine
 from .exceptions import (AnybooruError, AnybooruAPIError, AnybooruHTTPError)
 from .resources import DEFAULT_CONFIG_FILE

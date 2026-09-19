@@ -2,7 +2,9 @@
 
 把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。
 照着现有代码抄比照本文写更快——可运行的完整样板是 `anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py`
-+ `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md` 这一套。
++ `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md` 这一套；最近一次的完整样板是 Cosine 那一套
+（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），
+含四种返回外壳与两个写入口的处理。
 
 ## 0. 先判断：已有家族，还是要新家族
 
@@ -10,15 +12,20 @@
 - **已有家族**：只加站点条目 + 冒烟脚本 + 该家族文档里的站点差异段落，不要复制第二个类。已有站点看
   `anybooru/anybooru.json` 的 `sites` 段；家族与站点对照看 [index.md](index.md)。
 - **新家族**：先定三个名字，后面所有产物都用它——类名与模块名（`Gelbooru02` → `anybooru/gelbooru02.py`、
-  `anybooru/api_gelbooru02.py`）、配置里的站点键（`tbib`）、文档前缀（`docs/gelbooru02*.md`）。
+  `anybooru/api_gelbooru02.py`）、配置里的站点键（`tbib`）、文档前缀（`docs/gelbooru02*.md`）；Cosine 的对应三项是
+  `Cosine` / `anybooru/cosine.py` + `anybooru/api_cosine.py`、站点键 `cosine`、`docs/cosine*.md`。
 - 有上游引擎源码的家族（`danbooru/`、`moebooru/`、`Serika.art/`、`e621ng/`）：以路由与控制器的**文件 + 行号**
-  为第一依据。没有源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu）：以站点官方 API 页面、自带 OpenAPI、
-  帮助页加**真实响应**为依据。依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
+  为第一依据。没有本地服务端源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu）：以站点官方 API 页面、
+  自带 OpenAPI、帮助页加**真实响应**为依据；Cosine 也属这一档，它的站点前端代码在公开仓库里，只按需只读
+  个别文件当线索（不 clone、不写行号），公开结论仍须由匿名响应证实。依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
 - Sakuria 连官方 API 页面与 OpenAPI 都没有，证据等级更弱：只把本轮匿名响应支持的结论写成契约，
   输入文档作为候选；未复测项集中标明，矛盾见 [sakuria-contract-notes.md](sakuria-contract-notes.md)。
 - Anime-Pictures 的官方手册页存在但被 Cloudflare 质询挡下，没有可用的 OpenAPI 或服务端源码。
   用户资料与公开客户端只能提供候选；公开结论须由匿名响应证实，未实测项与输入矛盾分别集中记录，见
   [anime-pictures-contract-notes.md](anime-pictures-contract-notes.md)。CORS 允许某个动词不是该路由支持写操作的证据。
+- Cosine 与它们同档：自研 Next.js + Prisma + Meilisearch API，站点前端仓库公开但本轮只按需只读个别文件
+  （不 clone、不写行号），候选输入是待验证资料而不是契约；结论按匿名响应核实，未实测项与输入矛盾分别
+  集中记录，见 [cosine-contract-notes.md](cosine-contract-notes.md)。
 - 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
 ## 1. 摸契约（只读、匿名、串行）

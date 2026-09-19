@@ -1443,3 +1443,171 @@ python -X utf8 examples/anime_pictures/browse_resources.py --config my-anybooru.
 - 未编码原始空格、`lang`、全部忽略参数、完整分页边界、其它排序/过滤组合、`ldate` 负数或大于 8、
   成功认证、写入、其它主机/部署未测。`ldate` 区间长度与标签类别名称仍属推断。
 - 没有运行 formatter、lint、构建、安装归档、CI 或项目测试套件；保留的测试仅为每次最多十请求的匿名冒烟。
+
+
+## Cosine：匿名只读实测（2026-09-20）
+
+Cosine Gallery（`https://pic.cosine.ren`）的接入依据是匿名响应，以及公开仓库
+[SomeACG/SomeACG-Next](https://github.com/SomeACG/SomeACG-Next) 六个单文件的只读源码。
+源码出处、两条未执行的 POST 与输入资料纠错见[契约附注](cosine-contract-notes.md)。
+以下区分直接 HTTP 观察与实际运行 Python 客户端；字段和计数都是本次快照，不承诺固定值。
+
+### 直接路由校对：69 次 GET
+
+第一批 18 次、第二批 51 次，共 **69 次匿名 GET：200×57、400×2、404×3、500×7**。
+每次串行，前一次结束后至少等 1.3 秒；无重试、无跳转、无登录、无 POST、无媒体下载。
+68 个响应的 `Content-Type` 为 `application/json`，`feed.xml` 为 `application/xml; charset=utf-8`。
+请求都带 `Origin: https://example.com`；这些响应中没有 `Access-Control-Allow-Origin` 或 `RateLimit-*`，
+但这不证明本站永久没有 CORS 配置或限流。两批覆盖全部 11 条读取路由。
+
+| # | 真实 URL | HTTP | 正文关键字段 |
+| :--- | :--- | :--- | :--- |
+| 1 | `https://pic.cosine.ren/api/list?page=1&pageSize=2` | 200 | {images,total}；images=2；total=4953；ids=[5003, 5002] |
+| 2 | `https://pic.cosine.ren/api/list?page=2&pageSize=2` | 200 | {images,total}；images=2；total=4953；ids=[5001, 5000] |
+| 3 | `https://pic.cosine.ren/api/artwork/1` | 200 | {json,meta}；json=object；条数=1；ids=[1]；meta.values=3 键 |
+| 4 | `https://pic.cosine.ren/api/random?count=1` | 200 | {json,meta}；json=object；条数=1；ids=[1666]；meta.values=3 键 |
+| 5 | `https://pic.cosine.ren/api/random?count=3` | 200 | {json,meta}；json=array；条数=3；ids=[2042, 2741, 3927]；meta.values=9 键 |
+| 6 | `https://pic.cosine.ren/api/search?q=%E5%88%9D%E9%9F%B3&limit=2` | 200 | {success,data}；hits=2；{'query': '初音', 'total': 255, 'limit': 2, 'offset': 0}；ids=['2760', '1689'] |
+| 7 | `https://pic.cosine.ren/api/search?limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['3363', '3362'] |
+| 8 | `https://pic.cosine.ren/api/search?limit=2&offset=100000` | 200 | {success,data}；hits=0；{'query': '', 'total': 1000, 'limit': 2, 'offset': 1000}；ids=[] |
+| 9 | `https://pic.cosine.ren/api/search/suggestions?q=miku&limit=2` | 200 | {success,data}；suggestions=2；query=miku；项字段 text/type |
+| 10 | `https://pic.cosine.ren/api/tag?tag=GenshinImpact&start=0&limit=2` | 200 | 裸作品数组 2 项；ids=[4971, 4970]；无 total |
+| 11 | `https://pic.cosine.ren/api/tags` | 200 | 裸数组 2128 项；首项 {'tag': '甜妹', 'count': 1309}；RuanMei count=9 |
+| 12 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=54390221&page=1&pageSize=2` | 200 | {images,total}；images=2；total=78；ids=[4869, 4827] |
+| 13 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=54390221&infoOnly=true` | 200 | 裸资料对象；{'author': 'makoron117', 'authorid': '54390221', 'platform': 'pixiv', 'artworkCount': 78} |
+| 14 | `https://pic.cosine.ren/api/artists?page=1&pageSize=2&sortBy=artworks` | 200 | {artists,total,hasNextPage}；artists=2；total=1708；hasNextPage=True；authorid=['54390221', '6662895'] |
+| 15 | `https://pic.cosine.ren/api/search/admin` | 200 | {success,data}；{'totalImages': 4953, 'indexedImages': 3353, 'indexHealth': 'partial', 'lastSyncTime': '2026-09-19T16:42:34.383Z'} |
+| 16 | `https://pic.cosine.ren/feed.xml` | 200 | RSS 2.0；items=20；lastBuildDate=Sun, 10 Aug 2025 13:07:22 GMT |
+| 17 | `https://pic.cosine.ren/api/tag?tag=RuanMei&start=0&limit=100` | 200 | 裸作品数组 10 项；ids=[4203, 282, 103, 87]；无 total |
+| 18 | `https://pic.cosine.ren/api/search?tags=RuanMei&limit=100` | 200 | {success,data}；hits=9；{'query': '', 'total': 9, 'limit': 100, 'offset': 0}；ids=['282', '103'] |
+| 19 | `https://pic.cosine.ren/api/list` | 200 | {images,total}；images=10；total=4953；ids=[5003, 5002, 5001, 5000] |
+| 20 | `https://pic.cosine.ren/api/list?pageSize=100` | 200 | {images,total}；images=100；total=4953；ids=[5003, 5002, 5001, 5000] |
+| 21 | `https://pic.cosine.ren/api/list?pageSize=0` | 200 | {images,total}；images=0；total=4953；ids=[] |
+| 22 | `https://pic.cosine.ren/api/list?pageSize=-1` | 200 | {images,total}；images=1；total=4953；ids=[1] |
+| 23 | `https://pic.cosine.ren/api/list?page=0&pageSize=2` | 500 | {"error": "获取图片列表失败"} |
+| 24 | `https://pic.cosine.ren/api/list?page=-1&pageSize=2` | 500 | {"error": "获取图片列表失败"} |
+| 25 | `https://pic.cosine.ren/api/list?page=100000&pageSize=2` | 200 | {images,total}；images=0；total=4953；ids=[] |
+| 26 | `https://pic.cosine.ren/api/artwork/999999999` | 404 | {"error": "未找到该作品"} |
+| 27 | `https://pic.cosine.ren/api/artwork/abc` | 500 | {"error": "服务器错误"} |
+| 28 | `https://pic.cosine.ren/api/artwork/3840` | 200 | {json,meta}；json=object；条数=1；ids=[3840]；meta.values=3 键 |
+| 29 | `https://pic.cosine.ren/api/random` | 200 | {json,meta}；json=object；条数=1；ids=[3408]；meta.values=3 键 |
+| 30 | `https://pic.cosine.ren/api/random?count=0` | 200 | {json,meta}；json=object；条数=1；ids=[423]；meta.values=3 键 |
+| 31 | `https://pic.cosine.ren/api/random?count=-5` | 200 | {json,meta}；json=object；条数=1；ids=[3037]；meta.values=3 键 |
+| 32 | `https://pic.cosine.ren/api/random?count=100` | 200 | {json,meta}；json=array；条数=20；ids=[101, 221, 258, 313, 385, 392, 417, 840, 1001, 1326, 1786, 2033, 2083, 2138, 2627, 2674, 2702, 2888, 2897, 3096]；meta.values=60 键 |
+| 33 | `https://pic.cosine.ren/api/random?count=abc` | 404 | {"error": "未找到图片"} |
+| 34 | `https://pic.cosine.ren/api/search` | 200 | {success,data}；hits=20；{'query': '', 'total': 1000, 'limit': 20, 'offset': 0}；ids=['3363', '3362'] |
+| 35 | `https://pic.cosine.ren/api/search?q=&limit=2&offset=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 2}；ids=['3361', '3360'] |
+| 36 | `https://pic.cosine.ren/api/search?limit=500` | 200 | {success,data}；hits=100；{'query': '', 'total': 1000, 'limit': 100, 'offset': 0}；ids=['3363', '3362'] |
+| 37 | `https://pic.cosine.ren/api/search?sort=bogus&limit=2` | 500 | {"success": false, "error": "Internal search error", "message": "Invalid syntax for the sort parameter: expected expression ending by `:asc` or `:desc`, found `bogus`."} |
+| 38 | `https://pic.cosine.ren/api/search?limit=-1` | 500 | {"success": false, "error": "Internal search error", "message": "Invalid value type at `.limit`: expected a positive integer, but found a negative integer: `-1`"} |
+| 39 | `https://pic.cosine.ren/api/search?limit=2&offset=-5` | 500 | {"success": false, "error": "Internal search error", "message": "Invalid value type at `.offset`: expected a positive integer, but found a negative integer: `-5`"} |
+| 40 | `https://pic.cosine.ren/api/search?platform=pixiv&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['3363', '3362'] |
+| 41 | `https://pic.cosine.ren/api/search?platform=twitter&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['3360', '3355'] |
+| 42 | `https://pic.cosine.ren/api/search?platform=unknown&limit=2` | 200 | {success,data}；hits=0；{'query': '', 'total': 0, 'limit': 2, 'offset': 0}；ids=[] |
+| 43 | `https://pic.cosine.ren/api/search?tags=GenshinImpact&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 166, 'limit': 2, 'offset': 0}；ids=['3342', '3337'] |
+| 44 | `https://pic.cosine.ren/api/search?tags=genshinimpact&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 166, 'limit': 2, 'offset': 0}；ids=['3342', '3337'] |
+| 45 | `https://pic.cosine.ren/api/search?tags=%E5%8E%9F%E7%A5%9E&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 510, 'limit': 2, 'offset': 0}；ids=['3358', '3342'] |
+| 46 | `https://pic.cosine.ren/api/search?tags=%E5%8E%9F%E7%A5%9E,GenshinImpact&limit=100` | 200 | {success,data}；hits=100；{'query': '', 'total': 160, 'limit': 100, 'offset': 0}；ids=['3342', '3337'] |
+| 47 | `https://pic.cosine.ren/api/search?r18=true&limit=100` | 200 | {success,data}；hits=7；{'query': '', 'total': 7, 'limit': 100, 'offset': 0}；ids=['2822', '734'] |
+| 48 | `https://pic.cosine.ren/api/search?r18=false&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['3363', '3362'] |
+| 49 | `https://pic.cosine.ren/api/search?r18=1&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['3363', '3362'] |
+| 50 | `https://pic.cosine.ren/api/search?sort=width:asc&limit=2` | 200 | {success,data}；hits=2；{'query': '', 'total': 1000, 'limit': 2, 'offset': 0}；ids=['1421', '429'] |
+| 51 | `https://pic.cosine.ren/api/search/suggestions?q=miku` | 200 | {success,data}；suggestions=10；query=miku；项字段 text/type |
+| 52 | `https://pic.cosine.ren/api/search/suggestions?q=miku&limit=50` | 200 | {success,data}；suggestions=15；query=miku；项字段 text/type |
+| 53 | `https://pic.cosine.ren/api/search/suggestions?q=a` | 200 | {success,data}；suggestions=0；query=a；项字段 text/type |
+| 54 | `https://pic.cosine.ren/api/tag` | 400 | {"error": "标签参数缺失"} |
+| 55 | `https://pic.cosine.ren/api/tag?tag=GenshinImpact&start=2&limit=2` | 200 | 裸作品数组 2 项；ids=[4967, 4964]；无 total |
+| 56 | `https://pic.cosine.ren/api/tag?tag=%23GenshinImpact&limit=2` | 200 | 裸作品数组 0 项；ids=[]；无 total |
+| 57 | `https://pic.cosine.ren/api/tag?tag=zzzznotexist&limit=2` | 200 | 裸作品数组 0 项；ids=[]；无 total |
+| 58 | `https://pic.cosine.ren/api/tag?tag=genshinimpact&limit=2` | 200 | 裸作品数组 2 项；ids=[4971, 4970]；无 total |
+| 59 | `https://pic.cosine.ren/api/tag?tag=%E5%8E%9F%E7%A5%9E,GenshinImpact&limit=2` | 200 | 裸作品数组 0 项；ids=[]；无 total |
+| 60 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=54390221&page=2&pageSize=2` | 200 | {images,total}；images=2；total=78；ids=[4823, 4796] |
+| 61 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=54390221&infoOnly=1&pageSize=2` | 200 | {images,total}；images=2；total=78；ids=[4869, 4827] |
+| 62 | `https://pic.cosine.ren/api/artist?authorid=54390221` | 400 | {"error": "缺少必要参数 platform 或 authorid"} |
+| 63 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=abc` | 500 | {"error": "获取画师数据失败"} |
+| 64 | `https://pic.cosine.ren/api/artist?platform=pixiv&authorid=999999999&infoOnly=true` | 404 | {"error": "未找到该画师"} |
+| 65 | `https://pic.cosine.ren/api/artists` | 200 | {artists,total,hasNextPage}；artists=20；total=1708；hasNextPage=True；authorid=['54390221', '6662895'] |
+| 66 | `https://pic.cosine.ren/api/artists?page=2&pageSize=2&sortBy=artworks` | 200 | {artists,total,hasNextPage}；artists=2；total=1708；hasNextPage=True；authorid=['15034125', '22298878'] |
+| 67 | `https://pic.cosine.ren/api/artists?page=1&pageSize=2&sortBy=random` | 200 | {artists,total,hasNextPage}；artists=2；total=1708；hasNextPage=True；authorid=['1294719251849199616', '1081773718962024448'] |
+| 68 | `https://pic.cosine.ren/api/artists?page=1&pageSize=2&sortBy=lastUpdate` | 200 | {artists,total,hasNextPage}；artists=2；total=1708；hasNextPage=True；authorid=['162416678', '1269027794'] |
+| 69 | `https://pic.cosine.ren/api/artists?page=1&pageSize=2&sortBy=unknown` | 200 | {artists,total,hasNextPage}；artists=2；total=1708；hasNextPage=True；authorid=['54390221', '6662895'] |
+
+关键对照：
+
+- 四类 JSON 已逐条确认：详情/随机 `{json,meta}`；图片/画师列表 `{images,total}`、画师榜
+  `{artists,total,hasNextPage}`；搜索/建议/索引状态 `{success,data}`；标签两条路由是裸数组。
+  `artist_images(infoOnly=True)` 另返回裸资料对象，不属于四种列表结构；RSS 返回 XML 原文。
+- 随机 `count=1` 是对象，`count=3` 是数组；多条的 `meta.values` 是 `0.userid` 等带下标的键。
+- 搜索空关键词 `total=1000`，但索引状态是 `indexedImages=3353`、`totalImages=4953`；
+  `offset=100000` 被站点回显为 1000 并给空 `hits`，客户端没有钳位。
+- `RuanMei` 的标签 `count=9`，数据库标签路径回 10 张图（8 个 `pid`、标签出现 14 次），搜索回 9 条。
+  结合标签路由源码的 `imageTag.groupBy` / `_count.tag`，确认 `count` 是标签记录行数，不能换算成图片数。
+- RSS 有 20 条，但前三 `guid=3290/3288/3289`、缓存 `lastBuildDate` 为 2025-08-10；
+  当前列表的首两条却是 `5003/5002`，不能称它为当前最新 20 张。
+
+### 实际命令与最终脚本结果
+
+复制完整包内配置为自己的文件后可这样运行（下面使用中性配置文件名）：
+
+```bash
+python -X utf8 test/cosine.py --config my-anybooru.json
+python -X utf8 examples/cosine/list_images.py --config my-anybooru.json
+python -X utf8 examples/cosine/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本 | 最终请求数 | HTTP | 退出码 | 结果 |
+| :--- | :--- | :--- | :--- | :--- |
+| `test/cosine.py` | 10 | 200×9、预期404×1 | 0 | `SUMMARY cosine &#124; requests=10 &#124; passed=10 failed=0` |
+| `examples/cosine/list_images.py` | 4 | 200×4 | 0 | 两页列表；带 platform/r18/sort 的搜索按 offset=0/2 翻页 |
+| `examples/cosine/browse_resources.py` | 4 | 200×4 | 0 | 详情、标签数组、画师作品与画师资料对象 |
+
+最终三者标准错误均为空；各次请求间隔至少 1.3 秒。冒烟和列表最终运行的 UTC 时间分别为
+2026-09-19 17:03:07–17:03:23、17:03:25–17:03:30，浏览示例是 17:01:18–17:01:25。
+冒烟检查了实际 URL/状态、四种外壳、详情 ID、分页无重复、随机单/多形状、RSS 原文和缺失资源的
+`AnybooruHTTPError`；错误保留 `data`、`body` 与 `last_call`。没有执行写方法。
+
+| 调用 | 真实 URL | HTTP | 关键字段 |
+| :--- | :--- | :--- | :--- |
+| 冒烟 image_list page 1 | `https://pic.cosine.ren/api/list?page=1&pageSize=2` | 200 | images:list,total:int；page=1 total=4953 images=2 ids=[5003, 5002] first=5003 pid=2100902205171937298 platform=twitter page=1 rawurl=https://pbs.twimg.com/media/HSfnUtFakAAhHtG.jpg?name=orig；no earlier page to compare |
+| 冒烟 image_list page 2 | `https://pic.cosine.ren/api/list?page=2&pageSize=2` | 200 | images:list,total:int；page=2 total=4953 images=2 ids=[5001, 5000] first=5001 pid=2098778224214024600 platform=twitter page=1 rawurl=https://pbs.twimg.com/media/HSBbOj2a0AASMiB.jpg?name=orig；no id shared with page 1 |
+| 冒烟 artwork_show configured id | `https://pic.cosine.ren/api/artwork/1` | 200 | json:dict,meta:dict；meta_keys=['values'] values=3 id=1 pid=1740331347254948074 platform=twitter page=1 tags=8 |
+| 冒烟 image_random count 1 | `https://pic.cosine.ren/api/random?count=1` | 200 | json:dict,meta:dict；count=1 json=dict artworks=1 ids=[428] hosts=['piv.cosine.ren'] |
+| 冒烟 image_random count 3 | `https://pic.cosine.ren/api/random?count=3` | 200 | json:list,meta:dict；count=3 json=list artworks=3 ids=[102, 998, 3909] hosts=['pbs.twimg.com'] |
+| 冒烟 search configured query | `https://pic.cosine.ren/api/search?q=%E5%88%9D%E9%9F%B3&limit=2` | 200 | success:bool,data:dict；hits:list,query:str,total:int,limit:int,offset:int,processingTimeMs:int；query='初音' total=255 limit=2 offset=0 processingTimeMs=4 hits=2 hit_ids=['2760', '1689'] |
+| 冒烟 tag_images configured tag | `https://pic.cosine.ren/api/tag?start=0&limit=2&tag=GenshinImpact` | 200 | items=2 ids=[4971, 4970] tag='GenshinImpact' start=0 limit=2 |
+| 冒烟 tag_list | `https://pic.cosine.ren/api/tags` | 200 | items=2128 first='甜妹'/1309 names=['甜妹', '女孩子', '崩坏星穹铁道', '原神', '精选'] |
+| 冒烟 feed | `https://pic.cosine.ren/feed.xml` | 200 | chars=16593 items=20 content_type='application/xml; charset=utf-8' |
+| 冒烟 artwork_show missing id | `https://pic.cosine.ren/api/artwork/999999999` | 404 | data=dict body_chars=18 content_type='application/json' last_call=HTTP 404 https://pic.cosine.ren/api/artwork/999999999 |
+| 示例 image_list | `https://pic.cosine.ren/api/list?page=1&pageSize=2` | 200 | {"requested_page": 1, "total": 4953, "count": 2, "ids": [5003, 5002]} |
+| 示例 image_list | `https://pic.cosine.ren/api/list?page=2&pageSize=2` | 200 | {"requested_page": 2, "total": 4953, "count": 2, "ids": [5001, 5000]} |
+| 示例 search | `https://pic.cosine.ren/api/search?offset=0&q=%E5%88%9D%E9%9F%B3&limit=2&platform=twitter&r18=false&sort=create_time%3Adesc` | 200 | {"requested_offset": 0, "success": true, "query": "初音", "total": 125, "limit": 2, "offset": 0, "processing_time_ms": 9, "count": 2, "ids": ["2760", "1689"], "hits": [{"id": "2760", "field_keys": ["_formatted", "ai", "author", "authorid", "create_time", "filename", "height", "id", "pid", "platform", "r18", "rawurl", "searchable_content", "tags", "thumburl", "title", "width"]}, {"id": "1689", "field_keys": ["_formatted", "ai", "author", "authorid", "create_time", "filename", "height", "id", "pid", "platform", "r18", "rawurl", "searchable_content", "tags", "thumburl", "title", "width"]}]} |
+| 示例 search | `https://pic.cosine.ren/api/search?offset=2&q=%E5%88%9D%E9%9F%B3&limit=2&platform=twitter&r18=false&sort=create_time%3Adesc` | 200 | {"requested_offset": 2, "success": true, "query": "初音", "total": 125, "limit": 2, "offset": 2, "processing_time_ms": 72, "count": 2, "ids": ["3041", "2721"], "hits": [{"id": "3041", "field_keys": ["_formatted", "ai", "author", "authorid", "create_time", "filename", "height", "id", "pid", "platform", "r18", "rawurl", "searchable_content", "tags", "thumburl", "title", "width"]}, {"id": "2721", "field_keys": ["_formatted", "ai", "author", "authorid", "create_time", "filename", "height", "id", "pid", "platform", "r18", "rawurl", "searchable_content", "tags", "thumburl", "width"]}]} |
+| 示例 artwork_show | `https://pic.cosine.ren/api/artwork/1` | 200 | {"artwork_id": 1, "meta_value_keys": ["authorid", "create_time", "userid"], "meta_value_count": 3, "id": 1, "pid": "1740331347254948074", "platform": "twitter", "page": 1, "userid": "6030777595", "author": "bshi_edayo", "authorid": "1456997233363419136", "width": 1620, "height": 2880, "filename": "1740331347254948074_1.jpg", "extension": "jpg", "size": 675622, "guest": true, "r18": false, "ai": false, "tag_count": 8, "distinct_tag_count": 4} |
+| 示例 tag_images | `https://pic.cosine.ren/api/tag?start=0&limit=2&tag=GenshinImpact` | 200 | {"tag": "GenshinImpact", "start": 0, "limit": 2, "count": 2, "ids": [4971, 4970]} |
+| 示例 artist_images | `https://pic.cosine.ren/api/artist?page=1&pageSize=2&platform=pixiv&authorid=54390221` | 200 | {"platform": "pixiv", "authorid": "54390221", "page": 1, "total": 78, "count": 2, "ids": [4869, 4827]} |
+| 示例 artist_images infoOnly | `https://pic.cosine.ren/api/artist?infoOnly=true&platform=pixiv&authorid=54390221` | 200 | {"platform": "pixiv", "authorid": "54390221", "author": "makoron117", "artwork_count": 78} |
+
+### 初版示例发现的字段差异与修正
+
+初版 `list_images.py` 已打印三次 200，第四次搜索（同过滤条件、`offset=2`）取得 JSON 后，
+对 `hit['title']` 的读取触发 `KeyError: 'title'`，退出 1。该请求在打印状态之前失败，
+**没有记录状态码，不能事后补写成 200**。修正只删除示例对标题必有的假设，改为打印实际 `field_keys`，
+没有补默认标题、没有换路由、没有改服务端数据；冒烟也移除了 `title` 必有断言。
+只重新运行这两个受影响脚本：最终均退出 0。新样本明确显示 `id='2721'` 没有 `title`，
+同一页 `id='3041'` 有 `title`；更早的直接观察中，`RuanMei` 命中 `id='38'` 也缺该字段。
+客户端一直返回完整原始 JSON，未填补缺项。
+
+初版冒烟同样是 10 次请求、9×200+预期404、退出 0（UTC 17:00:50–17:01:09）。
+本轮 API/RSS 累计 **101 次 GET**＝69 直接观察 + 两轮各10的冒烟 + 初版列表4 + 修正版列表4 + 浏览4；
+其中 **100 次状态明确：200×86、400×2、404×5、500×7**，另一次只知成功解析 JSON 而未打印状态。
+初版失败记录没有被最终成功覆盖；未为了增加覆盖而复跑其它脚本。
+
+### 边界与未实测
+
+- 实际运行的原生方法是 `image_list/artwork_show/image_random/search/tag_images/tag_list/artist_images/feed`
+  共 8 个；`search_suggestions/artist_list/search_index_status` 只有直接 HTTP 观察，不说包装方法已执行。
+- **两个 POST 均零请求**：尤其 `POST /api/search/admin` 会重建/删除站点索引，公开路由源码没有鉴权检查，
+  本轮绝未执行；`artwork_revalidate` 连空密钥401都没有请求。成功、失败、密钥和真实权限分支均未实测。
+- 媒体主机、原图备份、Referer要求、RSS别名、页面路由、其它部署、完整参数取值与资源上限均未请求或穷举。
+  源码里 `lastSyncTime: new Date()` 不是可信同步记录，公开仓库代码也不证明线上部署版本。
+- 未运行 formatter、lint、构建、安装归档、CI 或项目测试套件；保留的测试仅为每次最多十请求的匿名冒烟。

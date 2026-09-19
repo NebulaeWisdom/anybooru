@@ -304,6 +304,51 @@ with AnimePictures('anime_pictures') as client:
 证据与未实测范围见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
+## Cosine：匿名为默认，`revalidate_secret` 空串保持匿名
+
+Cosine 的公开读取全部匿名：作品列表与详情、随机、搜索与建议、标签、画师、只读索引进度与 `feed.xml`。
+站点条目只有 `url` 与 `revalidate_secret` 两个字段，没有 `username` / `password` / `api_key` /
+`access_token`，构造签名里也没有这些参数；库不加任何隐式认证头，没有登录入口，失败时也不会退回别的身份。
+
+```json
+{
+  "sites": {
+    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" }
+  }
+}
+```
+
+`revalidate_secret` 只服务一个方法：`POST /api/artwork/revalidate`，请求体是
+`{"artworkId": <作品编号>, "secret": <密钥>}`，站点那侧的密钥来自它自己的服务端配置。密钥是不是空都不会
+阻止调用，库不先拦、不替换成别的值，也不做重试。
+
+```python
+from anybooru import Cosine
+
+with Cosine('cosine') as client:            # 包内 revalidate_secret 是空串，本次即匿名
+    # GET https://pic.cosine.ren/api/tags
+    print(len(client.tag_list()))           # 公开读取不需要任何凭据
+
+with Cosine('cosine', revalidate_secret='') as client:
+    # 显式空串：本次固定发空密钥，不读配置里的值。
+    # POST https://pic.cosine.ren/api/artwork/revalidate —— 本轮未执行、未实测：
+    # client.artwork_revalidate(1)
+    pass
+```
+
+规则：
+
+* `revalidate_secret=''`（显式空串）表示本次客户端就用空密钥、**不读取**配置里的值；`None`（或不传）才读配置；
+* 不用 `artwork_revalidate` 时，这个字段不会出现在任何请求上，也不会带别的认证头；
+* `POST /api/artwork/revalidate` 本轮从未调用，成功与拒绝形态都未实测；密钥的真实归属只在站点服务端，
+  本库不申请、不诊断、不代替你轮换；
+* `POST /api/search/admin` 是索引管理入口：`POST` 会初始化 / 重建 / 删除**站点**搜索索引，**本轮绝不执行**；
+  只读的 `search_index_status()`（`GET /api/search/admin`）已取得匿名 `200`；
+* 本类不提供登录、注册或刷新凭据的方法，也不索要账号密码；
+* 权限由服务端判定，客户端不预判能力、不在 `401` / `403` 后退回匿名。
+
+逐条依据与未实测边界见 [Cosine 契约审计附注](cosine-contract-notes.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -326,6 +371,9 @@ Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cook
 其余按候选输入封装；逐条见
 [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）
+本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见
+[验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
 
 ## 相关文档
 

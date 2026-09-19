@@ -75,6 +75,10 @@
       "url": "https://api.anime-pictures.net/api/v3",
       "authorization": "",
       "cookie": ""
+    },
+    "cosine": {
+      "url": "https://pic.cosine.ren",
+      "revalidate_secret": ""
     }
   },
   "examples": {
@@ -175,6 +179,18 @@
       "pages": [0, 1],
       "post_id": 382872,
       "pause_seconds": 1.3
+    },
+    "cosine": {
+      "site": "cosine",
+      "list_query": {"pageSize": 2},
+      "pages": [1, 2],
+      "search_query": {"q": "初音", "limit": 2, "platform": "twitter", "r18": false, "sort": "create_time:desc"},
+      "offsets": [0, 2],
+      "artwork_id": 1,
+      "tag": "GenshinImpact",
+      "tag_query": {"start": 0, "limit": 2},
+      "artist_query": {"platform": "pixiv", "authorid": "54390221", "page": 1, "pageSize": 2},
+      "pause_seconds": 1.3
     }
   },
   "smoke": {
@@ -227,6 +243,17 @@
       "comment_query": {"limit": 2, "offset": 0},
       "missing_id": 999999999,
       "invalid_post_id": "top"
+    },
+    "cosine": {
+      "pause_seconds": 1.3,
+      "list_query": {"pageSize": 2},
+      "pages": [1, 2],
+      "artwork_id": 1,
+      "random_counts": [1, 3],
+      "search_query": {"q": "初音", "limit": 2},
+      "tag": "GenshinImpact",
+      "tag_query": {"start": 0, "limit": 2},
+      "missing_id": 999999999
     }
   },
   "verification": {

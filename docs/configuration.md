@@ -45,7 +45,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 ## 完整样例
 
 完整、可直接复制的内容见包内的 [`anybooru/anybooru.json`](../anybooru/anybooru.json)（wheel 与 sdist
-都带这份文件），`sites` 段共 14 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
+都带这份文件），`sites` 段共 15 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
 维护者验证脚本专用的，普通使用者可以省略）：
 
 ```json
@@ -87,7 +87,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     "tbib": { "url": "https://tbib.org" },
     "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" },
     "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" },
-    "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" }
+    "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" },
+    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" }
   },
   "examples": {
     "serika": {
@@ -187,12 +188,24 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
       "pages": [0, 1],
       "post_id": 382872,
       "pause_seconds": 1.3
+    },
+    "cosine": {
+      "site": "cosine",
+      "list_query": {"pageSize": 2},
+      "pages": [1, 2],
+      "search_query": {"q": "初音", "limit": 2, "platform": "twitter", "r18": false, "sort": "create_time:desc"},
+      "offsets": [0, 2],
+      "artwork_id": 1,
+      "tag": "GenshinImpact",
+      "tag_query": {"start": 0, "limit": 2},
+      "artist_query": {"platform": "pixiv", "authorid": "54390221", "page": 1, "pageSize": 2},
+      "pause_seconds": 1.3
     }
   }
 }
 ```
 
-八类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures）各有几个容易踩的点，键与对应调用见下文
+九类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine）各有几个容易踩的点，键与对应调用见下文
 [`examples` 段](#examples-段)的总表：
 
 * **Serika**：查询值是逗号分隔的字符串（`ratings='safe'`），不是 Rails 数组；站内详情示例从列表响应里取
@@ -224,6 +237,12 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
   示例用 `post_id` 调详情并以同一帖的 `user.id` / 首条评论 `comment.id` 继续查用户与评论。
   两个匿名示例的命令见 [anime-pictures.md](anime-pictures.md)；分页语义与实测出的取值边界见
   [分页](pagination.md#anime-pictures-的分页)。
+* **Cosine**：`list_query` 是 `image_list(**list_query)` 的实参（`pageSize` 是驼峰），因此页码另放在
+  `pages`；`search_query` 直接展开成 `search(**search_query)`，`offsets` 是给 `search(offset=…)` 的两个取值；
+  `tag` / `tag_query` 对应 `tag_images(tag, **tag_query)`（标签必须完整、不带 `#`），`artist_query` 对应
+  `artist_images(**artist_query)`；`artwork_id` 供 `artwork_show(1)`。示例显式传 `revalidate_secret=''`，
+  即使配置里填了密钥也只发空串，且只有 `artwork_revalidate` 会用到它。命令见
+  [cosine.md](cosine.md)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入，两者互不替代（见下节）。
 
@@ -260,7 +279,8 @@ Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md]
 Zerochan 看 [zerochan-api.md](zerochan-api.md)，Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)，
 Gelbooru02（TBIB）看 [gelbooru02-api.md](gelbooru02-api.md)，Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)，
 Sakuria（站点自有 JSON API）看 [sakuria-api.md](sakuria-api.md)，
-Anime-Pictures（站点自有的 `api/v3` JSON 接口）看 [anime-pictures-api.md](anime-pictures-api.md)。
+Anime-Pictures（站点自有的 `api/v3` JSON 接口）看 [anime-pictures-api.md](anime-pictures-api.md)，
+Cosine（站点自有的 Next.js + Prisma + Meilisearch JSON API 与 `feed.xml`）看 [cosine-api.md](cosine-api.md)。
 比对基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、
 `Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`），
 所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
@@ -281,6 +301,8 @@ Sakuria 比它们更弱一档：**既没有官方 API 页面，也没有 OpenAPI
 Anime-Pictures 同样没有任何**可读到的**正式来源：官方 API 手册页存在但整站受 Cloudflare 质询，命令行读不到；
 没有 OpenAPI，也没有服务端源码。依据是匿名只读响应实测加候选输入资料（其中的外部客户端源码链接本轮没有
 独立读过），未实测的参数边界与输入矛盾见 [Anime-Pictures 契约附注](anime-pictures-contract-notes.md)。
+Cosine 也没有本地上游服务端源码：站点前端代码在公开仓库里，本轮只按需只读了个别文件当线索（不 clone、
+不写行号），公开结论以匿名只读响应为准，未实测项见 [Cosine 契约附注](cosine-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
 
@@ -442,8 +464,23 @@ Anime-Pictures 站点（自研 `api/v3` JSON 接口，**没有可读到的官方
 [authentication.md](authentication.md)、[anime-pictures.md](anime-pictures.md) 与
 [Anime-Pictures 契约附注](anime-pictures-contract-notes.md)。
 
+Cosine 站点（Next.js + Prisma + Meilisearch 自研 API，**没有本地上游服务端源码**）：
+
+| 键 | 类型与取值 | 含义与例子 |
+| :--- | :--- | :--- |
+| `url` | string，站点根地址 | 请求都拼在这个地址后面；例子 `"https://pic.cosine.ren"` |
+| `revalidate_secret` | string，默认 `""` | 只供 `POST /api/artwork/revalidate` 使用；留空即匿名，客户端照发空串、由站点判定。显式传空串表示本次不读配置，`None`（或不传）才从条目里读这个名字 |
+
+客户端按名字取 `url`（没传 `site_url` 时）与 `revalidate_secret`（没传该参数时），条目里缺哪个都会在构造时抛
+`KeyError`；条目里没有 `username` / `password` / `api_key` / `access_token` 一类字段，公开读取默认匿名。不调用 `artwork_revalidate` 时，任何请求都不会带上这个密钥，
+也不会带别的认证头。公开读取（`image_list` / `artwork_show` / `image_random` / `search` / `search_suggestions` /
+`tag_images` / `tag_list` / `artist_images` / `artist_list` / `search_index_status` / `feed`）都取过匿名 `200` 样本，
+两个 POST（`artwork_revalidate` 与 `search_index_admin`）本轮没有调用，成功与拒绝形态都未实测。
+证据与未实测项见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与
+[Cosine 契约附注](cosine-contract-notes.md)。
+
 同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、
-`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`），选择哪个类由调用者决定。
+`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`、`Cosine`），选择哪个类由调用者决定。
 
 ### 样例清单里各条的实际状态
 
@@ -468,15 +505,16 @@ Anime-Pictures 站点（自研 `api/v3` JSON 接口，**没有可读到的官方
 | `shuushuu` | e-shuushuu 自有 REST API | 公开读接口按 OpenAPI 封装；本次匿名冒烟与两个示例的逐请求结果见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)，认证及写路径未实测 |
 | `tbib` | Gelbooru02（站点自述 `Running Gelbooru 0.2`） | 匿名冒烟与两个示例共 10 次请求全部 `200`，三个脚本退出 `0`（`post_list` 的 JSON 与 XML、`tag_list`、`comment_list`、分页 `pid=1&limit=2`）；`post_deleted` 未跑（TBIB 上实测 `500` 加不完整 XML）；逐条见[验证记录](verification.md#gelbooru02tbib匿名只读实测2026-09-19)，来源见[契约附注](gelbooru02-contract-notes.md) |
 | `sakuria` | Sakuria（Pixiv 第三方镜像站，站点自有 JSON API，**无官方页面 / OpenAPI / 源码**） | 本轮串行 54 次匿名 GET（每个请求只发一次、不重试、不跟随跳转、不下载媒体）：`200`×41、`400`×7、`401`×3、`404`/`426`/`503` 各一；另有 10 次上限的匿名冒烟（`10/10` 通过、退出 `0`）与两个示例（全部 `200`、退出 `0`）。**只证样本、不泛化枚举与上限**（例如 `size` 只证实 1 与 48 被接受、0 与 49 被拒绝，响应条数不等于 `size`）。44 个方法全部接入（27 个匿名只读 + 17 个需登录的 `me*`，后者只请求过 `/me/likes`）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与[契约附注](sakuria-contract-notes.md) |
+| `cosine` | Cosine（Next.js + Prisma + Meilisearch 自研 API，**没有本地上游服务端源码**） | 两批匿名串行探测共 69 次（`200`×57、`500`×7、`404`×3、`400`×2）：第一批 18 次全部 `200`，覆盖列表、正常作品详情、`image_random` 的 1 条与 3 条、搜索与建议、标签筛图与标签列表、画师作品与画师资料、只读索引进度与 `feed.xml`；第二批 51 次补齐页码 / `offset` / 标签 / 画师 / 搜索的边界，含 `400` / `404` / `500` 样本。10 次上限的冒烟与两个示例的执行结果同样列在[验证记录](verification.md#cosine匿名只读实测2026-09-20)。两个 POST 未调用，成功与拒绝形态未实测 |
 | `anime_pictures` | Anime-Pictures（自研 `api/v3` JSON 接口，**无可读到的官方手册页 / OpenAPI / 服务端源码**） | 本轮串行 90 次匿名 GET（`200`×76、`400`×4、`403`×2、`404`×6、`410`×1、`500`×1）：API 主机根、帖子列表两页与分页 / 排序参数、帖子详情、帖评论、标签列表与详情、用户列表与详情、评论列表与详情、标签 `type` 0–7、缺失资源的 `410` / `404`、非法路径段的纯文本 `400` 与缺 `page` 的 JSON `400`、`page=-1` 的 `500`、`get_image` 的 `403` 空正文。`post_create`、带 Cookie 的成功路径与媒体成功返回均未实测。逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与[契约附注](anime-pictures-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 
 **库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、
-`Sakuria`、`AnimePictures` 是十个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
+`Sakuria`、`AnimePictures`、`Cosine` 是十一个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
 另一个类重试。判断依据只能是你自己手里的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上
-**发一次请求看响应**（Zerochan、Gelbooru02、Sakuria、Anime-Pictures 这类没有可读到的上游源码的站点，
-只能靠站点页面与实测响应）。
+**发一次请求看响应**（Zerochan、Gelbooru02、Sakuria、Anime-Pictures、Cosine 这类没有可读到的上游服务端源码的站点，
+只能靠站点页面、可读到的公开前端文件与实测响应）。
 
 **光看路径形态不足以判断引擎**：
 
@@ -547,7 +585,14 @@ JSON 资源路由挂在 `/api/v3` 下：`/api/v3/posts`（列表）、`/api/v3/p
 `404`；非法路径段（如 `/api/v3/posts/top`）返回 `400` 加 `text/plain`，正文不是 JSON；
 API 主机上的 `/api/v2/comments` 与 `/pictures/view_posts/0?type=json` 已测为 `404` 空正文，其它旧路径未测。
 输入资料记录网页主机被 Cloudflare 质询挡下、`/api/v3/*` 会 302 到 API 主机；本轮未请求网页主机，也不依赖其跳转。
-见 [anime-pictures.md](anime-pictures.md) 与 [契约附注](anime-pictures-contract-notes.md)。
+Cosine 的路径也在自己的站点根上：作品列表是 `/api/list?page=1&pageSize=2`，详情是 `/api/artwork/{id}`，
+随机是 `/api/random?count=…`，搜索与建议是 `/api/search`、`/api/search/suggestions`，标签是 `/api/tag` 与 `/api/tags`，
+画师是 `/api/artist` 与 `/api/artists`，索引进度与索引管理共用 `/api/search/admin`（GET 读、POST 改），
+订阅源是 `/feed.xml`。它不是 booru：路由里没有 `posts.json`，列表的外壳是 `{"images":…,"total":…}`，
+参数用 `pageSize` / `start` / `offset` / `r18` 这些站点自己的名字；作品编号 `id` 是站内自增主键，
+上游编号在 `pid` 里，两者不能互换。它同样没有可对照的上游服务端源码：站点前端仓库公开，本轮只按需
+只读了个别文件（不 clone、不写行号），公开结论来自匿名只读响应。见 [cosine.md](cosine.md) 与
+[契约附注](cosine-contract-notes.md)。
 
 选错类的表现是普通的 HTTP 错误或字段对不上的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
 `404`（路径不存在）；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是 `{"posts": [ … ]}` 这种外面包了
@@ -614,9 +659,15 @@ API 主机上的 `/api/v2/comments` 与 `/pictures/view_posts/0?type=json` 已�
 | Anime-Pictures | `post_query` = `{"search_tag":"hatsune miku","posts_per_page":2,"order_by":"rating"}`、`pages` = `[0,1]` | `client.posts_list(page=0, search_tag='hatsune miku', posts_per_page=2, order_by='rating')`（GET `https://api.anime-pictures.net/api/v3/posts?page=0&search_tag=hatsune+miku&posts_per_page=2&order_by=rating`），第二页把 `page` 换成 `1`；打印真实 `last_call` URL 与状态、`page_number` / `posts_count` / `max_pages`，以及每帖 `id` / `score_number` |
 | Anime-Pictures | `post_id` = `382872` | `client.post_show(382872)`；`browse_resources.py` 再用 `client.post_comments(382872)` 取评论、用详情里的 `user.id` 调 `client.user_show(<该 id>)`、用非空评论首条的 `comment.id` 调 `client.comment_show(<该 id>)`（评论为空时跳过该步并说明），只打印字段不打印评论正文 |
 | Anime-Pictures | `pause_seconds` = `1.3` | `time.sleep(1.3)`，示例在请求之间等，不代表服务端限流阈值 |
+| Cosine | `site` = `"cosine"` | `Cosine('cosine', revalidate_secret='')`，示例显式空串＝本次不读配置里的密钥（它只服务 `artwork_revalidate`，示例不调用） |
+| Cosine | `list_query` = `{"pageSize":2}`、`pages` = `[1,2]` | `client.image_list(page=1, pageSize=2)`（GET `https://pic.cosine.ren/api/list?page=1&pageSize=2`），第二页把 `page` 换成 `2`；返回 `{"images":…,"total":…}`，脚本打印 `total` 与每项 `id` / `pid` / `platform` / `rawurl` |
+| Cosine | `search_query` = `{"q":"初音","limit":2,"platform":"twitter","r18":false,"sort":"create_time:desc"}`、`offsets` = `[0,2]` | `client.search(q='初音', limit=2, platform='twitter', r18=False, sort='create_time:desc', offset=0)`，第二个 `offset` 用 `2`；布尔编成小写（`r18=False` → `r18=false`），脚本只打印 `data['total']` 与 `hits` 里的 `id`。注意 `total` 被夹到 1000、`offset` 也被夹到 1000 |
+| Cosine | `artwork_id` = `1`、`tag` = `"GenshinImpact"`、`tag_query` = `{"start":0,"limit":2}` | `client.artwork_show(1)['json']`（superjson 外壳）与 `client.tag_images('GenshinImpact', start=0, limit=2)`（裸数组、没有 `total`） |
+| Cosine | `artist_query` = `{"platform":"pixiv","authorid":"54390221","page":1,"pageSize":2}` | `client.artist_images(platform='pixiv', authorid='54390221', page=1, pageSize=2)`（`{"artists":…,"total":…,"hasNextPage":…}`），再用同一组参数加 `infoOnly=True` 取该画师的资料对象；布尔编成小写正好命中站点只认字面量 `"true"` 的分支 |
+| Cosine | `pause_seconds` = `1.3` | `time.sleep(1.3)`，示例在请求之间等，不代表服务端限流阈值 |
 
 两个约定：Danbooru 与 Moebooru 的示例读顶层散键（`tags` / `limit` / `pages`），
-Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Sakuria 与 Anime-Pictures 把查询整块放进 `*_query` 字典再展开；
+Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Sakuria、Anime-Pictures 与 Cosine 把查询整块放进 `*_query` 字典再展开；
 `comment_body` 只服务上面那条写操作，只读示例用的是列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
 
 示例脚本的用法：
@@ -636,6 +687,8 @@ python examples/gelbooru02/browse_resources.py
 .venv/Scripts/python.exe examples/sakuria/browse_resources.py
 .venv/Scripts/python.exe examples/anime_pictures/list_posts.py
 .venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
+.venv/Scripts/python.exe examples/cosine/list_images.py
+.venv/Scripts/python.exe examples/cosine/browse_resources.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份（上面第一条就用包内那份；第二条换成自己复制出来的
@@ -659,6 +712,7 @@ python examples/gelbooru02/browse_resources.py
 | `username` / `password` / `access_token` | 同名站点字段（Shuushuu） | `Shuushuu('shuushuu', username='', password='', access_token='')`，明确匿名，不自动登录 |
 | `access_token` | `sites.<键>.access_token`（Sakuria） | `Sakuria('sakuria', access_token='')`，显式空串=匿名、不读配置里的 token；非空才发 `Authorization: Bearer <token>` |
 | `authorization` / `cookie` | `sites.<键>.authorization` / `.cookie`（Anime-Pictures） | `AnimePictures('anime_pictures', authorization='', cookie='')`，显式空串=匿名、不读配置里的值；非空时按原值发送，不加 `Bearer`、不猜 cookie 名 |
+| `revalidate_secret` | `sites.<键>.revalidate_secret`（Cosine） | `Cosine('cosine', revalidate_secret='')`，显式空串=本次不读配置里的密钥；`None`（或不传）才读配置，只有 `artwork_revalidate` 会用到它 |
 | `timeout` / `proxies` / `user_agent` | `request` 段同名键（所有家族，含 Zerochan 的 `user_agent`） | `Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')` |
 
 ```python
@@ -715,6 +769,7 @@ with Danbooru('danbooru') as client:
 | `shuushuu.tag_id` / `comment_query` | `46` / `image_id=1118862, per_page=2`；标签详情及指定图片评论 |
 | `shuushuu.invalid_per_page` / `per_page_maximum` / `missing_image_id` | `101` / `100` / `999999999`；读取上限越界的422和不存在图片的404，不把错误改为空列表 |
 | `sakuria` | `pause_seconds=1.2`、`illust_query={q:'blue',size:2,sort:'new'}`、`pages=[1,2]`、`novel_query={q:'blue',page:1}`、`spotlight_query={page:1,lang:'zh-cn'}`、`comment_illust_id=70937229`、`comment_query={page:1,size:2}`、`missing_id=0`、`invalid_size=49`；**最多 10 次**匿名请求：站点统计、插画搜索两页、首批首条的详情、小说搜索、`spotlight` 列表、指定插画评论、详情作者、缺失 id 与越界 `size` 两个预期错误；不发 `me*` 请求 |
+| `cosine` | `pause_seconds=1.3`、`list_query={pageSize:2}`、`pages=[1,2]`、`artwork_id=1`、`random_counts=[1,3]`、`search_query={q:'初音',limit:2}`、`tag='GenshinImpact'`、`tag_query={start:0,limit:2}`、`missing_id=999999999`；**最多 10 次**匿名 GET：`image_list` 两页、`artwork_show(1)`、`image_random(count=1)` 与 `image_random(count=3)`、`search`、`tag_images`、`tag_list`、`feed`、缺失作品（预期 `404`）；构造 `revalidate_secret=''`、不跟随跳转、不重试、不发 `POST`、不调用 `search_index_admin`、不下载媒体 |
 | `anime_pictures` | `pause_seconds=1.3`、`post_query={posts_per_page:2}`、`pages=[0,1]`、`comment_post_id=382872`、`tag_query={tag:'hatsune miku'}`、`tag_id=407`、`user_query={limit:2,offset:0}`、`comment_query={limit:2,offset:0}`、`missing_id=999999999`、`invalid_post_id='top'`；**最多 10 次**匿名 GET：帖子两页、从首批取首条的详情（列表失败就跳过，不补发）、指定帖评论、精确标签查询与标签详情、用户列表、评论列表、缺失帖子（预期 `410`）与非法路径段（预期 `400` 纯文本，`error.data is None`、正文留在 `.body`、`last_call` 记下状态与 URL）；显式清空双凭据、禁跳转、不发 `POST`、不访问媒体 |
 
 这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见
