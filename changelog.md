@@ -11,6 +11,16 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Sakuria 第九家族
+
+- 新增 `Sakuria`：27 个公共资源 GET 与 17 个 `/me` 账号 GET，覆盖插画、小说、用户、评论回复、系列、特辑、标签和服务配置。
+  站点是 Pixiv 第三方镜像而非 booru；没有上游源码、官方 API 页面或 OpenAPI，依据限于匿名实测。
+- 默认匿名；只接收已有 `access_token`，非空发送 Bearer，不实现登录、注册或刷新。完整 JSON 不拆层，
+  非 2xx 继续使用共享异常和 `last_call`，不钳位参数、不重试、不下载作品媒体。
+- 新增 `sites.sakuria`、示例/冒烟配置、两个匿名示例、十请求以内冒烟、四份家族文档与公共导航。
+  执行记录及与输入资料的矛盾分别见[验证记录](docs/verification.md#sakuria匿名只读实测2026-09-19)
+  和[契约附注](docs/sakuria-contract-notes.md)；17 个账号方法的成功结构均未实测。
+
 ### Gelbooru 0.2 / TBIB 第八家族
 
 - TBIB 首页自述 `Running Gelbooru 0.2`；独立新增 `Gelbooru02`，不改变 `gelbooru.com` 的既有客户端与契约。

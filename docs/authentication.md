@@ -226,6 +226,43 @@ OpenAPI 描述 access token 有效 30 分钟，refresh token 30 天；服务端�
 登录、个人数据和写权限不是公共读取的前置步骤；`user_ratings` 只允许本人或具有 `USER_EDIT_PROFILE` 的版主，
 不能把“GET”当成匿名权限保证。参数与字面调用见 [Shuushuu 方法参考](shuushuu-api.md)。
 
+## Sakuria：`access_token` 与需要登录的 `/me/*`
+
+`Sakuria` 只有一种凭据：站点条目的 `access_token`（默认 `""`）。非空时给每个请求加
+`Authorization: Bearer <token>`；留空即匿名，不发送任何认证头。没有 `username` / `password` / `api_key` /
+`user_id` 字段，构造签名里也没有用户名。
+
+```python
+from anybooru import Sakuria
+
+with Sakuria('sakuria', access_token='') as client:   # 显式空串：即使配置里填了 token 也不发认证头
+    # GET https://sakuria-api.syarolia.com/stats
+    print(client.stats())                             # 匿名公开路由，原样返回 JSON
+
+with Sakuria('sakuria') as client:                    # 不传 access_token：读取 sites.sakuria.access_token
+    # 构造不发请求；包内 token 为空，last_call 此时也是空字典。
+    print(client.last_call)
+```
+
+规则：
+
+* `access_token=''`（显式空串）表示本次客户端匿名，**不读取**配置里的 token；`None`（或不传）才读配置；
+* 非空才加 `Authorization: Bearer <token>`；库不做本地权限判断，也不会在 `401` 后退回匿名；
+* **没有**登录、注册、换取或刷新 token 的方法；这些路由的位置与可达性本轮未复核。
+  token 由使用者自己准备，库不代替获取或续期，也不索要账号密码；
+* `me*` 系列 17 个方法（`me` / `me_capabilities` / `me_bookmarks` / `me_likes` / `me_following` /
+  `me_notifications` / `me_history` / `me_settings` / `me_illusts` / `me_novels` / `me_series` / `me_credits` /
+  `me_plus` / `me_subscription` / `me_favorites` / `me_search_history` / `me_recommend`）**都需要登录**：
+  没有 token 时由服务端拒绝，返回结构**未实测、未知**——库只拼路由、原样返回 JSON，不拆信封。
+  其中只有 `/me/likes` 本轮被请求过（匿名先 426，显式带契约头后 401），其余 16 个连拒绝形态都没有样本。
+
+本轮实测：`/me/likes` 不带 `x-sakuria-data-contract: 2` 时回 `426`（正文 `{"error":"upgrade_required","requiredDataContract":2}`），
+显式补上该头后变成 `401`（正文 `{"error":"sakuria_session_required"}`）——服务端先看数据契约版本，再查登录。
+本客户端**不隐式发送**这个头：需要时用通用入口显式传，例如
+`client.request('GET', '/me/likes', headers={'x-sakuria-data-contract': '2'})`；`headers` 是 `request()` 的
+关键字参数，原生方法不带隐式头。逐条依据与未实测边界见
+[Sakuria 契约审计附注](sakuria-contract-notes.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -236,6 +273,12 @@ Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 
 Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。
 Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。
 其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。
+Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 426，
+带 `x-sakuria-data-contract: 2` 后为 401 `sakuria_session_required`），17 个成功返回结构一律未知；
+带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、
+10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见
+[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与
+[Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
 ## 相关文档
 

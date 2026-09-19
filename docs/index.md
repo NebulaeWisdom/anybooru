@@ -1,6 +1,6 @@
 # Anybooru 文档
 
-Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）与 Shuushuu 八类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu 与 Sakuria 九类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），
 再进对应家族的「三行上手」跑通第一个请求。
@@ -28,6 +28,7 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru�
 | Gelbooru（gelbooru.com） | [三行上手](gelbooru.md) | [六个原生方法](gelbooru-api.md) | [按任务找方法](gelbooru-capabilities.md) | [来源层级与未实测项](gelbooru-contract-notes.md) |
 | Gelbooru02（TBIB，tbib.org） | [三行上手](gelbooru02.md) | [四个原生方法](gelbooru02-api.md) | [按任务找方法](gelbooru02-capabilities.md) | [帮助页与实测证据](gelbooru02-contract-notes.md) |
 | Shuushuu（e-shuushuu.net） | [三行上手](shuushuu.md) | [方法参考](shuushuu-api.md) | [按任务找方法](shuushuu-capabilities.md) | [OpenAPI 与实测依据](shuushuu-contract-notes.md) |
+| Sakuria（Pixiv 第三方镜像，sakuria-api.syarolia.com） | [三行上手](sakuria.md) | [44 个读取方法](sakuria-api.md) | [按任务找方法](sakuria-capabilities.md) | [匿名响应与资料矛盾](sakuria-contract-notes.md) |
 
 **两家 Gelbooru 不是同一套接口**，选类前先看清是哪一家：
 
@@ -50,18 +51,20 @@ Gelbooru02 是另一套东西：TBIB（`tbib.org`）自述 `Running Gelbooru 0.2
 真实匿名响应，没有服务端源码快照，也不能由帮助页推出未观察到的字段。
 e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据是站点自带 OpenAPI 和真实响应；
 没有本地上游服务端源码，不套用 Danbooru 或 Moebooru 的路由、标签字符串规则。
+Sakuria 是 Pixiv 第三方镜像而非 booru：插画、小说、用户、系列和特辑各有独立路由，完整 JSON 不拆层。
+没有可引用的服务端源码、官方 API 页面或 OpenAPI；依据只有匿名响应与待核实的用户观察，证据等级最弱。
 不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，
 但返回的 JSON 结构完全不同。判断方法见
 [配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
-## 八个家族共用的用法
+## 九个家族共用的用法
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | Python 与依赖要求、源码安装步骤、装完怎么验证、包内文件都在哪 |
 | [配置](configuration.md) | 默认读哪份 JSON、怎么换一份自己的、`sites` 每个字段什么意思、`examples` 各键对应哪个调用、代理与超时写在哪 |
-| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 默认匿名且显式登录换 Bearer token |
-| [分页](pagination.md) | 八个家族各自的页码参数与每页上限、游标形式、超过上限报什么错 |
+| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token |
+| [分页](pagination.md) | 九个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数 |
 | [错误处理](errors.md) | 三个异常类各自什么时候抛、HTTP 错误带哪些字段、各引擎的状态码含义、为什么不自动重试 |
 | [迁移](migration.md) | 从 Pybooru 4.x 改名/换参数/换返回值的逐方法对照表 |
 
@@ -69,13 +72,13 @@ e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据
 
 1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；
    不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
-2. **通用入口与原生方法**：八个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
+2. **通用入口与原生方法**：九个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
    有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
    有些方法会替你剥掉一层外层对象：Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、
    把 `meta` 放进 `client.last_call['meta']`；e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，
    而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆；Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，
-   详情路径直接是条目对象；Gelbooru 与 Shuushuu 一个外层都不拆，服务端给什么就返回什么；
+   详情路径直接是条目对象；Gelbooru、Shuushuu 与 Sakuria 一个外层都不拆，服务端给什么就返回什么；
    Gelbooru02 的 XML 方法给你**服务端原文**（含 XML 声明、根元素属性与全部空白，不解析、不转换、不裁剪）。
    返回内容的完整原貌、以及哪些方法不拆，见各家族方法参考。
 4. **参数按各引擎的写法发**：Rails 引擎把嵌套字典编成 `a[b]`、列表编成重复键 `a[]`，布尔发成 `true` / `false`，
@@ -90,13 +93,13 @@ e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据
    查询键（`limit` / `pid` / `tags` / `id` / `post_id`）原样转发，`s` 与 `q` 由客户端补。
    Shuushuu 的 `tags='46,169'` 是数字 ID 逗号串，`status=[1, 2]` 是重复同名键；分页用 `page/per_page`，
    标签搜索方法 `search` 用 `limit/offset`。构造从不登录；`user_ratings` 是显式私有读取，其余资源读取的实测范围见家族文档。
+   Sakuria 的插画搜索使用 `q/page/size`，标签路径逐段 URL 编码；不把 booru 的 `tags/limit` 换算成这些参数。
 
 ## 边界与未实测
 
-- 依据分两条路：Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注），
-  Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 没有可引用的上游服务端源码，依据站点页面、脚本、帮助页或 OpenAPI
-  与真实响应。两条路都不是对每个下游站点的保证：站点可以自己关掉某个功能、按权限裁剪返回内容，
-  也可能用反爬挡住你所在的网络。
+- 源码家族 Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注）。
+  Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 依据站点页面、脚本、帮助页或 OpenAPI 加真实响应。
+  Sakuria 没有上述正式来源，仅有匿名实测；未复核的资料说法集中标明。任何一种依据都不是对下游站点的保证。
 - 已经真实执行过的匿名读取：Danbooru 的 12 次成功与 3 次预期错误、Moebooru 的指定匿名读取、Serika 的
   官方公开入口与部分站内读取、e621ng 三个示例在 e621.net 与 e926.net 各跑一遍、Zerochan 的
   `entry_list` 与 `entry_show`、Gelbooru 的 `autocomplete`（`200`，返回建议数组；实测 `limit=3` 仍返回
@@ -117,6 +120,8 @@ e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据
   XML 也不解析成字典。
 - Shuushuu 默认匿名；公开图片、标签、评论、用户资料等读取不要求账号，但个人资料和管理 GET 不在此列。
   登录、刷新、登出及账号写操作未实测；本次匿名冒烟与示例的实际范围见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+- Sakuria 提供 27 个公共资源 GET 与 17 个账号 GET。账号方法只接收已有 token，成功返回结构未实测；
+  不实现登录、刷新或媒体下载。匿名执行范围与资料矛盾见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
 
 ## 许可
 
