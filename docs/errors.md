@@ -95,6 +95,8 @@ Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺�
 Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、
 非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，
 见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、
+`AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。
 
 ### Danbooru 引擎
 
@@ -193,6 +195,52 @@ with AnimePictures('anime_pictures') as client:
 [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
+### Cosine
+
+本轮匿名只读探测（两次串行批次，每个请求只发一次、不重试、不跟随跳转、不下载媒体）里的错误样本。
+Cosine 的错误正文形状**不统一**：有的是站点自己的 JSON（例如 `{"error": "标签参数缺失"}`），有的是它自己的
+其它文本，所以不要假定错误体一定有某个字段；`AnybooruHTTPError.data` 只在正文能按 JSON 解析时才是对象。
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **缺必填的查询参数**：`GET /api/tag` 完全不带 `tag` 回 `{"error": "标签参数缺失"}`；`GET /api/artist` 不带 `platform` 也是 `400` |
+| `404` | **作品不存在**：`GET /api/artwork/999999999` 回 `404`；`GET /api/random?count=abc`（`count` 不是数字）同样回 `404`；`GET /api/artist` 的 `infoOnly='true'` 分支上查一个没有作品的画师也回 `404` |
+| `500` | **路径段或参数非法**：`GET /api/artwork/abc`（路径段不是数字）是 `500` 而不是 `400`；`GET /api/list?page=0` 与 `page=-1` 都是 `500`；`GET /api/artist` 的 `authorid` 不能转成数字也是 `500`；`GET /api/search` 的 `limit=-1`、`offset=-5` 与 `sort=bogus` 都是 `500`（`sort` 收的是 Meilisearch 表达式，非法值由 Meilisearch 报错） |
+
+对照样本：`/api/list` 翻到末页之后是 `200` 加空 `images`（不是 `404`）；`/api/tag` 查一个没有作品的标签、
+`/api/search/suggestions` 只传一个字符的 `q` 也都是 `200` 加空数组 / 空列表——**空结果不是错误**，
+本库不把它换成异常，也不据此判定“资源不存在”。未知取值同样不会在本地被拦下：`platform=unknown` 与
+`sortBy=unknown` 都回了 `200`，由站点自己解释——所以“没报错”不等于“参数生效”。
+
+```python
+from anybooru import Cosine, AnybooruHTTPError
+
+with Cosine('cosine') as client:
+    try:
+        client.artwork_show(999999999)          # 不存在的作品
+    except AnybooruHTTPError as error:
+        print(error.http_code)                  # 404
+        print(error.body)                       # 站点自己的正文原文
+
+    try:
+        client.artwork_show('abc')              # 路径段不是数字
+    except AnybooruHTTPError as error:
+        print(error.http_code)                  # 500，不是 400
+        print(error.url)                        # https://pic.cosine.ren/api/artwork/abc
+
+    try:
+        client.request('GET', 'api/tag')        # 完全不传 tag
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['error'])   # 400 标签参数缺失
+```
+
+`response_format='xml'` 的 `feed()` 不在上表里：它要的是 RSS 原文，客户端直接把 `.text` 给你，
+**不做 JSON 解析、不做格式嗅探**，所以正文不是 JSON 也不会变成 `AnybooruAPIError`；反过来，
+JSON 路由拿到 2xx 却不是 JSON 时，仍按共享规则抛 `AnybooruAPIError`。
+本轮带 `Origin` 的样本里**没有** `Access-Control-Allow-Origin`，也没有任何 `RateLimit-*` 响应头——
+只能说本轮样本没有这些头，不能当成“站点没有配额”或“浏览器跨域一定可用”的保证。
+客户端不做任何自动重试：`search_index_admin` 这类写入口更没有兜底或回滚，见[不重试](#不重试)。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -212,6 +260,10 @@ Anime-Pictures 的错误路径同样只跑了有界样本：90 次匿名 GET 里
 `404` 六个、`410` 与 `500` 各一），其余 76 个是 `200`；`401`、`429`、带 Cookie 的成功路径与媒体成功返回
 都没有样本。异常字段本身与其它家族共用同一套，不受影响。逐条见
 [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
+Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探测只在缺失作品、参数非法与页码越界上取得
+`400` / `404` / `500` 样本；两个 POST（`artwork_revalidate`、`search_index_admin`）从未调用，
+`401` / `403` / `429` 都没有样本，未知参数是否被忽略也没有证据。逐条见
+[验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
 
 ## 相关文档
 
