@@ -2,8 +2,9 @@
 
 ## 客户端行为
 
-八个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
-Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，tag 用 `after_id`，删除流用 `last_id`。
+九个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
+tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
 标签搜索 `search` 用 `limit` / `offset`。
 
@@ -272,6 +273,54 @@ with Shuushuu('shuushuu') as client:
 `image_reposts` 是不分页的 `total/items` 对象。各方法的精确字段见[方法参考](shuushuu-api.md)。
 同一标签的 `image_list(tags=...)`、`tag_images(id)` 和 `tag_show(id)` 总数口径不同，不应互换计数。
 `per_page=101` 的422及两页实际返回见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+
+## Sakuria 的分页
+
+Sakuria 插画搜索用 `page`（页码）与 `size`（请求条数）；其它路由不能照搬这组参数，
+例如插画评论有 `page/size`，系列详情也收 `page`。客户端原样转发，不补默认值、不裁剪、不自动翻页。
+
+```python
+from anybooru import Sakuria
+
+with Sakuria('sakuria', access_token='') as client:      # 显式空串 = 匿名，不读配置里的 token
+    # GET https://sakuria-api.syarolia.com/search/illust?q=blue&size=2&sort=new&page=1
+    first_page = client.illust_search(q='blue', size=2, sort='new', page=1)
+    for illust in first_page['items']:
+        print(illust['id'], illust['title'])
+
+    # GET https://sakuria-api.syarolia.com/search/illust?q=blue&size=2&sort=new&page=2
+    second_page = client.illust_search(q='blue', size=2, sort='new', page=2)
+    print(second_page['page'], second_page['hasMore'], second_page['nextPage'])
+```
+
+不要把数值 `nextPage` 当下一相邻页；`page` 本身仍回显请求页码。`/search/illust?q=blue&size=24` 的 `page=1/2/3` 本轮分别返回
+`total` 48/72/96、`totalPages` 4/4/6、`nextPage` 4/4/6，而第 1 页与第 2 页有 24 个相同的 `id`、
+第 2 页与第 3 页有 10 个相同：**`total` 不是匹配总数，`nextPage` 也不是相邻页码**，
+拿它们跳页会漏数据或打转。可靠的推进方式是**手动把 `page` 加 1**，并在展示前按 `id` 去重。
+`hasMore` 为 `false` 表示列表到头——本轮没有跑到末页，「末页一定回 `hasMore: false`」仍只是候选输入的说法（未实测）。
+
+`size` 只证实了两个边界样本：`size=1` 返回 5 条、`size=24` 返回 29/24/33 条、`size=48` 返回 39 条，
+而 `size=0` 与 `size=49` 都是 `400`（`code: invalid_search_filter`、`field: size`）。
+也就是 1 与 48 被接受、0 与 49 被拒绝；**响应条数不等于、也不保证不超过 `size`**，48 也不是已证实的最大返回条数。
+客户端不做钳位、不补默认值，也不因为你传了 `size` 就假定拿到几条。
+
+各路由的分页字段并不统一（下表全部是本轮匿名样本）。传了 `size` 的路由把 `pageSize` 原样回显
+（`size=1/24/48` 都一一对应），但实际条数并不等于它；没传 `size` 的路由各自返回 12 或 24 的 `pageSize` 样本：
+
+| 本轮请求 | 分页字段与样本 |
+| :--- | :--- |
+| `/search/illust?q=blue`、`/search/novel?q=blue`、`/tags/blue`、`/users/{id}/illusts` | `{items, page, pageSize, total, totalPages, hasMore, nextPage, hiddenCount}`；`/users/{id}/illusts` 的 `page=1/2` 各 45 条、两页交集 23 |
+| `/users/{id}/novels`、`/users/{id}/bookmarks` | 用 `nextCursor` 而不是 `nextPage`；`/users/{id}/bookmarks` 的 `page=1` 与 `page=2` 返回**完全相同的 JSON**（19 条，`nextCursor` 都是 `9175901406`），这两个取值不能推进 |
+| `/users/{id}/followers`、`/users/{id}/series` | 只有 `page` / `pageSize` / `hasMore`；`followers` 的 `page=1`、`page=2` 都是空 `items`，`page` 回显请求值 |
+| `/spotlight`、`/novels/{id}/related` | 有 `hasMore`，没有 `nextPage`；`/spotlight?page=1&lang=zh-cn` 的 `pageSize` 是 12、`items` 是 20 条 |
+| `/search/user?q=mika` | `total` 与当页 `items` 条数相同（`page=1/2/3` 分别 6/12/21），三页 `id` 互不重叠——**不是累计值**，页码越高每页越长 |
+| `/illust/{id}/related`、`/users/{id}/related`、`/illust/{id}/comments/{cid}/replies` | 只有 `{items}`，没有页码字段；`/illust/{id}/comments` 是 `{items, hasMore}` |
+
+以上只是样本：`page` 只试过列出的这些取值，越界、非数字与末页行为未测；
+`/users/{id}/followers` 空列表、`/users/{id}/bookmarks` 分页不推进都只对试过的两个 `page` 值成立，
+不能推广成「功能未实现」或「所有游标参数无效」。`/me/*` 的 17 个方法需要登录，分页语义未知。
+逐条命令与响应见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与
+[Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
 ## 相关文档
 
