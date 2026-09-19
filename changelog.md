@@ -11,6 +11,40 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Anime-Pictures 第十家族
+
+- 新增 `AnimePictures`、`anybooru/anime_pictures.py` 与 `anybooru/api_anime_pictures.py`。站点是自研的
+  `api/v3` JSON 接口，**不是** Danbooru/Moebooru 一类引擎：根 `/`、帖子、标签、用户、评论各走自己的路径，
+  本库不套用其它家族的路由与参数名。站点没有可读到的官方 API 文档页面（手册页被 Cloudflare 质询挡下），
+  也没有 OpenAPI 与服务端源码；依据限于匿名只读实测与候选输入资料，证据等级与 Sakuria 同档。
+- 原生 API 固定 **13 个方法（12 个 GET + 1 个 POST）**：`service_info`（API 主机根）、`posts_list` /
+  `post_show` / `post_comments` / `post_tags`、`post_create`（POST，正文由调用方 dict 原样作为 JSON，
+  可选 `Idempotency-Key`）、`tags_list` / `tag_show`、`users_list` / `user_show`、`comments_list` /
+  `comment_show`，以及 `image_get`（`/pictures/get_image/{file_url}`，走共享 `_request_bytes` 原样返回
+  `bytes`，不解析、不嗅探、不落盘）。没有本地校验、默认查询、重试、钳位、回退或字段改名。
+- 基地址是 **API 主机** `https://api.anime-pictures.net/api/v3`，不是网页主机；`request()` 用
+  `urljoin(site_url + '/', path)`，所以 `'posts'` 相对 API 基址，而 `'/api/v3/posts'` 与 `'/'` 是主机根路径，
+  前导 `/` 的语义与其它家族不同。所有资源 id 按 `quote(str(id), safe='')` 编码。
+- 凭据形态是本项目的第五种：`authorization` 与 `cookie` 默认为 `""`（显式空串强制匿名），非空时分别按原值
+  发送 `Authorization` / `Cookie` 头——不加 `Bearer`、不猜 cookie 名、不登录、不刷新。确切 scheme 未实测。
+- 返回完整 JSON，不剥信封：帖子列表信封含 `posts` / `page_number` / `posts_per_page` /
+  `response_posts_count` / `posts_count` / `max_pages`，列表的帖子对象没有预览地址，只有详情才多出
+  `small_preview` / `medium_preview` / `big_preview`。`post_tags` 与 `image_get` 匿名 `403`，
+  匿名 `403` 只说明当前身份不够，不能推断带 Cookie 一定成功。
+- 如实保留站点错误边界：帖子不存在是 `410`（不是 `404`），标签 / 用户 / 评论不存在是 `404`，
+  非法路径段返回 `400` 加 `text/plain` 正文（异常里的 `.data` 为 `None`、`.body` 保留原文）；
+  帖子列表缺 `page` 或页码非整数是 JSON `400`，`page=-1` 是 `500`，`type=json` 这类未知格式也是 `400`。
+- 分页实测：`page` **0 起步且必填**，`page=999999` 回空数组但 `posts_count` / `max_pages` 仍是全量值；
+  `posts_per_page` 缺省 `80`，`1`/`2`/`3`/`100` 原值回显，`101`/`150`/`1000`/`0` 回落成 `60`，`-1` 回到 `80`；
+  标签 / 用户 / 评论列表缺省 `offset=0`、`limit=20`，标签 `limit=1000` 与用户 / 评论 `limit=101` 都回到 `100`。
+  客户端不钳位、不补默认值、不代算 `max_pages`（空搜索的 `posts_count` / `max_pages` 都是 `0`）。
+  帖子字段里 `score_number` 是评分；`score` **不是恒为 `0.0`**（老帖样本有非零值），两个字段都按原值返回。
+- 配置新增 `sites.anime_pictures`（`url` 为 API 基址，凭据留空）、`examples.anime_pictures`、
+  `smoke.anime_pictures`；新增两个匿名示例、10 次以内的 `test/anime_pictures.py`、四份家族文档与公共导航。
+  探测记录（90 次串行匿名 GET）见[验证记录](docs/verification.md#anime-pictures匿名只读实测2026-09-19)，
+  依据与矛盾见[契约附注](docs/anime-pictures-contract-notes.md)。
+  POST 正文结构、Cookie 成功路径、媒体成功返回、旧版 web 路由与 `PUT` / `PATCH` / `DELETE` 均未实测。
+
 ### Sakuria 第九家族
 
 - 新增 `Sakuria`：27 个公共资源 GET 与 17 个 `/me` 账号 GET，覆盖插画、小说、用户、评论回复、系列、特辑、标签和服务配置。

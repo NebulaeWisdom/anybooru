@@ -16,6 +16,9 @@
   帮助页加**真实响应**为依据。依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
 - Sakuria 连官方 API 页面与 OpenAPI 都没有，证据等级更弱：只把本轮匿名响应支持的结论写成契约，
   输入文档作为候选；未复测项集中标明，矛盾见 [sakuria-contract-notes.md](sakuria-contract-notes.md)。
+- Anime-Pictures 的官方手册页存在但被 Cloudflare 质询挡下，没有可用的 OpenAPI 或服务端源码。
+  用户资料与公开客户端只能提供候选；公开结论须由匿名响应证实，未实测项与输入矛盾分别集中记录，见
+  [anime-pictures-contract-notes.md](anime-pictures-contract-notes.md)。CORS 允许某个动词不是该路由支持写操作的证据。
 - 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
 ## 1. 摸契约（只读、匿名、串行）

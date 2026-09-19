@@ -3,11 +3,15 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu 与 Anime-Pictures 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
 迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
 44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
+Anime-Pictures（站点自研 `api/v3` JSON 接口，API 主机与网页主机分开）同样没有可读到的官方手册页、
+OpenAPI 或服务端源码；它接入 13 个原生方法（12 GET + 1 POST），其中 10 个 GET 有匿名成功样本，
+`post_tags` / `image_get` 匿名被拒，二者与 `post_create` 的成功路径均未实测，依据见
+[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
 ## 一、破坏性变更总览
 
@@ -311,3 +315,9 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
   其余路径的返回结构未知；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码），
   候选字段不得当成返回值承诺。逐条见
   [Sakuria 契约审计附注](sakuria-contract-notes.md) 与[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
+* Anime-Pictures 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 13 个原生方法（12 个 GET + 1 个 POST）接入，
+  本轮真实执行过的只有 90 次串行匿名 GET（两个请求批次，每个请求只发一次）与随后的有界冒烟、两个示例。
+  `post_create` 没有发过 POST，带 Cookie 的 `post_tags` / `image_get` 与所有媒体成功返回都未实测；
+  参数边界只在下文列出的取值上验证过（`posts_per_page` 没有穷举 `1..100`，`order_by` 也只试过少数取值），
+  样本之外的取值仍是候选，不构成返回值承诺。逐条见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md) 与
+  [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。

@@ -1,15 +1,16 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问九类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问十类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
-、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）与 Sakuria（Pixiv 第三方镜像）。
+、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
+Sakuria（Pixiv 第三方镜像）与 Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）。
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
-同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的九个例子里：
+同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十个例子里：
 
 | 调用 | 真实请求 | 你拿到什么 |
 | :--- | :--- | :--- |
@@ -22,8 +23,9 @@ Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e9
 | e-shuushuu：`client.image_list(tags='46', per_page=2)` | `GET https://e-shuushuu.net/api/v1/images?tags=46&per_page=2` | 完整对象中的 `images` 是图片数组，`total/page/per_page` 是本次查询的分页数据；图片带 `image_id`、`tags`、`url` 和 `thumbnail_url`。`tags` 收数字标签 ID，不收名字 |
 | Gelbooru 0.2：`client.post_list(tags='rating:safe', limit=2)` | `GET https://tbib.org/index.php?tags=rating%3Asafe&limit=2&s=post&q=index&page=dapi&json=1` | JSON 数组含 `id/width/height/rating/tags`，没有媒体 URL；显式 `response_format='xml'` 返回完整 XML 字符串，帖子属性才含 `file_url/preview_url` |
 | Sakuria：`client.illust_search(q='blue', page=1, size=2)` | `GET https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=2` | 完整字典中的 `items` 是插画数组；每项含 `id/title/urls/author/tags`，图片尺寸在 `urls.w/urls.h`，不是顶层 |
+| Anime-Pictures：`client.posts_list(search_tag='hatsune miku', posts_per_page=2, page=0)` | `GET https://api.anime-pictures.net/api/v3/posts?search_tag=hatsune+miku&posts_per_page=2&page=0` | 完整信封：`posts` 是帖子数组，另有 `page_number` / `posts_per_page` / `response_posts_count` / `posts_count` / `max_pages`；每帖含 `id`、`md5`、`ext`（如 `.png`，**带点**）与 `score_number`（评分看它；`score` 原样保留，样本里既有 `0.0` 也有非零值）。列表**不给**预览地址 |
 
-九个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
+十个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
 认证头不代表同一套契约；Serika 是独立的 Next.js 应用，官方版本化 `/api/v1` 与站内未版本化 `/api/*`
 两面分开标注；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，契约依据是官方 API 页面快照
 加真实请求实测——见
@@ -39,12 +41,17 @@ TBIB 首页明确标注 `Running Gelbooru 0.2`，帖子 JSON 可匿名读取，�
 独立的 `Gelbooru02` 保留这些差异，不把它套进当前 `gelbooru.com` 的 JSON 客户端，见[契约附注](docs/gelbooru02-contract-notes.md)。
 Sakuria 不是 booru；它使用插画、小说、用户与 Pixivision 特辑模型。没有官方 API 页面、OpenAPI 或上游源码，
 只凭匿名响应核对，证据等级最弱；未经本轮请求证实的输入说法单独标明，见[契约附注](docs/sakuria-contract-notes.md)。
+Anime-Pictures 也不是 booru 引擎：站点自研一套 `api/v3` JSON 接口，**API 主机 `api.anime-pictures.net`
+与网页主机 `anime-pictures.net` 分开**（网页主机被 Cloudflare 质询挡下，`/api/v3/*` 的 302 不要依赖），
+根路径、帖子、标签、用户、评论各走自己的路由，不套 Danbooru/Moebooru 的参数名与字段。可读到的官方
+API 手册页同样被质询挡下，也没有 OpenAPI 与服务端源码；依据只是匿名只读响应实测与候选输入资料
+（输入引用了外部客户端源码链接，本轮没有独立读过），所以未实测项单独标明，见[契约附注](docs/anime-pictures-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan
-  、Gelbooru、e-shuushuu、Gelbooru 0.2 与 Sakuria 七个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
+  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria 与 Anime-Pictures 八个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
   重新起算。除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；
   原项目的 MIT 许可与版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
 
@@ -72,7 +79,7 @@ python -m venv .venv
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 13 个条目，下面列出部分站点）：
+包内文件的开头长这样（`sites` 段一共 14 个条目，下面列出部分站点）：
 
 ```json
 {
@@ -88,13 +95,14 @@ python -m venv .venv
     "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" },
     "tbib": { "url": "https://tbib.org" },
     "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" },
-    "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" }
+    "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" },
+    "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" }
   }
 }
 ```
 
 - 用命名站点：`site_name` 是 `sites` 段的键，例如 `Danbooru('danbooru')`、`Moebooru('yandere')`、
-  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
+  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`、`AnimePictures('anime_pictures')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
   显式构造参数优先。
 - 用清单外的站点：直接给 `site_url=`，例如
   `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3')`、`E621(site_url='https://e926.net')`。
@@ -117,8 +125,14 @@ python -m venv .venv
   它与 `gelbooru` 条目分开，认证与其它同族站点未实测。
 - Sakuria 使用 API 主机，默认 `access_token=''` 为匿名；非空才发送 `Authorization: Bearer`。
   17 个账号方法已封装，但成功返回结构未实测；不提供登录、注册或 token 刷新方法。
+- Anime-Pictures 的条目 `url` 是 **API 基址** `https://api.anime-pictures.net/api/v3`，不是网页主机
+  `anime-pictures.net`。凭据是 `authorization` 与 `cookie` 两个字段，默认 `""` 即匿名；非空时分别按原值
+  发送 `Authorization` / `Cookie` 头，**不加 `Bearer`、不改写、不猜 cookie 名**。本类不提供登录、注册或
+  刷新方法，凭据得自己准备；确切 scheme（`Bearer`、token 还是别的）未实测。
+  匿名只读接口足以浏览帖子、标签、用户与评论；`post_tags`、`post_create` 与 `image_get` 需要身份，
+  匿名拒绝形态见[错误处理](docs/errors.md)。
 
-## 九个家族的第一次调用
+## 十个家族的第一次调用
 
 每段代码都可以直接复制执行（匿名只读），默认站点都来自包内配置。
 
@@ -355,17 +369,61 @@ with Sakuria('sakuria') as client:
 不要把 `total` 当全库总量，不要按数值 `nextPage` 跳页；分页与字段事实见[方法参考](docs/sakuria-api.md)。
 库不请求作品图片正文；相对图片地址的拼接与占位图注意事项见[客户端用法](docs/sakuria.md)。
 
+### Anime-Pictures（anime-pictures.net）
+
+```python
+from anybooru import AnimePictures
+
+with AnimePictures('anime_pictures') as client:
+    # GET https://api.anime-pictures.net/api/v3/posts?search_tag=hatsune+miku&posts_per_page=2&order_by=rating&page=0
+    # page 是必填的 0 起步页码，不传会得到 400；完整信封是 posts 数组加
+    # page_number / posts_per_page / response_posts_count / posts_count（当前过滤条件下的总数）/ max_pages
+    # 列表里的帖子不带预览地址；color 是数组，不是所有字段都是标量
+    page = client.posts_list(search_tag='hatsune miku', posts_per_page=2, order_by='rating', page=0)
+    for post in page['posts']:
+        print(post['id'], post['score_number'], post['ext'], post['tags_count'])
+
+    # GET https://api.anime-pictures.net/api/v3/posts/929452
+    # 多段对象：post（比列表多 small_preview / medium_preview / big_preview 三个预览地址）、source、
+    # user、moderator、tags（每项 {tag, user, relation}）、file_url（是文件名不是地址，含空格）、
+    # star_it、favorites_users、tied
+    detail = client.post_show(929452)
+    print(detail['post']['id'], detail['file_url'], detail['user']['name'])
+```
+
+Anime-Pictures 面固定 **13 个方法（12 个 GET + 1 个 POST）**：根 `service_info()`（`GET https://api.anime-pictures.net/`
+返回 `{"message": "Hello, World!"}`）、帖子 `posts_list` / `post_show` / `post_comments` / `post_tags`、
+写入口 `post_create`（正文是调用方给你的 dict，原样作为 JSON 发送，可选 `Idempotency-Key` 头）、
+标签 `tags_list` / `tag_show`、用户 `users_list` / `user_show`、评论 `comments_list` / `comment_show`，
+以及 `image_get(file_url)`（`GET https://api.anime-pictures.net/pictures/get_image/<编码后的文件名>`，
+原样返回 `bytes`，不解析、不嗅探、不落盘）。
+有三处与其它家族**有意不同**：`url` 是 API 基址 `https://api.anime-pictures.net/api/v3`（不是网页主机），
+所以 `'posts'` 这类相对路径拼在 `/api/v3` 后面，而 `'/api/v3/posts'` 和 `'/'` 是**主机根**路径；
+帖子不存在返回 `410` 而不是 `404`；非法路径段返回 `400` 加 `text/plain` 正文而不是 JSON
+（`AnybooruHTTPError.data` 此时是 `None`，`.body` 保留原文）。
+分页要点：帖子列表的 `page` **0 起步且必填**——不传或非整数回 JSON `400`，`page=-1` 回 `500`；
+`posts_per_page` 缺省 `80`，实测 `101` / `150` / `1000` / `0` 回落成 `60`、`-1` 回到 `80`；
+标签 / 用户 / 评论列表改用 `limit` / `offset`（缺省 `20` / `0`），标签 `limit=1000` 与用户 / 评论 `limit=101`
+都回到 `100`。列表里的 `score_number` 才是评分，`score` **不是恒为 `0.0`**，两个字段都按原值返回。
+空结果（例如查一个不存在的标签）会回 `posts_count=0`、`max_pages=0`，别把 `max_pages` 当公式无条件套用。
+用户对象也不同形：`users_list` 的条目与帖子详情里的 `user` 带 `login`，而 `user_show` 返回的 `user` 没有
+`login`（顶层另有 `errormsg: null`）——跨路由取字段前先看清是哪一种。
+`post_tags` 与 `image_get` 本轮匿名实测 `403`，`post_create` 没发过 POST、成功与拒绝形态都未实测；
+带身份的成功路径、凭据 scheme 与媒体返回形态均未实测。方法参数见[方法参考](docs/anime-pictures-api.md)，
+凭据字段见[认证](docs/authentication.md)，分页与错误见
+[分页](docs/pagination.md#anime-pictures-的分页)与[错误处理](docs/errors.md#anime-pictures)。
+
 ## 文档
 
 文档全部是 `docs/` 下的中文 Markdown，每份只回答一类问题：
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；九个家族怎么选 |
+| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
-| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token |
-| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie` |
+| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page` |
 | [docs/errors.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/errors.md) | `AnybooruHTTPError` / `AnybooruAPIError`、状态码与错误正文 |
 | [docs/danbooru.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru.md) | Danbooru 客户端：构造、`request()`、参数编码、返回值、坑 |
 | [docs/danbooru-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru-api.md) | Danbooru 227 个方法：参数、路由、返回形态 |
@@ -403,12 +461,16 @@ with Sakuria('sakuria') as client:
 | [docs/sakuria-api.md](docs/sakuria-api.md) | 27 个公共读取与 17 个账号方法的参数、路由和字段 |
 | [docs/sakuria-capabilities.md](docs/sakuria-capabilities.md) | Sakuria：按目的选方法与完整索引 |
 | [docs/sakuria-contract-notes.md](docs/sakuria-contract-notes.md) | 匿名响应依据、输入资料矛盾与未实测范围 |
+| [docs/anime-pictures.md](docs/anime-pictures.md) | Anime-Pictures 客户端：API 基址、前缀 `/` 语义、原样凭据头与完整 JSON |
+| [docs/anime-pictures-api.md](docs/anime-pictures-api.md) | 13 个原生方法（12 GET + 1 POST）：参数、路由与返回字段 |
+| [docs/anime-pictures-capabilities.md](docs/anime-pictures-capabilities.md) | Anime-Pictures：按目的选方法与完整索引 |
+| [docs/anime-pictures-contract-notes.md](docs/anime-pictures-contract-notes.md) | 匿名响应依据、输入资料矛盾、未实测项与排除路由 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移到 0.1.x 的逐项对照 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 哪些端点真的跑过（含状态码与返回摘要）、哪些没有 |
 
 ## 可运行示例
 
-`examples/` 下 27 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
+`examples/` 下 29 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
 站点名与参数（标签、页码、条数、间隔）取自 `examples.<家族>` 段——例如上面 Zerochan 那段的
 `entry_list(p=1, l=2, s='id')` 对应 `examples.zerochan.entry_query`，`entry_show(3793685)` 对应
 `examples.zerochan.entry_id`。示例里不硬编码站点、代理与分页。
@@ -425,6 +487,7 @@ with Sakuria('sakuria') as client:
 | `examples/shuushuu/` | `search_images.py`（标签名换 ID、两页筛图、详情）、`browse_resources.py`（标签详情、评论、用户、新闻）——两个匿名只读脚本，各最多四次 GET |
 | `examples/gelbooru02/` | `list_posts.py`（JSON 列表与同帖 XML）、`browse_resources.py`（XML 标签与评论）——两个匿名脚本，各最多两次 GET |
 | `examples/sakuria/` | `search_illusts.py`（两页搜索与 ID 去重）、`browse_resources.py`（插画详情、评论与作者）——两个匿名脚本，分别最多两次与三次 GET |
+| `examples/anime_pictures/` | `list_posts.py`（配置的两页帖子列表，打印真实 URL、状态、`page_number`、`posts_count`、`max_pages` 与每帖 `id` / `score_number`）、`browse_resources.py`（帖子详情、该帖评论、详情里 `user.id` 的用户资料、非空评论首条的评论详情）——两个匿名只读脚本，分别两次与四次 GET，不访问媒体 |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -436,6 +499,8 @@ with Sakuria('sakuria') as client:
 .venv/Scripts/python.exe examples/shuushuu/search_images.py
 python examples/gelbooru02/list_posts.py
 python examples/sakuria/search_illusts.py
+.venv/Scripts/python.exe examples/anime_pictures/list_posts.py
+.venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
 ```
 
 哪些脚本真的跑过、每条命令的状态码与返回摘要，见
@@ -445,7 +510,8 @@ python examples/sakuria/search_illusts.py
 
 安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
 列表条数、分页、详情编号和预期错误。文件名对应 `sites`：`serika`、`danbooru`、`safebooru`、
-`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`、`tbib`、`sakuria`。
+`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`、`tbib`、
+`sakuria`、`anime_pictures`。
 
 ```bash
 python test/danbooru.py
@@ -453,16 +519,20 @@ python test/zerochan.py --config <你的配置文件>
 python test/gelbooru.py --config <你的配置文件>
 python test/tbib.py --config <你的配置文件>
 python test/sakuria.py --config <你的配置文件>
+python test/anime_pictures.py --config <你的配置文件>
 ```
 
 全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
-不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu 与 Sakuria 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
+不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria 与 Anime-Pictures 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
 其余各最多 4 次；前置列表失败时跳过依赖的详情/翻页，不补发请求。两次请求之间按配置暂停：
-通用 `smoke.pause_seconds=1.2`，Shuushuu 用 `smoke.shuushuu.pause_seconds=2.1`，Sakuria 用 `smoke.sakuria.pause_seconds=1.2`。不依赖测试框架，不在 CI 自动运行。
+通用 `smoke.pause_seconds=1.2`，Shuushuu 用 `smoke.shuushuu.pause_seconds=2.1`，Sakuria 用 `smoke.sakuria.pause_seconds=1.2`，
+Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`。不依赖测试框架，不在 CI 自动运行。
 
 每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段/条数，最后汇总实际尝试次数；
 退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是
-**预期拒绝**，不是失败；网络失败也不会伪装成站点变化。这里不是全 API 覆盖或长期可用性保证。
+**预期拒绝**，不是失败；Anime-Pictures 的缺失帖子 `410` 与非法路径段 `400`（正文是 `text/plain`、
+`AnybooruHTTPError.data` 为 `None`）同样是**预期拒绝**；网络失败也不会伪装成站点变化。
+这里不是全 API 覆盖或长期可用性保证。
 
 省略 `--config` 时读包内默认配置（不含代理）；若所在网络需要代理，必须用 `--config` 指向自己的
 完整配置。复制最新版 `anybooru/anybooru.json`，保留其中的 `smoke` 段，仅调整自己的 `request` 设置；

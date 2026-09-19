@@ -92,6 +92,9 @@ Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes
 不能套用其他家族的状态码；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。
 Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，
 不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
+Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、
+非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，
+见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
 ### Danbooru 引擎
 
@@ -142,6 +145,54 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 仍回 `200`（这只证 `limit` 这一个取值被忽略，**不能推广成「所有未知参数都被忽略」**）。
 `/me/*` 的其余路由、登录后的状态码、限流与 `429` 都没有样本。
 
+### Anime-Pictures
+
+本轮 90 次匿名 GET（串行、每个请求只发一次、不重试、不跟随跳转、不下载媒体）里的错误样本。
+站点 API 位于 `https://api.anime-pictures.net`，原生方法里的相对路径拼在 `/api/v3` 后，`'/pictures/…'` 这种前导 `/` 路径落在主机根：
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **非法路径段**：`GET /api/v3/posts/top` 回 `Content-Type: text/plain; charset=utf-8`，正文是 ``Invalid URL: Cannot parse `top` to a `i32` ``。这不是 JSON——`AnybooruHTTPError.data` 是 `None`，正文在 `.body` 里 |
+| `400` | **帖子列表缺页码或页码非整数**：`GET /api/v3/posts` 与 `GET /api/v3/posts?page=abc` 都回 JSON，``{"errormsg":"Missing or invalid `page` parameter","success":false}``；`page` 是必填项 |
+| `400` | **不认识的响应格式**：`GET /api/v3/posts?page=0&…&type=json` 回 `{"errormsg":"Only json_v3, json1, and xml response types are supported","success":false}`——这些其它格式本轮没有请求，客户端也不提供 |
+| `403` | 需要身份：`GET /api/v3/posts/{id}/tags` 回 `{"errormsg":"You not have rights","success":false}`（`post_tags`）；`GET /pictures/get_image/{file_url}` 回 **`403` 空正文、没有 `Content-Type`**（`image_get`） |
+| `404` | 标签 / 用户 / 评论不存在：正文分别是 `{"errormsg":"Tag not found","success":false}`、`{"errormsg":"User not found","success":false}`、`{"errormsg":"Have no comment","success":false}`。API 主机上不存在的路由也是 `404` 空正文（旧版 `/api/v2/comments`、`/pictures/view_posts/0?type=json` 与任意的 `/api/v3/not_a_route` 实测如此） |
+| `410` | **帖子不存在**：`GET /api/v3/posts/{id}` 回 `{"errormsg":"Post not found","success":false}`。这一条与其它家族的 `404` 相反，是本家族最容易记混的状态码 |
+| `500` | `GET /api/v3/posts?page=-1` 回 `{"errormsg":"Internal server error","success":false}`——负页码不是 `400` |
+
+`401` 与 `429` 在本轮**都没有样本**（没有发过 POST，也没有触发限流）。候选输入称 `POST /api/v3/posts`
+未登录回 `401`（`{"errormsg":"You have no rights","success":false}`），本轮没有执行，只能当候选。
+站点也**没有观察到任何限流响应头**。
+
+```python
+from anybooru import AnimePictures, AnybooruHTTPError
+
+with AnimePictures('anime_pictures') as client:
+    try:
+        client.post_show(999999999)          # 不存在的帖子：410，不是 404
+    except AnybooruHTTPError as error:
+        print(error.http_code)               # 410
+        print(error.data['errormsg'])        # Post not found
+
+    try:
+        client.post_show('top')              # 路径段不是整数：400，正文不是 JSON
+    except AnybooruHTTPError as error:
+        print(error.http_code)               # 400
+        print(error.data)                    # None：正文按 JSON 解析失败
+        print(error.body)                    # Invalid URL: Cannot parse `top` to a `i32`
+
+    try:
+        client.posts_list()                  # 缺 page：400，但正文是 JSON
+    except AnybooruHTTPError as error:
+        print(error.data['errormsg'])        # Missing or invalid `page` parameter
+```
+
+同一条 `AnybooruHTTPError` 模型下，`.data` 只能对「正文是 JSON 的错误」用：Anime-Pictures 的正常错误体
+（`410` / `404` / `403` / `400` 页码 / `400` 格式 / `500` 的 JSON 形态）都有 `errormsg` 与 `success`
+两个字段，可以直接读；纯文本的 `400`（非法路径段）只能读 `.body`。逐条 URL 与正文见
+[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
+[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -157,8 +208,10 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 Sakuria 的错误路径本轮只跑过有界样本：探测的 54 次匿名 GET 里非 2xx 共 13 个（`400` 七个、`401` 三个、
 `404` / `426` / `503` 各一），其余 41 个是 `200`；10 次上限的冒烟另含一次 `404` 与一次 `400`。
 `403`、`429`、登录后的状态码、媒体与占位图分支都没有样本，上表不是全集。
-异常字段本身与其它家族共用同一套，不受影响。逐条见
-[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
+Anime-Pictures 的错误路径同样只跑了有界样本：90 次匿名 GET 里非 2xx 共 14 个（`400` 四个、`403` 两个、
+`404` 六个、`410` 与 `500` 各一），其余 76 个是 `200`；`401`、`429`、带 Cookie 的成功路径与媒体成功返回
+都没有样本。异常字段本身与其它家族共用同一套，不受影响。逐条见
+[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
 
 ## 相关文档
 

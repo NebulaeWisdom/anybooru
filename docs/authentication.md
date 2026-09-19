@@ -263,6 +263,47 @@ with Sakuria('sakuria') as client:                    # 不传 access_token：�
 关键字参数，原生方法不带隐式头。逐条依据与未实测边界见
 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
+## Anime-Pictures：`authorization` 与 `cookie` 原样转发（scheme 未实测）
+
+`AnimePictures` 只有两种凭据：站点条目的 `authorization` 与 `cookie`（都默认 `""`）。非空时按**原值**
+分别作为 `Authorization` 与 `Cookie` 请求头发送——库不加 `Bearer`、不加前缀、不改写、不猜 cookie 名；
+留空即匿名，不发送这两个头。构造签名里没有 `username` / `password` / `api_key` / `user_id`。
+
+```python
+from anybooru import AnimePictures
+
+with AnimePictures('anime_pictures', authorization='', cookie='') as client:
+    # 显式空串 = 本次匿名：即使配置里填了值也不发送这两个头
+    # GET https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2
+    page = client.posts_list(page=0, posts_per_page=2)
+    print(page['page_number'], len(page['posts']))
+
+with AnimePictures('anime_pictures') as client:
+    # 不传这两项 = 读 sites.anime_pictures.authorization / .cookie（包内都是空串）
+    # GET https://api.anime-pictures.net/api/v3/tags?tag=hatsune+miku
+    print(client.tags_list(tag='hatsune miku')['count'])
+```
+
+规则：
+
+* `authorization=''` / `cookie=''`（显式空串）表示本次客户端匿名，**不读**配置里的值；`None`（或不传）才读配置；
+* 非空时按原值发送：`authorization='Bearer xyz'`、`authorization='Token xyz'`、`cookie='a=b; c=d'`
+  都是调用方自己决定的串，库不解析、不校验、不补全；
+* 本类不提供登录、注册、换取或刷新方法，也不索要账号密码；token 与 cookie 由使用者自己准备；
+* 权限由服务端判定：客户端不预判能力，也不在 `401` / `403` 后退回匿名；
+* 需要单次覆盖时用通用入口显式传 `headers`（`request(method, path, headers=…)`），原生方法不带隐式头，
+  只有 `image_get(file_url, headers=…)` 单独收一个 `headers`。
+
+**scheme 未实测**：站点接受哪种 `Authorization` 方案（`Bearer`？某种 token？）、登录态 cookie 的名字、
+`post_create` 需要哪些头，本轮都没有成功样本。观察到的只有匿名侧：`post_tags`
+（`GET /api/v3/posts/{id}/tags`）与 `image_get`（`GET /pictures/get_image/{file_url}`）匿名实测 `403`，
+前者正文是 `{"errormsg":"You not have rights","success":false}`，后者是空正文。
+**匿名 `403` 只说明当前身份不够，不能反推「带上 Cookie 就一定成功」，也不能推断 Cookie 是唯一认证方式。**
+候选输入提到 CORS 预检允许 `authorization` 与 `idempotency-key` 两个头、浏览器登录态 Cookie 名是
+`anime_pictures_jwt`；本轮没有发送过这两个头，也没有独立复核过该 cookie 名。
+证据与未实测范围见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
+[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -279,6 +320,12 @@ Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/l
 10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见
 [验证记录](verification.md#sakuria匿名只读实测2026-09-19)与
 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
+Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与
+`post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），
+`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，
+其余按候选输入封装；逐条见
+[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
+[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
 ## 相关文档
 

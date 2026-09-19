@@ -70,6 +70,11 @@
     "sakuria": {
       "url": "https://sakuria-api.syarolia.com",
       "access_token": ""
+    },
+    "anime_pictures": {
+      "url": "https://api.anime-pictures.net/api/v3",
+      "authorization": "",
+      "cookie": ""
     }
   },
   "examples": {
@@ -163,6 +168,13 @@
       "illust_id": 70937229,
       "comment_query": {"page": 1, "size": 2},
       "pause_seconds": 1.2
+    },
+    "anime_pictures": {
+      "site": "anime_pictures",
+      "post_query": {"search_tag": "hatsune miku", "posts_per_page": 2, "order_by": "rating"},
+      "pages": [0, 1],
+      "post_id": 382872,
+      "pause_seconds": 1.3
     }
   },
   "smoke": {
@@ -203,6 +215,18 @@
       "comment_query": {"page": 1, "size": 2},
       "missing_id": 0,
       "invalid_size": 49
+    },
+    "anime_pictures": {
+      "pause_seconds": 1.3,
+      "post_query": {"posts_per_page": 2},
+      "pages": [0, 1],
+      "comment_post_id": 382872,
+      "tag_query": {"tag": "hatsune miku"},
+      "tag_id": 407,
+      "user_query": {"limit": 2, "offset": 0},
+      "comment_query": {"limit": 2, "offset": 0},
+      "missing_id": 999999999,
+      "invalid_post_id": "top"
     }
   },
   "verification": {
