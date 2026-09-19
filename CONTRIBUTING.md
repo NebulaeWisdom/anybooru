@@ -7,6 +7,8 @@
 * [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，八个家族各四份（客户端用法 / 方法参考 /
   能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
+* [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单（判引擎、摸契约、写客户端、
+  冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界）。
 * [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu 八个家族共 25 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
