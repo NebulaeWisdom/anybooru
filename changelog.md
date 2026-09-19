@@ -11,6 +11,40 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Cosine 第十一家族
+
+- 新增 `Cosine`、`anybooru/cosine.py` 与 `anybooru/api_cosine.py`。站点是 Telegram 频道 `@CosineGallery`
+  的配套图站（`pic.cosine.ren`），Next.js + Prisma + Meilisearch 自研 API，**不是** booru 引擎：
+  `api/list`、`api/artwork/{id}`、`api/random`、`api/search`、`api/search/suggestions`、`api/tag` / `api/tags`、
+  `api/artist` / `api/artists`、`api/search/admin` 与 `feed.xml` 各走自己的路由与参数名，本库不套用其它家族的
+  路由、参数名与字段。没有本地上游服务端源码；站点前端代码在公开仓库里，本轮只按需只读了个别文件当线索
+  （不 clone、不写行号），公开结论以匿名只读响应为准，证据等级与 Sakuria / Anime-Pictures 同档。
+- 原生 API 固定 **13 个方法（11 个 GET + 2 个 POST）**：`image_list`、`artwork_show`、`image_random`、`search`、
+  `search_suggestions`、`tag_images`、`tag_list`、`artist_images`、`artist_list`、`search_index_status`、
+  `search_index_admin`（POST）、`artwork_revalidate`（POST）与 `feed`。没有本地校验、默认查询、重试、钳位或字段改名。
+- 四种返回外壳**全部原样返回**：superjson 的 `{"json":…,"meta":…}`（`artwork_show`、`image_random`）、
+  `{"images":…,"total":…}` 与 `{"artists":…,"total":…,"hasNextPage":…}`（`image_list`、`artist_list`）、
+  `{"success":true,"data":…}`（`search`、`search_suggestions`、`search_index_status`）与裸数组
+  （`tag_images`、`tag_list`）。`artist_images(infoOnly=True)` 是第五种形状——不在四种列表外壳内的裸画师资料对象。
+  `image_random` 在 `count=1` 时 superjson 里的 `json` 是对象、`count≥2` 时是数组，并额外补 `originUrl` /
+  `authorUrl`、把 `i.pximg.net` 换成 `piv.cosine.ren`。
+- `request(method, path, *, params=None, data=None, headers=None, response_format='json')`：路径去掉前导 `/`
+  后拼在站点根上，`data` 原样按 JSON 发送，查询参数走共享编码（`None` 丢弃、布尔小写、数组按 Rails 重复键），
+  不钳位、不拆 JSON、不兜底、不重试；`response_format='xml'` 时走 `.text` 交给调用方，不做格式嗅探。
+- 凭据只有 `revalidate_secret` 一项，包内留空：显式空串表示本次就发空密钥、不读配置，`None`（或不传）才读配置；
+  不调用 `artwork_revalidate` 时它不会出现在任何请求上。`search_index_admin` 会初始化 / 重建 / 删除**站点**
+  搜索索引，本轮探测显示该路由没有鉴权门槛，所以本库不做任何自动重试或兜底，示例与冒烟都不调用它；
+  `artwork_revalidate` 与 `search_index_admin` 本轮都未执行，成功与拒绝形态均未实测。
+- 分页按方法分三套：`image_list` / `artist_list` 用 `page`（1 起）+ `pageSize`，`search` 用 `limit` + `offset`，
+  `tag_images` 用 `start` + `limit`。`search` 的 `total` 是 Meilisearch 估计值并被夹到 1000，`offset` 也被夹到
+  1000，不能当全库数量或翻页依据；`tag_images` / `tag_list` 没有 `total`；`tag_list` 的 `count` 是标签行数，
+  不是用了该标签的作品数。标签的 `#` 前缀与重复项在各路由不一致，本库不替调用方去重或剥前缀。
+- 配置新增 `sites.cosine`（`url` 加空的 `revalidate_secret`）、`examples.cosine`、`smoke.cosine`；
+  新增两个匿名示例（`examples/cosine/list_images.py`、`examples/cosine/browse_resources.py`，各四次 GET）、
+  10 次以内的 `test/cosine.py`、四份家族文档与公共导航。11 个只读 GET 的匿名样本与后续冒烟、示例的结果
+  同样列在[验证记录](docs/verification.md#cosine匿名只读实测2026-09-20)，依据与矛盾见
+  [契约附注](docs/cosine-contract-notes.md)。
+
 ### Anime-Pictures 第十家族
 
 - 新增 `AnimePictures`、`anybooru/anime_pictures.py` 与 `anybooru/api_anime_pictures.py`。站点是自研的
@@ -79,7 +113,7 @@
 
 ### 轻量匿名冒烟脚本
 
-- 新增 `test/<站点>.py`，与配置中的十个站点一一对应；每站最多 4–6 次匿名 GET，检查字段类型、
+- 新增 `test/<站点>.py`，当时与配置中的十个站点一一对应；每站最多 4–6 次匿名 GET，检查字段类型、
   列表/详情/分页和预期错误，输出 URL、状态与次数，退出码为 0/1。没有重试、媒体下载、写请求或测试框架。
 - 查询输入与 1.2 秒间隔集中在配置的 `smoke` 段；脚本随源码分发包提供，不进入 wheel 或 CI。
   执行方式见 README，真实执行结果追加于 `docs/verification.md`。
