@@ -90,6 +90,8 @@ Danbooru 引擎的 JSON 错误体形如：
 Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见
 [e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数、缺失条目或限流错误，
 不能套用其他家族的状态码；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。
+Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，
+不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
 ### Danbooru 引擎
 
@@ -121,6 +123,25 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 | `423` | Already Exists：资源已存在 |
 | `424` | Invalid Parameters：参数非法 |
 
+### Sakuria
+
+本轮 54 次匿名 GET（各 1 次、不重试、不跟随跳转、不下载媒体）里，错误体都是 JSON，且**字段随路由不同**：
+`error` 一定在，`code` / `field` / `feature` / `retryable` / `requiredDataContract` 只在对应路由出现。
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | 参数或路径非法。筛选参数越界或取值不认识：`{"error":"筛选参数无效","code":"invalid_search_filter","field":"size"}`（`size=0`、`size=49`），`field` 换成 `page` / `sort` / `mode` 出现在 `page=0`、`sort=__invalid__`、`mode=text` 上；非数字 id：`{"error":"invalid id"}`（`/illust/abc`，没有 `code`）；在小说上请求插画筛选：`{"error":"小说不支持该作品筛选条件","code":"unsupported_filter_for_scope","field":"type"}`（`/search/novel?type=illust`） |
+| `401` | 需要登录或更高等级。高级筛选：`{"error":"高级筛选需要 Sakuria+","code":"auth_required","feature":"advanced_search"}`（`/search/illust?type=illust`、`/search/novel?ai=exclude`）；补齐契约头后的 `/me/likes`：`{"error":"sakuria_session_required"}` |
+| `403` | **本轮没有样本**，含义未实测 |
+| `404` | 资源不存在：`/illust/0` 回 `{"error":"illust not found"}`（没有 `code`） |
+| `426` | 数据契约版本不满足：`/me/likes` 不带 `x-sakuria-data-contract: 2` 时回 `{"error":"upgrade_required","requiredDataContract":2}` |
+| `503` | 上游暂不可用：`/spotlight/0` 回 `{"error":"upstream temporarily unavailable","retryable":true}`，**不是 `404`** |
+
+这些只是本轮试过的路由：`401` 的两种正文、`400` 的几种 `field`、`503` 的 `retryable`
+都不会自动推广到别的端点，`403` 未实测。`200` 也不代表参数生效——`/search/illust?…&limit=__invalid__`
+仍回 `200`（这只证 `limit` 这一个取值被忽略，**不能推广成「所有未知参数都被忽略」**）。
+`/me/*` 的其余路由、登录后的状态码、限流与 `429` 都没有样本。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -133,6 +154,11 @@ Moebooru 用一组自定义状态码表达业务失败（上游 `ApplicationCont
 
 已执行的 JSON、HTML、空正文和网络异常场景见[验证记录](verification.md)。写类重定向只有源码依据，
 没有线上实测；最终 2xx 或 JSON 不等于资源已修改，也不要因最终解析失败而盲目重试写操作。
+Sakuria 的错误路径本轮只跑过有界样本：探测的 54 次匿名 GET 里非 2xx 共 13 个（`400` 七个、`401` 三个、
+`404` / `426` / `503` 各一），其余 41 个是 `200`；10 次上限的冒烟另含一次 `404` 与一次 `400`。
+`403`、`429`、登录后的状态码、媒体与占位图分支都没有样本，上表不是全集。
+异常字段本身与其它家族共用同一套，不受影响。逐条见
+[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
 
 ## 相关文档
 
