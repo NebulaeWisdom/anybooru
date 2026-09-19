@@ -45,7 +45,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 ## 完整样例
 
 完整、可直接复制的内容见包内的 [`anybooru/anybooru.json`](../anybooru/anybooru.json)（wheel 与 sdist
-都带这份文件），`sites` 段共 12 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
+都带这份文件），`sites` 段共 13 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
 维护者验证脚本专用的，普通使用者可以省略）：
 
 ```json
@@ -85,7 +85,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     "zerochan": { "url": "https://www.zerochan.net" },
     "gelbooru": { "url": "https://gelbooru.com", "api_key": "", "user_id": "" },
     "tbib": { "url": "https://tbib.org" },
-    "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" }
+    "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" },
+    "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" }
   },
   "examples": {
     "serika": {
@@ -170,12 +171,20 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
       "user_query": {"search": "whitekitten", "per_page": 2},
       "news_query": {"per_page": 1},
       "pause_seconds": 2.1
+    },
+    "sakuria": {
+      "site": "sakuria",
+      "illust_query": {"q": "blue", "size": 2, "sort": "new"},
+      "pages": [1, 2],
+      "illust_id": 70937229,
+      "comment_query": {"page": 1, "size": 2},
+      "pause_seconds": 1.2
     }
   }
 }
 ```
 
-六类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu）各有几个容易踩的点，键与对应调用见下文
+七类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria）各有几个容易踩的点，键与对应调用见下文
 [`examples` 段](#examples-段)的总表：
 
 * **Serika**：查询值是逗号分隔的字符串（`ratings='safe'`），不是 Rails 数组；站内详情示例从列表响应里取
@@ -197,6 +206,11 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 * **Shuushuu**：公开读取默认匿名；`search(q='long hair')` 返回标签，`image_list(tags='46', per_page=2)` 才筛图。
   `tags` 用数字 ID 的英文逗号串，`+` 不是组合运算符；`tag_list` 每页数用 `per_page`，不使用 `limit`。
   两个示例都显式清空凭据，参数见下表与[客户端用法](shuushuu.md)。
+* **Sakuria**：列表方法用 `page` / `size`；查询键与字面实参一一对应（`illust_query` 的 `q` / `size` / `sort`
+  就是 `illust_search(q='blue', size=2, sort='new')` 的实参）。示例显式传 `access_token=''` 表示匿名：
+  空串**不读**配置里的 token。这里的封面/头像地址是站内相对路径，示例只打印，不下载媒体；
+  信封里的 `total` / `nextPage` 不是真页码（本轮实测），翻页只能手动递增 `page` 并按 `id` 去重，
+  详见[分页](pagination.md#sakuria-的分页)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入，两者互不替代（见下节）。
 
@@ -231,7 +245,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 [danbooru-api.md](danbooru-api.md)，Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)，
 Serika 引擎看 [serika-api.md](serika-api.md)，e621ng 引擎看 [e621-api.md](e621-api.md)，
 Zerochan 看 [zerochan-api.md](zerochan-api.md)，Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)，
-Gelbooru02（TBIB）看 [gelbooru02-api.md](gelbooru02-api.md)，Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)。
+Gelbooru02（TBIB）看 [gelbooru02-api.md](gelbooru02-api.md)，Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)，
+Sakuria（站点自有 JSON API）看 [sakuria-api.md](sakuria-api.md)。
 比对基线固定在本地的上游快照（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、
 `Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`），
 所以**同引擎也可能漂移**：站点跑的是更老或改过的分支时，个别端点的参数、权限与响应形态可能不同，
@@ -246,6 +261,9 @@ Zerochan、Gelbooru 与 Gelbooru02 是这条规则的**例外**：Zerochan 没�
 [gelbooru02-contract-notes.md](gelbooru02-contract-notes.md)。
 Shuushuu 同样没有本地上游服务端源码；依据是站点的 [OpenAPI](https://e-shuushuu.net/api/openapi.json)
 与真实响应，不是 Danbooru/Moebooru 模板，详见[契约附注](shuushuu-contract-notes.md)。
+Sakuria 比它们更弱一档：**既没有官方 API 页面，也没有 OpenAPI，也没有上游源码**，
+依据只有匿名响应观察加随后的有界实测；样本之外的行为仍是候选，推断不构成返回值承诺，
+出处与未实测边界见 [Sakuria 契约附注](sakuria-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
 
@@ -373,15 +391,35 @@ refresh token 只保存在同一个客户端会话的 Cookie 中，不存在配�
 公开图片、标签、评论与用户资料不需要这些凭据，个人数据与写操作才需要登录。认证方法的调用方式及边界见
 [Shuushuu 用法](shuushuu.md)。
 
+Sakuria 站点（Pixiv 第三方镜像站，站点自有的只读 JSON API，**没有官方页面、OpenAPI 或上游源码**）：
+
+| 键 | 类型与取值 | 含义与例子 |
+| :--- | :--- | :--- |
+| `url` | string，站点根地址 | 填 **API 主机**，不是网页主机；例子 `"https://sakuria-api.syarolia.com"` |
+| `access_token` | string，默认 `""` | 非空时给每个请求加 `Authorization: Bearer <token>`；留空即匿名 |
+
+条目只用这两个键：没有 `username`、`password`、`api_key`、`user_id`，构造签名里也没有用户名。
+是否带认证头由这一项决定，客户端不做本地权限判断、不在 `401` 后退回匿名。
+所有方法原样返回站点给的**完整 JSON**（不剥信封、不改字段名、不做格式嗅探），非 2xx 走共享异常，
+`last_call` 记录最近一次请求的真实 URL 与状态码；`request(method, path, ...)` 是同一套出口。
+包内 `access_token` 为空；本类不提供登录、注册、换取或刷新 token 的方法，也不索要账号密码。
+17 个 `me*` 方法按账号读取封装，成功返回结构未实测（本轮只请求过 `/me/likes`）；差异与边界见
+[authentication.md](authentication.md) 与
+[Sakuria 契约附注](sakuria-contract-notes.md)。
+响应里的图片地址按原样返回：本轮看到的用户头像、横幅是站内相对路径（形如 `/img/...`），
+要完整地址就自己拼上 `site_url`；本库只返回路径文本，**不下载媒体**。候选输入提到「缺图会回 `200`
+加 `image/svg+xml` 占位图而不是 `404`」，本轮没有请求任何媒体，这条未复测。
+
 同一个站点名在所有客户端里都表示 `sites` 段的键（`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、
-`Gelbooru`、`Gelbooru02`、`Shuushuu`），选择哪个类由调用者决定。
+`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`），选择哪个类由调用者决定。
 
 ### 样例清单里各条的实际状态
 
 清单是**样例**：每条的状态如下，别把「在清单里」等同于「支持」或「已测」。
 支持范围由各引擎自己的接口规则决定（[danbooru-api.md](danbooru-api.md)、[moebooru-api.md](moebooru-api.md)、
 [serika-api.md](serika-api.md)、[e621-api.md](e621-api.md)、[zerochan-api.md](zerochan-api.md)、
-[gelbooru-api.md](gelbooru-api.md)、[gelbooru02-api.md](gelbooru02-api.md)、[shuushuu-api.md](shuushuu-api.md)）。
+[gelbooru-api.md](gelbooru-api.md)、[gelbooru02-api.md](gelbooru02-api.md)、[shuushuu-api.md](shuushuu-api.md)、
+[sakuria-api.md](sakuria-api.md)）。
 
 | 键 | 引擎 | 本轮线上状态 |
 | :--- | :--- | :--- |
@@ -397,13 +435,14 @@ refresh token 只保存在同一个客户端会话的 Cookie 中，不存在配�
 | `gelbooru` | Gelbooru | 补全九种type的非空结果全部为tag建议，limit=3可回10条；五个dapi方法匿名均401空正文、账号成功返回未实测；HTML14项200、CDN三项初始302。逐条见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)，来源见[契约附注](gelbooru-contract-notes.md) |
 | `shuushuu` | e-shuushuu 自有 REST API | 公开读接口按 OpenAPI 封装；本次匿名冒烟与两个示例的逐请求结果见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)，认证及写路径未实测 |
 | `tbib` | Gelbooru02（站点自述 `Running Gelbooru 0.2`） | 匿名冒烟与两个示例共 10 次请求全部 `200`，三个脚本退出 `0`（`post_list` 的 JSON 与 XML、`tag_list`、`comment_list`、分页 `pid=1&limit=2`）；`post_deleted` 未跑（TBIB 上实测 `500` 加不完整 XML）；逐条见[验证记录](verification.md#gelbooru02tbib匿名只读实测2026-09-19)，来源见[契约附注](gelbooru02-contract-notes.md) |
+| `sakuria` | Sakuria（Pixiv 第三方镜像站，站点自有 JSON API，**无官方页面 / OpenAPI / 源码**） | 本轮串行 54 次匿名 GET（每个请求只发一次、不重试、不跟随跳转、不下载媒体）：`200`×41、`400`×7、`401`×3、`404`/`426`/`503` 各一；另有 10 次上限的匿名冒烟（`10/10` 通过、退出 `0`）与两个示例（全部 `200`、退出 `0`）。**只证样本、不泛化枚举与上限**（例如 `size` 只证实 1 与 48 被接受、0 与 49 被拒绝，响应条数不等于 `size`）。44 个方法全部接入（27 个匿名只读 + 17 个需登录的 `me*`，后者只请求过 `/me/likes`）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与[契约附注](sakuria-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 
-**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`
-是八个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
+**库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、
+`Sakuria` 是九个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
 另一个类重试。判断依据只能是你自己手里的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上
-**发一次请求看响应**（Zerochan、Gelbooru02 这类没有上游源码的站点，只能靠站点页面与实测响应）。
+**发一次请求看响应**（Zerochan、Gelbooru02、Sakuria 这类没有上游源码的站点，只能靠站点页面与实测响应）。
 
 **光看路径形态不足以判断引擎**：
 
@@ -453,6 +492,16 @@ TBIB（Gelbooru02）和 gelbooru.com 长得像、其实不是一套：两者都�
 `<posts count="…" offset="…">`，`pid` 翻页时 `offset` 跟着走（实测 `pid=1&limit=2` 时 `offset="2"`）。
 不能把 `gelbooru.com` 的 dapi JSON 客户端整体复用到 TBIB；用户目录未调用，补全路径取得 `302` 而非建议数据。
 二者的匿名边界与格式差异见 [gelbooru02.md](gelbooru02.md)。
+
+Sakuria 的路径也是站点自己的：站点元信息是 `/`、`/stats`、`/healthz`、`/app/config`、`/ai/config`；
+列表走 `/search/illust`、`/search/user`、`/search/novel`、`/spotlight`、`/tags/search`；
+详情走 `/illust/<id>`、`/users/<id>`、`/novels/<id>`、`/series/<id>`、`/spotlight/<id>`、`/tags/<标签>`；
+子资源挂在详情路径下（`/illust/<id>/comments`、`/illust/<id>/comments/<comment_id>/replies`、
+`/illust/<id>/related`，用户侧则有 `/users/<id>/illusts` 等）；个人面是 `/me` 与 `/me/<能力>` 一类路径。
+本轮实测：`/illust/<id>`、`/users/<id>`、`/novels/<id>`、`/series/<id>`、`/spotlight/<id>` 回的是**裸对象**，
+不是 `{items: …}`；只有列表路由带信封，而 `/series/<id>` 虽是裸对象，自己仍带一个 `items` 作品数组。
+它同样没有 Rails 的 `posts`，也没有官方页面与上游源码可对照，是本仓库依据最弱的一档，
+见 [sakuria.md](sakuria.md)。
 
 选错类的表现是普通的 HTTP 错误或字段对不上的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到
 `404`（路径不存在）；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是 `{"posts": [ … ]}` 这种外面包了
@@ -511,9 +560,13 @@ TBIB（Gelbooru02）和 gelbooru.com 长得像、其实不是一套：两者都�
 | Shuushuu | `tag_id` = `46`、`comment_query` = `{"image_id":1118862,"per_page":2}` | `client.tag_show(46)`、`client.comment_list(image_id=1118862, per_page=2)`，读取标签关系与该图评论 |
 | Shuushuu | `user_query` = `{"search":"whitekitten","per_page":2}`、`news_query` = `{"per_page":1}` | `client.user_list(search='whitekitten', per_page=2)`、`client.news_list(per_page=1)` |
 | Shuushuu | `pause_seconds` = `2.1` | `time.sleep(2.1)`，示例在请求之间等，不代表服务端限流阈值 |
+| Sakuria | `site` = `"sakuria"` | `Sakuria('sakuria', access_token='')`，示例明确匿名（空串不读配置里的 token） |
+| Sakuria | `illust_query` = `{"q":"blue","size":2,"sort":"new"}`、`pages` = `[1,2]` | `client.illust_search(q='blue', size=2, sort='new', page=1)`（GET `https://sakuria-api.syarolia.com/search/illust?q=blue&size=2&sort=new&page=1`），打印每条的 `id` / `title`；第二页手动把 `page` 换成 `2`，翻页判定只看 `hasMore` 为 `false` 或 `nextPage` 为 `null`（不用数值 `nextPage` 跳页），并对重复 `id` 去重后再打印 |
+| Sakuria | `illust_id` = `70937229`、`comment_query` = `{"page":1,"size":2}` | `client.illust_show(70937229)`、`client.illust_comments(70937229, page=1, size=2)`；`browse_resources.py` 再用详情里的 `author.id` 调 `client.user_show(<该 id>)` |
+| Sakuria | `pause_seconds` = `1.2` | `time.sleep(1.2)`，示例在请求之间等，不代表服务端限流阈值 |
 
 两个约定：Danbooru 与 Moebooru 的示例读顶层散键（`tags` / `limit` / `pages`），
-Serika、e621ng、Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 把查询整块放进 `*_query` 字典再展开；
+Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu 与 Sakuria 把查询整块放进 `*_query` 字典再展开；
 `comment_body` 只服务上面那条写操作，只读示例用的是列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
 
 示例脚本的用法：
@@ -529,6 +582,8 @@ python examples/gelbooru02/list_posts.py
 python examples/gelbooru02/browse_resources.py
 .venv/Scripts/python.exe examples/shuushuu/search_images.py
 .venv/Scripts/python.exe examples/shuushuu/browse_resources.py
+.venv/Scripts/python.exe examples/sakuria/search_illusts.py
+.venv/Scripts/python.exe examples/sakuria/browse_resources.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认的那份（上面第一条就用包内那份；第二条换成自己复制出来的
@@ -550,6 +605,7 @@ python examples/gelbooru02/browse_resources.py
 | `api_key` / `user_id` | `sites.<键>.api_key` / `.user_id`（Gelbooru；只随 dapi 请求发送） | `Gelbooru('gelbooru', api_key='your-api-key', user_id='123456')` |
 | `site_url` | `sites.<键>.url`（Gelbooru02/TBIB 的条目只有这一个字段） | `Gelbooru02('tbib', site_url='https://tbib.org')` |
 | `username` / `password` / `access_token` | 同名站点字段（Shuushuu） | `Shuushuu('shuushuu', username='', password='', access_token='')`，明确匿名，不自动登录 |
+| `access_token` | `sites.<键>.access_token`（Sakuria） | `Sakuria('sakuria', access_token='')`，显式空串=匿名、不读配置里的 token；非空才发 `Authorization: Bearer <token>` |
 | `timeout` / `proxies` / `user_agent` | `request` 段同名键（所有家族，含 Zerochan 的 `user_agent`） | `Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')` |
 
 ```python
@@ -605,6 +661,7 @@ with Danbooru('danbooru') as client:
 | `shuushuu.image_query` / `required_tag_ids` | `tags='46,169', tags_mode='all', tag_depth=0, per_page=2, sort_by='favorites', sort_order='DESC', status=[1,2], include_comments=False` / `[46,169]`；检查实际图片包含指定标签，状态数组用重复键 |
 | `shuushuu.tag_id` / `comment_query` | `46` / `image_id=1118862, per_page=2`；标签详情及指定图片评论 |
 | `shuushuu.invalid_per_page` / `per_page_maximum` / `missing_image_id` | `101` / `100` / `999999999`；读取上限越界的422和不存在图片的404，不把错误改为空列表 |
+| `sakuria` | `pause_seconds=1.2`、`illust_query={q:'blue',size:2,sort:'new'}`、`pages=[1,2]`、`novel_query={q:'blue',page:1}`、`spotlight_query={page:1,lang:'zh-cn'}`、`comment_illust_id=70937229`、`comment_query={page:1,size:2}`、`missing_id=0`、`invalid_size=49`；**最多 10 次**匿名请求：站点统计、插画搜索两页、首批首条的详情、小说搜索、`spotlight` 列表、指定插画评论、详情作者、缺失 id 与越界 `size` 两个预期错误；不发 `me*` 请求 |
 
 这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见
 [README](../README.md#轻量匿名冒烟检查)；真实结果只记在 [verification.md](verification.md)。
