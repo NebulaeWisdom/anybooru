@@ -77,12 +77,16 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
 
 ### 提交 Pull Request
 
-1. 先按独立目的规划提交边界：每个 commit 只承担一个明确目的（例如“修正 Moebooru 合集写操作的动词”、
+1. **每次改动都开一条新分支**：从 `master` 切出按目的命名的分支（例如 `feat/gelbooru02-family`、
+   `docs/adding-a-site`、`fix/moebooru-password-hash`），所有提交都落在这条分支上；等改动做完、
+   冒烟与示例真跑过、结果记进 `docs/verification.md` 之后，再普通合并回 `master`（不改写已推送的历史，
+   功能分支保留）。不要直接在 `master` 上累积提交。
+2. 先按独立目的规划提交边界：每个 commit 只承担一个明确目的（例如“修正 Moebooru 合集写操作的动词”、
    “补齐 e621 标签的搜索字段”），便于单独审查、回退和挑选；存在依赖时按依赖顺序拆成多个小提交，
    不要把多个可分离的改动攒成一个大提交。
-2. 填写 [Pull Request 模板](.github/pull_request_template.md)，在“如何验证”里写清你实际执行的命令与输出。
-3. 遵循下方[代码风格](#代码风格)与[文档风格](#文档风格)。
-4. 在本地准备环境并真跑一次改动涉及的路径：
+3. 填写 [Pull Request 模板](.github/pull_request_template.md)，在“如何验证”里写清你实际执行的命令与输出。
+4. 遵循下方[代码风格](#代码风格)与[文档风格](#文档风格)。
+5. 在本地准备环境并真跑一次改动涉及的路径：
 
    ```bash
    python -m venv .venv
@@ -99,7 +103,7 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
    代理等请求设置来自 `request`，凭据来自 `sites`，示例查询值来自 `examples`。
    示例按需真跑：运行过的记录命令、URL、状态与返回；没有运行的照实标“未实测”，不要求为补齐数量逐一请求。
-5. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
+6. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
    “未执行、未实测”，并写清依据的源码位置与请求体形状；不要为了凑验证去发写请求。
 
 ### 轻量匿名冒烟
