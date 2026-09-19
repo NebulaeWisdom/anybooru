@@ -1261,3 +1261,185 @@ python -X utf8 examples/sakuria/browse_resources.py --config my-anybooru.json
 - 403、429、会员成功、token 生命周期、写路由、其它主机、登录/注册路径、图片占位响应均未请求。
   “缺图为 200 + image/svg+xml”的输入提醒按原授权只写在媒体注意事项，不冒称本轮复测。
 - 没有运行 formatter、lint、构建、安装归档、CI 或项目测试套件；唯一保留的测试是十请求以内的匿名冒烟。
+
+
+## Anime-Pictures：匿名只读实测（2026-09-19）
+
+本次接入第十家族 `AnimePictures`，基地址是 `https://api.anime-pictures.net/api/v3`。
+接口面为 13 个原生方法（12 GET、1 POST）；**方法存在不代表权限成功路径已验证**。
+以下分开记录直接 HTTP 观察与通过新客户端执行的脚本。所有请求匿名、串行，相邻请求至少间隔 1.3 秒；
+未登录、未发写请求、不跟随重定向、不下载 CDN 媒体、无请求级重试。`get_image` 仅取得匿名 403 空正文。
+
+### 90 次直接路由观察
+
+覆盖主机根、帖子/标签/用户/评论读取、两项受限 GET 的匿名拒绝、分页/过滤/排序样本与错误路径。
+共 **90 GET：76×200、4×400、2×403、6×404、1×410、1×500**。
+响应格式为 `application/json` 85 次、`text/plain; charset=utf-8` 1 次、未带 `Content-Type` 的空正文 4 次。
+这些是路由观察，不冒称相应 Python 方法均已执行；参数值未穷举，计数都是当时快照。
+
+| 观察项 | 真实 URL | HTTP | Content-Type | 关键字段 |
+| :--- | :--- | ---: | :--- | :--- |
+| root | `https://api.anime-pictures.net/` | 200 | application/json | {"message": "Hello, World!"} |
+| posts0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=667906; max_pages=333952; ids=[929492, 929491] |
+| posts1 | `https://api.anime-pictures.net/api/v3/posts?page=1&posts_per_page=2` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=1; posts_count=667906; max_pages=333952; ids=[929490, 929489] |
+| detail | `https://api.anime-pictures.net/api/v3/posts/929452` | 200 | application/json | keys=post,source,user,moderator,tags,file_url,star_it,favorites_users,tied; post.id=929452; ext=.png; tags=38; 三档preview URL仅观察字符串 |
+| post_comments | `https://api.anime-pictures.net/api/v3/posts/382872/comments` | 200 | application/json | keys=success,comments; comments=1; ids=[174693] |
+| post_tags | `https://api.anime-pictures.net/api/v3/posts/929452/tags` | 403 | application/json | {"errormsg": "You not have rights", "success": false} |
+| tags_exact | `https://api.anime-pictures.net/api/v3/tags?tag=hatsune+miku` | 200 | application/json | offset=0; limit=20; count=1; tags=[(407, 'hatsune miku')] |
+| tags_partial | `https://api.anime-pictures.net/api/v3/tags?tag=hatsune` | 200 | application/json | offset=0; limit=20; count=0; tags=[] |
+| tags_default | `https://api.anime-pictures.net/api/v3/tags` | 200 | application/json | offset=0; limit=20; count=156541; tags=[(226296, 'giao giao'), (226295, 'hasshaku-sama (cosplay)')] |
+| tags_search | `https://api.anime-pictures.net/api/v3/tags?search=hatsune` | 200 | application/json | offset=0; limit=20; count=156541; tags=[(226296, 'giao giao'), (226295, 'hasshaku-sama (cosplay)')] |
+| tag_show | `https://api.anime-pictures.net/api/v3/tags/407` | 200 | application/json | success=true; tag.id=407; tag=hatsune miku; views=93150 |
+| users_list | `https://api.anime-pictures.net/api/v3/users?limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=225284; ids=[257203, 294066] |
+| user_show | `https://api.anime-pictures.net/api/v3/users/294066` | 200 | application/json | keys=success,user,errormsg; user.id=294066; user键=id,name,avatar_version,isavatar,site_score,groups,gender,register_date |
+| comments_list | `https://api.anime-pictures.net/api/v3/comments?limit=2&offset=0` | 200 | application/json | keys=success,offset,limit,count,comments; comments=2; ids=[174693, 174688] |
+| comment_show | `https://api.anime-pictures.net/api/v3/comments/174693` | 200 | application/json | keys=success,comment,user; comment.id=174693; user.id=290656 |
+| missing_post | `https://api.anime-pictures.net/api/v3/posts/999999999` | 410 | application/json | {"errormsg": "Post not found", "success": false} |
+| missing_tag | `https://api.anime-pictures.net/api/v3/tags/999999999` | 404 | application/json | {"errormsg": "Tag not found", "success": false} |
+| missing_user | `https://api.anime-pictures.net/api/v3/users/999999999` | 404 | application/json | {"errormsg": "User not found", "success": false} |
+| missing_comment | `https://api.anime-pictures.net/api/v3/comments/999999999` | 404 | application/json | {"errormsg": "Have no comment", "success": false} |
+| invalid_post_path | `https://api.anime-pictures.net/api/v3/posts/top` | 400 | text/plain; charset=utf-8 | 正文 'Invalid URL: Cannot parse `top` to a `i32`' |
+| image_get | `https://api.anime-pictures.net/pictures/get_image/929452-3550x2344-azur%20lane-illustrious%20%28azur%20lane%29-illustrious%20%28wandering%20glow%20of%20midnight%29%20%28azur%20lane%29-single-long%20hair-looking%20at%20viewer.png` | 403 | 无 | 正文 '' |
+| page_missing | `https://api.anime-pictures.net/api/v3/posts` | 400 | application/json | {"errormsg": "Missing or invalid `page` parameter", "success": false} |
+| page_text | `https://api.anime-pictures.net/api/v3/posts?page=abc` | 400 | application/json | {"errormsg": "Missing or invalid `page` parameter", "success": false} |
+| page_negative | `https://api.anime-pictures.net/api/v3/posts?page=-1` | 500 | application/json | {"errormsg": "Internal server error", "success": false} |
+| page_past_end | `https://api.anime-pictures.net/api/v3/posts?page=999999&posts_per_page=100` | 200 | application/json | posts_per_page=100; response_posts_count=0; page_number=999999; posts_count=667906; max_pages=6679; ids=[] |
+| ppp_default | `https://api.anime-pictures.net/api/v3/posts?page=0` | 200 | application/json | posts_per_page=80; response_posts_count=80; page_number=0; posts_count=667906; max_pages=8348; ids=[929492, 929491, 929490] |
+| ppp_1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=667906; max_pages=667905; ids=[929492] |
+| ppp_100 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=100` | 200 | application/json | posts_per_page=100; response_posts_count=100; page_number=0; posts_count=667906; max_pages=6679; ids=[929492, 929491, 929490] |
+| ppp_101 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=101` | 200 | application/json | posts_per_page=60; response_posts_count=60; page_number=0; posts_count=667906; max_pages=11131; ids=[929492, 929491, 929490] |
+| ppp_150 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=150` | 200 | application/json | posts_per_page=60; response_posts_count=60; page_number=0; posts_count=667906; max_pages=11131; ids=[929492, 929491, 929490] |
+| ppp_1000 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1000` | 200 | application/json | posts_per_page=60; response_posts_count=60; page_number=0; posts_count=667906; max_pages=11131; ids=[929492, 929491, 929490] |
+| ppp_0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=0` | 200 | application/json | posts_per_page=60; response_posts_count=60; page_number=0; posts_count=667906; max_pages=11131; ids=[929492, 929491, 929490] |
+| ppp_-1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=-1` | 200 | application/json | posts_per_page=80; response_posts_count=80; page_number=0; posts_count=667906; max_pages=8348; ids=[929492, 929491, 929490] |
+| sort_date | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=date` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[929492, 929491, 929490]; score/score_number=[(0.0, 8), (0.0, 9), (0.0, 5)] |
+| sort_date_r | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=date_r` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[2, 3, 5]; score/score_number=[(73.0, 70), (31.0, 25), (67.0, 42)] |
+| sort_rating | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=rating` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[301063, 423454, 602864]; score/score_number=[(1446.0, 629), (0.0, 525), (0.0, 442)] |
+| sort_views | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=views` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[88793, 304173, 45264]; score/score_number=[(117.0, 27), (144.0, 60), (72.0, 66)] |
+| sort_size | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=size` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[34056, 43659, 45028]; score/score_number=[(81.0, 34), (31.0, 6), (36.0, 9)] |
+| sort_tag_num | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=tag_num` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[581823, 266625, 264140]; score/score_number=[(0.0, 15), (36.0, 9), (72.0, 16)] |
+| sort_id | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=id` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[1, 2, 3]; score/score_number=[(16.0, 11), (73.0, 70), (31.0, 25)] |
+| sort_random | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=random` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[929492, 929491, 929490]; score/score_number=[(0.0, 8), (0.0, 9), (0.0, 5)] |
+| order_asc | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=rating&order=asc` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[301063, 423454, 602864] |
+| order_desc | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=3&order_by=rating&order=desc` | 200 | application/json | posts_per_page=3; response_posts_count=3; page_number=0; posts_count=667906; max_pages=222635; ids=[301063, 423454, 602864] |
+| search_0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&search_tag=hatsune+miku` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=21008; max_pages=10503; ids=[929980, 929880]; exclusive_tag.id=407 |
+| search_1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&search_tag=long+hair+blue+eyes` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=146065; max_pages=73032; ids=[929489, 929484] |
+| search_2 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&search_tag=zzzznotexist` | 200 | application/json | posts_per_page=2; response_posts_count=0; page_number=0; posts_count=0; max_pages=0; ids=[] |
+| denied_0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&denied_tags=long+hair` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=269346; max_pages=134672; ids=[929491, 929490] |
+| denied_1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&denied_tags=blue+eyes` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=510020; max_pages=255009; ids=[929492, 929491] |
+| denied_2 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&denied_tags=long+hair+blue+eyes` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=667906; max_pages=333952; ids=[929492, 929491] |
+| denied_repeated | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&denied_tags=long+hair&denied_tags=blue+eyes` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=510020; max_pages=255009; ids=[929492, 929491] |
+| ldate_0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=0` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=667906; max_pages=667905; ids=[2]; 最早pubtime=2009-10-11T02:01:54.188977 |
+| ldate_1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=1` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=411; max_pages=410; ids=[929698]; 最早pubtime=2026-09-12T19:20:29.314077 |
+| ldate_2 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=2` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=1879; max_pages=1878; ids=[926488]; 最早pubtime=2026-08-20T19:18:12.277337 |
+| ldate_3 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=3` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=57; max_pages=56; ids=[930137]; 最早pubtime=2026-09-18T14:00:06.818648 |
+| ldate_4 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=4` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=11286; max_pages=11285; ids=[912892]; 最早pubtime=2026-03-20T16:19:51.852357 |
+| ldate_5 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=5` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=28743; max_pages=28742; ids=[887334]; 最早pubtime=2025-09-19T13:46:45.276579 |
+| ldate_6 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=6` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=61654; max_pages=61653; ids=[841331]; 最早pubtime=2024-09-19T21:35:09.887326 |
+| ldate_7 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=7` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=84306; max_pages=84305; ids=[810433]; 最早pubtime=2023-09-20T20:10:45.566003 |
+| ldate_8 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=1&order_by=date_r&ldate=8` | 200 | application/json | posts_per_page=1; response_posts_count=1; page_number=0; posts_count=667906; max_pages=667905; ids=[2]; 最早pubtime=2009-10-11T02:01:54.188977 |
+| filter_0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&aspect=16%3A9` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=37502; max_pages=18750; ids=[929491, 929490] |
+| filter_1 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&aspect=1%3A1` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=18296; max_pages=9147; ids=[930027, 929882] |
+| filter_2 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&color=FF0000` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=1645; max_pages=822; ids=[802077, 639511] |
+| filter_3 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&color=%23FF0000` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=1645; max_pages=822; ids=[802077, 639511] |
+| filter_4 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&ext_jpg=jpg` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=470199; max_pages=235099; ids=[929491, 929456] |
+| filter_5 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&ext_png=png` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=196121; max_pages=98060; ids=[929492, 929490] |
+| filter_6 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&ext_gif=gif` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=1586; max_pages=792; ids=[926946, 922910] |
+| filter_7 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&ext_jpg=yes&ext_png=yes` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=666320; max_pages=333159; ids=[929492, 929491] |
+| filter_8 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&user=204183` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=30757; max_pages=15378; ids=[930131, 930153] |
+| filter_9 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&stars_by=13734` | 200 | application/json | posts_per_page=2; response_posts_count=2; page_number=0; posts_count=41519; max_pages=20759; ids=[929366, 929364] |
+| tag_type_0 | `https://api.anime-pictures.net/api/v3/tags?type=0&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=4303; tags=[(226287, 'editor (kankin jk)'), (221353, 'jien (nikke)')] |
+| tag_type_1 | `https://api.anime-pictures.net/api/v3/tags?type=1&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=56435; tags=[(226294, 'nakumura tamaki'), (226293, 'reiha (real bout high school)')] |
+| tag_type_2 | `https://api.anime-pictures.net/api/v3/tags?type=2&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=4474; tags=[(226295, 'hasshaku-sama (cosplay)'), (226207, 'miyamoto musashi (onimusha) (cosplay)')] |
+| tag_type_3 | `https://api.anime-pictures.net/api/v3/tags?type=3&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=5510; tags=[(226288, 'buta thunder (vocaloid)'), (226273, 'mashiro no oto')] |
+| tag_type_4 | `https://api.anime-pictures.net/api/v3/tags?type=4&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=76532; tags=[(226296, 'giao giao'), (226278, 'partita')] |
+| tag_type_5 | `https://api.anime-pictures.net/api/v3/tags?type=5&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=4606; tags=[(226279, 'ai the somnium files'), (226229, 'stellar blade: blood rain')] |
+| tag_type_6 | `https://api.anime-pictures.net/api/v3/tags?type=6&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=1909; tags=[(226276, 'knight a'), (226173, 'akutagawa vtuber project')] |
+| tag_type_7 | `https://api.anime-pictures.net/api/v3/tags?type=7&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=2772; tags=[(225975, 'anima (honkai: nexus anima)'), (225968, 'dragon bubble (arknights)')] |
+| tag_type_8 | `https://api.anime-pictures.net/api/v3/tags?type=8&limit=2&offset=0` | 200 | application/json | offset=0; limit=2; count=0; tags=[] |
+| tags_limit_1000 | `https://api.anime-pictures.net/api/v3/tags?limit=1000` | 200 | application/json | offset=0; limit=100; count=156541; tags=[(226296, 'giao giao'), (226295, 'hasshaku-sama (cosplay)')] |
+| tags_offset | `https://api.anime-pictures.net/api/v3/tags?limit=2&offset=2` | 200 | application/json | offset=2; limit=2; count=156541; tags=[(226294, 'nakumura tamaki'), (226293, 'reiha (real bout high school)')] |
+| users_default | `https://api.anime-pictures.net/api/v3/users` | 200 | application/json | offset=0; limit=20; count=225284; ids=[257203, 294066, 182163] |
+| users_offset | `https://api.anime-pictures.net/api/v3/users?limit=2&offset=2` | 200 | application/json | offset=2; limit=2; count=225284; ids=[182163, 290656] |
+| users_limit101 | `https://api.anime-pictures.net/api/v3/users?limit=101` | 200 | application/json | offset=0; limit=100; count=225284; ids=[257203, 294066, 182163] |
+| comments_default | `https://api.anime-pictures.net/api/v3/comments` | 200 | application/json | keys=success,offset,limit,count,comments; comments=20; ids=[174693, 174688, 174678] |
+| comments_offset | `https://api.anime-pictures.net/api/v3/comments?limit=2&offset=2` | 200 | application/json | keys=success,offset,limit,count,comments; comments=2; ids=[174678, 174677] |
+| comments_limit101 | `https://api.anime-pictures.net/api/v3/comments?limit=101` | 200 | application/json | keys=success,offset,limit,count,comments; comments=100; ids=[174693, 174688, 174678] |
+| legacy_v2 | `https://api.anime-pictures.net/api/v2/comments` | 404 | 无 | 正文 '' |
+| legacy_posts | `https://api.anime-pictures.net/pictures/view_posts/0?type=json` | 404 | 无 | 正文 '' |
+| unknown_route | `https://api.anime-pictures.net/api/v3/not_a_route` | 404 | 无 | 正文 '' |
+| post_type_json | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2&type=json` | 400 | application/json | {"errormsg": "Only json_v3, json1, and xml response types are supported", "success": false} |
+
+主要校对结果：`score` 并非恒 0（id 2 为 73.0，id 301063 为 1446.0）；单条评论带 `user`；
+单用户顶层带 `errormsg:null`、内层无 `login`；`max_pages` 在空搜索时是 0；
+单标签帖子搜索样本带额外 `exclusive_tag`；部分收藏记录带 `folder`。详情的 `source` 也可能不存在，见下文。
+完整输入错误、字段清单遗漏、数据漂移及未实测推断见[契约附注](anime-pictures-contract-notes.md#实测与输入文档的矛盾)。
+
+### 实际命令与最终脚本结果
+
+下列命令使用 `my-anybooru.json` 作为使用者配置文件的中性名称；参数取自包内模板的
+`smoke.anime_pictures` / `examples.anime_pictures`。三个脚本都显式设置 `authorization=''`、`cookie=''`。
+
+```bash
+python -X utf8 test/anime_pictures.py --config my-anybooru.json
+python -X utf8 examples/anime_pictures/list_posts.py --config my-anybooru.json
+python -X utf8 examples/anime_pictures/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本（最终版本） | UTC 执行时间 | 请求数 | HTTP 与结果 | 退出码 |
+| :--- | :--- | ---: | :--- | ---: |
+| `test/anime_pictures.py` | 13:53:51–13:54:10 | 10 | 8×200 + 预期 410、400；`SUMMARY anime_pictures \| requests=10 \| passed=10 failed=0`，无 SKIP | 0 |
+| `examples/anime_pictures/list_posts.py` | 13:51:00–13:51:03 | 2 | 两次 200，页码 0/1，hatsune miku 按 rating 排序 | 0 |
+| `examples/anime_pictures/browse_resources.py` | 13:54:11–13:54:18 | 4 | 四次 200，详情 → 帖评论 → 上传者 → 评论详情 | 0 |
+
+最终三个脚本的 stderr 均为空，共 **16 GET：14×200、预期 410 与 400 各一次**。
+冒烟验证导入、配置与构造，观察完整 JSON、资源 ID、页码，以及 HTTP 错误与 `last_call`；
+`posts/top` 确实抛 `AnybooruHTTPError`（不是 `AnybooruAPIError`），`data=None`、`body` 保留 42 字符纯文本，
+`last_call` 保留 HTTP 400 与真实 URL。客户端未自行修正任何分页字段。
+
+| 调用 | 真实 URL | HTTP | 关键字段 |
+| :--- | :--- | ---: | :--- |
+| 冒烟 posts_list page 0 | `https://api.anime-pictures.net/api/v3/posts?page=0&posts_per_page=2` | 200 | posts:list,posts_per_page:int,response_posts_count:int,page_number:int,posts_count:int,max_pages:int \| page_number=0 posts=2 response_posts_count=2 posts_per_page=2 posts_count=667906 max_pages=333952 ids=[929492, 929491] first=929492 md5=0f04fddedd428aae0e3c25c2e62a2812 size=5760x2400 score_number=8 ext='.png' |
+| 冒烟 post_show first id | `https://api.anime-pictures.net/api/v3/posts/929492` | 200 | id:int,md5:str,width:int,height:int,score:float,score_number:int,ext:str,tags_count:int \| id=929492 file_url='929492-5760x2400-wuthering waves-augusta (wuthering waves)-giao giao-single-long hair-looking at viewer.png' small_preview=https://opreviews.anime-pictures.net/0f0/0f04fddedd428aae0e3c25c2e62a2812_sp.avif tags=62 user=257203 detail_keys=post,source,user,moderator,tags,file_url,star_it,favorites_users,tied |
+| 冒烟 posts_list page 1 | `https://api.anime-pictures.net/api/v3/posts?page=1&posts_per_page=2` | 200 | posts:list,posts_per_page:int,response_posts_count:int,page_number:int,posts_count:int,max_pages:int \| page_number=1 posts=2 response_posts_count=2 posts_per_page=2 posts_count=667906 max_pages=333952 ids=[929490, 929489] first=929490 md5=b1593fc95c0e38ff1e2f0266fc0f011b size=5500x3094 score_number=6 ext='.png' |
+| 冒烟 post_comments configured post | `https://api.anime-pictures.net/api/v3/posts/382872/comments` | 200 | success:bool,comments:list \| comments=1 first=174693 text_chars=38 user=290656 |
+| 冒烟 tags_list exact tag | `https://api.anime-pictures.net/api/v3/tags?tag=hatsune+miku` | 200 | tags:list,success:bool,offset:int,limit:int,count:int \| offset=0 limit=20 count=1 ids=[407] names=['hatsune miku'] first=407/'hatsune miku' num=22686 |
+| 冒烟 tag_show configured id | `https://api.anime-pictures.net/api/v3/tags/407` | 200 | success:bool,tag:dict \| id=407 tag='hatsune miku' num=22686 type=1 |
+| 冒烟 users_list | `https://api.anime-pictures.net/api/v3/users?limit=2&offset=0` | 200 | users:list,success:bool,offset:int,limit:int,count:int \| offset=0 limit=2 count=225284 user_ids=[257203, 294066] |
+| 冒烟 comments_list | `https://api.anime-pictures.net/api/v3/comments?limit=2&offset=0` | 200 | comments:list,success:bool,offset:int,limit:int,count:int \| offset=0 limit=2 count=14988 comment_ids=[174693, 174688] post_ids=[382872, 887422] |
+| 冒烟 post_show missing id | `https://api.anime-pictures.net/api/v3/posts/999999999` | 410 | data=['errormsg', 'success'] errormsg='Post not found' body_chars=45 last_call=HTTP 410 https://api.anime-pictures.net/api/v3/posts/999999999 |
+| 冒烟 post_show invalid path | `https://api.anime-pictures.net/api/v3/posts/top` | 400 | data=None body_chars=42 content_type='text/plain; charset=utf-8' last_call=HTTP 400 https://api.anime-pictures.net/api/v3/posts/top |
+| 示例 posts_list | `https://api.anime-pictures.net/api/v3/posts?page=0&search_tag=hatsune+miku&posts_per_page=2&order_by=rating` | 200 | {"requested_page": 0, "page_number": 0, "posts_per_page": 2, "response_posts_count": 2, "posts_count": 21008, "max_pages": 10503, "count": 2, "ids": [423454, 476183]} |
+| 示例 posts_list | `https://api.anime-pictures.net/api/v3/posts?page=1&search_tag=hatsune+miku&posts_per_page=2&order_by=rating` | 200 | {"requested_page": 1, "page_number": 1, "posts_per_page": 2, "response_posts_count": 2, "posts_count": 21008, "max_pages": 10503, "count": 2, "ids": [662233, 496255]} |
+| 示例 post_show | `https://api.anime-pictures.net/api/v3/posts/382872` | 200 | {"post_id": 382872, "width": 2864, "height": 5159, "score": 0.0, "score_number": 35, "tags_count": 26, "ext": ".png", "detail_keys": ["post", "user", "moderator", "tags", "file_url", "star_it", "favorites_users", "tied"], "user_id": 18830, "user_name": "卂丂口レ尺工乂", "tag_count": 26} |
+| 示例 post_comments | `https://api.anime-pictures.net/api/v3/posts/382872/comments` | 200 | {"success": true, "count": 1, "first": {"id": 174693, "datetime": "2026-09-19T09:13:46.230319", "language": "en", "chars": 38, "user_id": 290656, "user_name": "FikriHarjantoKesumo"}} |
+| 示例 user_show | `https://api.anime-pictures.net/api/v3/users/18830` | 200 | {"user_id": 18830, "name": "卂丂口レ尺工乂", "avatar_version": 27, "isavatar": true, "site_score": 0, "groups": ["user", "commiter"], "gender": 1, "register_date": "2012-11-01T19:57:11.566739"} |
+| 示例 comment_show | `https://api.anime-pictures.net/api/v3/comments/174693` | 200 | {"id": 174693, "datetime": "2026-09-19T09:13:46.230319", "language": "en", "chars": 38, "user_id": 290656, "user_name": "FikriHarjantoKesumo"} |
+
+### 初版示例发现的真实字段差异
+
+`browse_resources.py` 初次运行于 UTC 13:51:04，完成一次 `post_show(382872)` 后，
+按输入文档“详情顶层固定九键”的假设读取 `detail['source']`，触发 `KeyError: 'source'`，退出 1。
+该次响应已成功解析 JSON，但脚本在打印前失败，**未记录 HTTP 状态码，不补写成 200**。
+修正后的示例打印实际 `detail_keys`，不再无条件读取 `source`，也没有补默认值或返回空来源；
+后续真实响应为 HTTP 200，顶层恰有八键：`post/user/moderator/tags/file_url/star_it/favorites_users/tied`。
+最终示例四次 GET 全部通过，证明这个真实数据差异不再导致脚本失败。
+
+初版冒烟也曾在 UTC 13:50:40–13:50:59 完成 10 次请求，8×200 + 预期 410/400、退出 0。
+发现详情字段可缺失后，同步移除了冒烟对 `source/moderator/favorites_users/tied` 的固定键集假设，
+再运行的最终版本结果如上；详情 ID、预览字段、用户与标签检查仍保留。
+因此整个接入过程累计 **117 GET**（90 直接观察 + 两次各 10 的冒烟 + 列表示例 2 + 初版浏览 1 + 修正版浏览 4）；
+其中 116 次明确记录状态（98×200、6×400、2×403、6×404、3×410、1×500），另 1 次只知成功 JSON 而未打印状态。
+没有网络失败后的重试，也没有为了掩盖初版错误而覆盖其执行记录。
+
+### 边界与未实测
+
+- 新客户端实际执行的方法是 `posts_list/post_show/post_comments/tags_list/tag_show/users_list/user_show/comments_list/comment_show`；
+  `service_info/post_tags/image_get` 只有直接路由观察，不把它们标成 Python 方法已执行。
+- `post_create` 没有执行；请求体结构、成功状态码、Authorization scheme、Cookie 登录成功与权限分支均未知。
+  输入中的 POST 401、OPTIONS/CORS 动词说明没有在本轮复测；不据此发明 PUT/PATCH/DELETE 或登录接口。
+- `image_get` 的成功字节未实测；媒体 CDN、头像路径、预览格式变体与原图公式均未请求。
+  三档预览仅观察了 JSON 中的地址字符串。
+- 未编码原始空格、`lang`、全部忽略参数、完整分页边界、其它排序/过滤组合、`ldate` 负数或大于 8、
+  成功认证、写入、其它主机/部署未测。`ldate` 区间长度与标签类别名称仍属推断。
+- 没有运行 formatter、lint、构建、安装归档、CI 或项目测试套件；保留的测试仅为每次最多十请求的匿名冒烟。
