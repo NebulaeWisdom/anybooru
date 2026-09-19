@@ -3,8 +3,11 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Serika、e621ng、Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
 迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
+Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
+44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
+[Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
 ## 一、破坏性变更总览
 
@@ -301,4 +304,10 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 * 所有需要登录的写接口都只做了源码对齐，**未做线上实测**；
 * Moebooru 面的写接口与账号动作未做线上实测；匿名只读记录见
   [verification.md](verification.md)；
-* 已完成的匿名只读执行与逐请求结果见 [验证记录](verification.md)，源码依据见 [Danbooru 契约审计附注](danbooru-contract-notes.md)。
+* 已完成的匿名只读执行与逐请求结果见 [验证记录](verification.md)，源码依据见 [Danbooru 契约审计附注](danbooru-contract-notes.md)；
+* Sakuria 是 4.x 里没有的家族，没有“迁移”可谈：它按 44 个方法（27 个匿名只读 + 17 个需登录的 `/me/*`）接入，
+  本轮真实执行过的只有有界匿名样本：54 次串行 GET（每个请求只发一次），另有 10 次上限的匿名冒烟与
+  两个示例全部通过；样本之外不泛化枚举与上限，`/me/*` 里也只请求过 `/me/likes`，
+  其余路径的返回结构未知；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码），
+  候选字段不得当成返回值承诺。逐条见
+  [Sakuria 契约审计附注](sakuria-contract-notes.md) 与[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
