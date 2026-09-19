@@ -1109,3 +1109,155 @@ python -X utf8 examples/gelbooru02/browse_resources.py --config my-anybooru.json
 - 账号、凭据、用户接口、登录、写操作、私有数据均未调用；没有媒体下载或跟随补全的 302。
 - 新增客户端不解析 HTML，不包装补全或用户目录；原始 XML 即使不完整也不由客户端补齐。
 - 只执行了本节列出的匿名场景，没有构建、安装归档、CI、格式化、lint 或项目级套件验证。
+
+
+## Sakuria：匿名只读实测（2026-09-19）
+
+Sakuria 是 Pixiv 第三方镜像，不是 booru 家族的另一站点。本节没有服务端源码、官方 API 页面或 OpenAPI
+可作交叉依据；用户提供的观察资料只用于选择请求，不能替代本次响应。资料矛盾见
+[契约附注](sakuria-contract-notes.md#实测与输入文档的矛盾)。
+
+### 路由观察与客户端执行的区别
+
+先对 27 个公共 JSON 路由及少量参数、错误分支发出 **54 次匿名 GET**：41×200、7×400、3×401，
+404、426、503 各一次。它们是直接 HTTP 观察，不是声称 44 个 Python 包装方法全部运行过。
+随后运行客户端冒烟与两个示例，另有 **15 次 GET**；本节共 69 次，状态合计
+54×200、8×400、3×401、2×404、1×426、1×503。
+所有请求串行、相邻至少间隔 1.2 秒，不重试、不跟随重定向、不登录、不发写请求、不下载媒体；
+54 次直接观察与脚本成功响应记录的 Content-Type 均为 `application/json`；冒烟的两个错误也解析到了 JSON 对象。
+
+### 54 次直接路由观察
+
+下表 URL 都是实际请求；数字是当时样本，不是未来总量或每页条数保证。
+
+| 观察项 | 真实 URL | HTTP | 返回摘要 |
+| :--- | :--- | ---: | :--- |
+| index | `https://sakuria-api.syarolia.com/` | 200 | 键 name,ok,docs |
+| stats | `https://sakuria-api.syarolia.com/stats` | 200 | 键 newToday,totalIllusts,totalCreators,totalUsers; {'newToday': 30, 'totalIllusts': 85, 'totalCreators': 197, 'totalUsers': 113} |
+| health | `https://sakuria-api.syarolia.com/healthz` | 200 | 键 ok,releaseSha,releaseVersionId,checks |
+| app_config | `https://sakuria-api.syarolia.com/app/config` | 200 | 键 latestVersion,latestBuild,updateUrl,releaseNotes,updateAvailable,updateRequired,maintenance,announcement,flags,servers,imageProxy,imageProxyPro,iap,appAttest |
+| ai_config | `https://sakuria-api.syarolia.com/ai/config` | 200 | 键 enabled,metaEnabled,novelEnabled,mangaEnabled,mangaInputMode,commentEnabled,cacheTtlDays,billingMode,ratesEstimated,models,defaults,reasoningDefaults,routingPresets,languages |
+| illust_page1 | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=24` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=24; total=48; totalPages=4; hasMore=true; nextPage=4; hiddenCount=61; items=29 |
+| illust_page2 | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=2&size=24` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=2; pageSize=24; total=72; totalPages=4; hasMore=true; nextPage=4; hiddenCount=36; items=24 |
+| illust_page3 | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=3&size=24` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=3; pageSize=24; total=96; totalPages=6; hasMore=true; nextPage=6; hiddenCount=57; items=33 |
+| illust_size1 | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=1` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=1; total=2; totalPages=2; hasMore=true; nextPage=2; hiddenCount=25; items=5 |
+| illust_size48 | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=48` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=48; total=96; totalPages=5; hasMore=true; nextPage=5; hiddenCount=81; items=39 |
+| illust_size49 | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=49` | 400 | error="筛选参数无效"; code="invalid_search_filter"; field="size" |
+| illust_size0 | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=0` | 400 | error="筛选参数无效"; code="invalid_search_filter"; field="size" |
+| illust_page0 | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=0` | 400 | error="筛选参数无效"; code="invalid_search_filter"; field="page" |
+| illust_ignored_limit | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=24&limit=__invalid__` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=24; total=48; totalPages=4; hasMore=true; nextPage=4; hiddenCount=61; items=29 |
+| illust_sort_popular | `https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=2&sort=popular` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=2; total=4; totalPages=2; hasMore=true; nextPage=2; hiddenCount=21; items=6 |
+| illust_sort_invalid | `https://sakuria-api.syarolia.com/search/illust?q=blue&sort=__invalid__` | 400 | error="筛选参数无效"; code="invalid_search_filter"; field="sort" |
+| illust_mode | `https://sakuria-api.syarolia.com/search/illust?q=blue&mode=text` | 400 | error="筛选参数无效"; code="invalid_search_filter"; field="mode" |
+| illust_type | `https://sakuria-api.syarolia.com/search/illust?q=blue&type=illust` | 401 | error="高级筛选需要 Sakuria+"; code="auth_required"; feature="advanced_search" |
+| illust_show | `https://sakuria-api.syarolia.com/illust/70937229` | 200 | 键 id,title,type,pages,description,urls,author,tags,stats,publishedAt,publishedDays,isAi,isR18,xRestrict,sl; id=70937229；urls.w/h=1200/675；author.id=27517；tags=9 |
+| illust_comments | `https://sakuria-api.syarolia.com/illust/70937229/comments?page=1&size=2` | 200 | 键 items,hasMore; hasMore=true; items=2 |
+| illust_replies | `https://sakuria-api.syarolia.com/illust/70937229/comments/183991501/replies` | 200 | 键 items; items=1 |
+| illust_related | `https://sakuria-api.syarolia.com/illust/128641898/related?size=2` | 200 | 键 items; items=2 |
+| illust_missing | `https://sakuria-api.syarolia.com/illust/0` | 404 | error="illust not found" |
+| illust_invalid | `https://sakuria-api.syarolia.com/illust/abc` | 400 | error="invalid id" |
+| user_search1 | `https://sakuria-api.syarolia.com/search/user?q=mika&page=1` | 200 | 键 items,total; total=6; items=6 |
+| user_search2 | `https://sakuria-api.syarolia.com/search/user?q=mika&page=2` | 200 | 键 items,total; total=12; items=12 |
+| user_search3 | `https://sakuria-api.syarolia.com/search/user?q=mika&page=3` | 200 | 键 items,total; total=21; items=21 |
+| user_show | `https://sakuria-api.syarolia.com/users/129030276` | 200 | 键 id,name,handle,accent,avatar,banner,stats,social; id=129030276；following=11；works=8；totalBookmarks=13 |
+| user_illusts1 | `https://sakuria-api.syarolia.com/users/1039353/illusts?page=1` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=24; total=48; totalPages=2; hasMore=true; nextPage=3; hiddenCount=3; items=45 |
+| user_illusts2 | `https://sakuria-api.syarolia.com/users/1039353/illusts?page=2` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=2; pageSize=24; total=72; totalPages=3; hasMore=true; nextPage=4; hiddenCount=3; items=45 |
+| user_novels | `https://sakuria-api.syarolia.com/users/3182410/novels?page=1` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextCursor; page=1; pageSize=24; total=48; totalPages=2; hasMore=true; nextCursor="https://app-api.pixiv.net/v1/user/novels?user_id=3182410&offset=30"; items=24 |
+| user_bookmarks1 | `https://sakuria-api.syarolia.com/users/1554775/bookmarks?page=1` | 200 | 键 items,pageSize,hasMore,nextCursor,hiddenCount; pageSize=24; hasMore=true; nextCursor="9175901406"; hiddenCount=5; items=19 |
+| user_bookmarks2 | `https://sakuria-api.syarolia.com/users/1554775/bookmarks?page=2` | 200 | 键 items,pageSize,hasMore,nextCursor,hiddenCount; pageSize=24; hasMore=true; nextCursor="9175901406"; hiddenCount=5; items=19 |
+| user_followers1 | `https://sakuria-api.syarolia.com/users/1039353/followers?page=1` | 200 | 键 items,page,pageSize,hasMore; page=1; pageSize=12; hasMore=false; items=0 |
+| user_followers2 | `https://sakuria-api.syarolia.com/users/1039353/followers?page=2` | 200 | 键 items,page,pageSize,hasMore; page=2; pageSize=12; hasMore=false; items=0 |
+| user_series | `https://sakuria-api.syarolia.com/users/3182410/series?page=1` | 200 | 键 items,page,pageSize,hasMore; page=1; pageSize=24; hasMore=false; items=0 |
+| user_related | `https://sakuria-api.syarolia.com/users/1039353/related` | 200 | 键 items; items=12 |
+| novel_search | `https://sakuria-api.syarolia.com/search/novel?q=blue&page=1` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=24; total=48; totalPages=2; hasMore=true; nextPage=2; hiddenCount=6; items=24 |
+| novel_search2 | `https://sakuria-api.syarolia.com/search/novel?q=blue&page=2` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=2; pageSize=24; total=72; totalPages=3; hasMore=true; nextPage=3; hiddenCount=4; items=26 |
+| novel_type | `https://sakuria-api.syarolia.com/search/novel?q=blue&type=illust` | 400 | error="小说不支持该作品筛选条件"; code="unsupported_filter_for_scope"; field="type" |
+| novel_ai | `https://sakuria-api.syarolia.com/search/novel?q=blue&ai=exclude` | 401 | error="高级筛选需要 Sakuria+"; code="auth_required"; feature="advanced_search" |
+| novel_show | `https://sakuria-api.syarolia.com/novels/29167620` | 200 | 键 id,title,author,caption,captionHtml,tags,textLength,text,document,coverSvg,cover,stats,publishedAt,publishedDays,isAi,isR18,xRestrict,sl; text空串；textLength=99；document.text含4行uploadedimage标记；uploadedImages=4；pixivImages={}；两处text不相等 |
+| novel_comments | `https://sakuria-api.syarolia.com/novels/29167620/comments?page=1` | 200 | 键 items,hasMore; hasMore=false; items=0 |
+| novel_related | `https://sakuria-api.syarolia.com/novels/29167620/related` | 200 | 键 items,page,pageSize,total,totalPages,hasMore; page=1; pageSize=12; total=0; totalPages=1; hasMore=false; items=0 |
+| series_show | `https://sakuria-api.syarolia.com/series/198059?page=1` | 200 | 键 id,title,caption,total,author,items,hasMore; total=219; hasMore=true; items=30 |
+| series_novel_id | `https://sakuria-api.syarolia.com/series/12064` | 200 | 键 id,title,caption,total,author,items,hasMore; total=7; hasMore=false; items=0 |
+| spotlight_list | `https://sakuria-api.syarolia.com/spotlight?page=1&lang=zh-cn` | 200 | 键 items,page,pageSize,hasMore; page=1; pageSize=12; hasMore=true; items=20 |
+| spotlight_show | `https://sakuria-api.syarolia.com/spotlight/11971?lang=zh-cn` | 200 | 键 id,title,date,description,cover,tags,works,articles,relatedLatest,relatedRecommend,articleUrl; articles=19；works=0；cover=/p/embed.pixiv.net/pixivision/zh/a/11971/ogimage.jpg |
+| spotlight_missing | `https://sakuria-api.syarolia.com/spotlight/0` | 503 | error="upstream temporarily unavailable"; retryable=true |
+| tag_illusts | `https://sakuria-api.syarolia.com/tags/blue?page=1&size=24` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=24; total=48; totalPages=4; hasMore=true; nextPage=4; hiddenCount=65; items=25 |
+| tag_search_q | `https://sakuria-api.syarolia.com/tags/search?q=blue&size=2` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=2; total=4; totalPages=2; hasMore=true; nextPage=2; hiddenCount=19; items=11 |
+| tag_search_noq | `https://sakuria-api.syarolia.com/tags/search?size=2` | 200 | 键 items,page,pageSize,total,totalPages,hasMore,nextPage,hiddenCount; page=1; pageSize=2; total=4; totalPages=2; hasMore=true; nextPage=2; hiddenCount=19; items=11 |
+| me_likes_contract | `https://sakuria-api.syarolia.com/me/likes` | 426 | error="upgrade_required"; requiredDataContract=2 |
+| me_likes_auth | `https://sakuria-api.syarolia.com/me/likes` | 401 | error="sakuria_session_required" |
+
+对这些响应作字段比较（不追加 HTTP 请求）：
+
+- 插画搜索 `size=24,page=1/2/3` 的 `total=48/72/96`，`totalPages=4/4/6`，`nextPage=4/4/6`；
+  条数为 29/24/33，相邻页 ID 交集 24/10。数值 `nextPage` 不是下一相邻页；总数不是固定全局总量。
+- `size=1/48` 被接受，实际给 5/39 条；`size=0/49` 返回 400 `field=size`。
+  这证明边界样本，不证明区间内所有值，更不能把 48 当作实际返回条数的硬上限。
+- 加 `limit=__invalid__` 后 ID 顺序与分页字段和基线相同；完整作品对象有动态差异。
+  只确认这一个参数取值没改变所比较结果，不能据此宣布所有未知参数都被忽略。
+- `user_search(q='mika',page=1/2/3)` 分别返回 6/12/21 项，`total` 恰等于各页条数，各页 ID 无交集。
+  因此“累计值”的怀疑没有被支持，不把它当全局总数；也没有 `hasMore` 可判断末页。
+- `user_illusts(1039353,page=1/2)` 各有 45 项，ID 交集 23；两页有 `nextPage=3/4`。
+- `user_bookmarks(1554775,page=1/2)` 完整 JSON 相同（19 项、相同 `nextCursor`）；只证这两个页值。
+  `user_followers(1039353,page=1/2)` 都为空，但 `page` 分别回显 1/2，不能称页码无效或功能未实现。
+- `/tags/blue?page=1&size=24` 有 25 项，与 `/search/illust?q=blue&page=1&size=24` 的 29 项交集 25。
+  不能承诺完全等价；请求不同时，差异原因未确定。`/tags/search?size=2` 带 `q=blue` 与不带的
+  完整 JSON 相同，均 11 项。
+- `/illust/70937229` 的标签有 `translated` 缺省项，`alt` 依数组顺序为 0/1/2/3/4/0/1/2/3；
+  不把这一观察当服务端分类语义。头像、图片地址仅观察 JSON 字符串，没有请求其正文。
+
+### 已执行命令与客户端结果
+
+以下 `my-anybooru.json` 是使用者自己的完整配置文件的中性占位名；实际参数来自包内模板的
+`smoke.sakuria` / `examples.sakuria`，显式 `access_token=''` 保持匿名。
+三个脚本实际执行时间为 **UTC 2026-09-19 13:08:07–13:08:48**。
+
+```bash
+python -X utf8 test/sakuria.py --config my-anybooru.json
+python -X utf8 examples/sakuria/search_illusts.py --config my-anybooru.json
+python -X utf8 examples/sakuria/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本 | 请求数 | 状态 | 退出码 |
+| :--- | ---: | :--- | ---: |
+| `test/sakuria.py` | 10 | 8×200，预期 404、400 各一次；`SUMMARY sakuria \| requests=10 \| passed=10 failed=0`，无 SKIP | 0 |
+| `examples/sakuria/search_illusts.py` | 2 | 两次 200 | 0 |
+| `examples/sakuria/browse_resources.py` | 3 | 三次 200 | 0 |
+
+三个脚本 stderr 均为空。冒烟实际检查了导入、配置、构造、完整 JSON 字段与类型、详情 ID 等于列表选择值、
+作者 ID、错误状态/JSON 正文；`last_call` 提供以下真实 URL 与状态，未把任意 200 当作通过。
+
+| 调用 | 真实 URL | HTTP | 关键返回字段 |
+| :--- | :--- | ---: | :--- |
+| 冒烟 stats | `https://sakuria-api.syarolia.com/stats` | 200 | newToday:int,totalIllusts:int,totalCreators:int,totalUsers:int \| newToday=30 totalIllusts=85 totalCreators=197 totalUsers=113 |
+| 冒烟 illust_search page 1 | `https://sakuria-api.syarolia.com/search/illust?page=1&q=blue&size=2&sort=new` | 200 | items:list,page:int,pageSize:int,total:int,totalPages:int,hasMore:bool \| page=1 items=2 pageSize=2 total=4 totalPages=2 hasMore=True hiddenCount=28 ids=['149856440', '149856385'] first=149856440 title='青の世界に君を探して SNS公開版\u3000７' urls.original=/img/img-original/img/2026/09/19/22/00/06/149856440_p0.jpg |
+| 冒烟 illust_show first id | `https://sakuria-api.syarolia.com/illust/149856440` | 200 | id:str,title:str,type:str,pages:int,urls:dict,author:dict,tags:list,stats:dict,publishedAt:str,publishedDays:int,isAi:bool,isR18:bool,xRestrict:int,sl:int \| id=149856440 title='青の世界に君を探して SNS公開版\u3000７' type=illust pages=2 author=70836035 tags=3 stats={'likes': 1, 'bookmarks': 1, 'views': 4, 'comments': 0} urls.original=/img/img-original/img/2026/09/19/22/00/06/149856440_p0.jpg |
+| 冒烟 illust_search page 2 | `https://sakuria-api.syarolia.com/search/illust?page=2&q=blue&size=2&sort=new` | 200 | items:list,page:int,pageSize:int,total:int,totalPages:int,hasMore:bool \| page=2 items=8 pageSize=2 total=6 totalPages=3 hasMore=True hiddenCount=22 ids=['149856181', '149856117', '149855928', '149855832', '149855736', '149855696', '149855689', '149855621'] first=149856181 title='9/27ガタケット185お品書き' urls.original=/img/img-original/img/2026/09/19/21/54/43/149856181_p0.png |
+| 冒烟 novel_search | `https://sakuria-api.syarolia.com/search/novel?q=blue&page=1` | 200 | items:list,page:int,pageSize:int,total:int,totalPages:int,hasMore:bool \| page=1 items=27 pageSize=24 total=48 hasMore=True hiddenCount=3 ids=['29170046', '29170024', '29170009', '29170001', '29169999', '29169990', '29169911', '29169840', '29169729', '29169686', '29169672', '29169606', '29169592', '29169546', '29169519', '29169513', '29169476', '29169465', '29169331', '29169304', '29169269', '29169223', '29169217', '29169116', '29169065', '29169060', '29169048'] first=29170046 title='名探偵コナン＆ブルーアーカイブ\u300014番目の標的(前編)' textLength=32396 cover.regular=/img/c/240x480_80/novel-cover-master/img/2026/09/19/22/07/08/ci29170046_3df6b93266caf418cb1ffd1d44024e95_master1200.jpg |
+| 冒烟 spotlight_list | `https://sakuria-api.syarolia.com/spotlight?page=1&lang=zh-cn` | 200 | items:list,page:int,pageSize:int,hasMore:bool \| page=1 items=20 pageSize=12 hasMore=True ids=['12064', '11903', '11731', '11737', '11661', '11665', '11728', '12078', '11708', '11772', '12047', '11971', '12050', '11681', '11927', '11683', '11975', '11993', '11815', '11642'] first=12064 title='【宝可梦】谜拟丘同人作品特辑 ' cover=/img/c/1200x630_q80_a2_g1_u1_icr0.086:0.082:0.929:0.902/img-original/img/2025/12/18/11/11/56/138736355_p0.jpg articleUrl=https://www.pixivision.net/zh/a/12064 tags=2 works=0 |
+| 冒烟 illust_comments | `https://sakuria-api.syarolia.com/illust/70937229/comments?page=1&size=2` | 200 | items:list,hasMore:bool \| items=2 hasMore=True ids=['225695134', '222800878'] likes=[0, 0] first=225695134 timeLabel='4 个月前' text_chars=4 |
+| 冒烟 user_show detail author | `https://sakuria-api.syarolia.com/users/70836035` | 200 | id:str,name:str,handle:str,accent:str,avatar:str,stats:dict,social:list \| id=70836035 name='Teraichi十代目てらいち' handle=10thteraichi stats={'followers': 0, 'following': 76, 'works': 174, 'totalLikes': 0, 'totalBookmarks': 2882} social=1 avatar=/img/user-profile/img/2024/08/09/21/14/07/26215650_13b44c8974f1e79c152a35350d6e6142_170.jpg |
+| 冒烟 illust_show missing id | `https://sakuria-api.syarolia.com/illust/0` | 404 | error='illust not found' body_chars=28 |
+| 冒烟 illust_search size over maximum | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=49` | 400 | error='筛选参数无效' code='invalid_search_filter' field='size' body_chars=64 |
+| 示例 illust_search | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=2&sort=new&page=1` | 200 | {"count": 2, "ids": ["149856440", "149856385"], "new_ids": ["149856440", "149856385"], "page_size": 2, "total": 4, "next_page": 2, "has_more": true} |
+| 示例 illust_search | `https://sakuria-api.syarolia.com/search/illust?q=blue&size=2&sort=new&page=2` | 200 | {"count": 8, "ids": ["149856181", "149856117", "149855928", "149855832", "149855736", "149855696", "149855689", "149855621"], "new_ids": ["149856181", "149856117", "149855928", "149855832", "149855736", "149855696", "149855689", "149855621"], "page_size": 2, "total": 6, "next_page": 3, "has_more": true} |
+| 示例 illust_show | `https://sakuria-api.syarolia.com/illust/70937229` | 200 | {"illust_id": "70937229", "pages": 1, "tag_count": 9, "author_id": "27517", "stats": {"likes": 243793, "bookmarks": 243793, "views": 1200449, "comments": 442}} |
+| 示例 illust_comments | `https://sakuria-api.syarolia.com/illust/70937229/comments?page=1&size=2` | 200 | {"count": 2, "has_more": true, "first": {"id": "225695134", "author_id": "122643822", "author_name": "ayuayu", "likes": 0, "replies_count": 0, "chars": 4, "created_at": "2026-05-21T07:17:53+09:00", "time_label": "4 个月前"}} |
+| 示例 user_show | `https://sakuria-api.syarolia.com/users/27517` | 200 | {"user_id": "27517", "handle": "fuzichoco", "stats": {"followers": 0, "following": 288, "works": 274, "totalLikes": 0, "totalBookmarks": 4195}} |
+
+搜索示例合并得到 10 个唯一 ID，`duplicate_count=0`；这一轮没有触发去重删除分支，不能把先前
+`size=24` 的重叠说成这次 `size=2` 也有。第二页实际 8 项但 `pageSize=2`，没有被客户端截断。
+
+### 边界与未实测
+
+- 已制作的接口面为 44 个原生 GET；直接 HTTP 核实公共路由不等于每个 Python 包装方法都运行过。
+  本节只执行了上表列出的客户端方法。
+- 17 个账号方法均未用 token 登录调用，成功返回结构未知；仅匿名 `/me/likes` 验证了
+  426 与显式契约头后的 401。其余账号路由本轮未请求，没有发明登录或刷新方法。
+- 未遍历所有页、参数枚举、区间内取值、排序/筛选组合、实际最大条数或末页停止条件；
+  `followers`、用户小说系列、小说评论与关联小说的非空元素、特辑详情 `works` 本轮无成功非空样本。
+- 小说详情取得上传图标记及 4 个图片描述对象，但顶层 `text` 为空；未取得通常意义上的非空小说文字正文，
+  也未读取任何插图字节。`document.text` 与 `text` 不相同，不应相互替代。
+- 403、429、会员成功、token 生命周期、写路由、其它主机、登录/注册路径、图片占位响应均未请求。
+  “缺图为 200 + image/svg+xml”的输入提醒按原授权只写在媒体注意事项，不冒称本轮复测。
+- 没有运行 formatter、lint、构建、安装归档、CI 或项目测试套件；唯一保留的测试是十请求以内的匿名冒烟。
