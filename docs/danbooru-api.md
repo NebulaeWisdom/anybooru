@@ -1,48 +1,23 @@
 # Danbooru 方法参考
 
-`Danbooru` 的 227 个原生方法都是 `request()` 的薄封装：一个方法对应一条 JSON 路由，参数原样交给
-服务端，库不校验、不钳位、不重试、不翻页。构造、认证、参数编码与返回值见
-[客户端用法](danbooru.md)；按目的找入口见 [能力入口](danbooru-capabilities.md)；每个方法的逐条路由、
-凭据、上游出处与验证状态见 [契约审计附注](danbooru-contract-notes.md) 的对应小节。
+`Danbooru` 的 227 个原生方法都是 `request()` 的薄封装：一个方法对应一条 JSON 路由，参数原样交给服务端，库不校验、不钳位、不重试、不翻页。构造、认证、参数编码与返回值见[客户端用法](danbooru.md)；按目的找入口见[能力入口](danbooru-capabilities.md)；每个方法的逐条路由、凭据、上游出处与验证状态见[契约审计附注](danbooru-contract-notes.md)。
 
-**怎么读本页**：每个资源组先给常用方法的完整片段——片段自己 `import`、自己 `with Danbooru('danbooru')
-as client`，参数全是字面值，旁边标出真实请求 URL 与返回的关键字段；组内其余方法用一张参数表列出，
-每行写明参数名、类型与取值、含义、不传时的行为与示例，以及“给什么 → 返回什么”。带「写」字样的方法
-需要登录或更高等级，本页只给用法，全部未执行；未实测范围的汇总见[边界与未实测](#边界与未实测)。
+每节先给常用方法的完整片段，再列出组内其余方法。代码片段自包含 `import` 与 `with` 语句，参数为字面值，注释标出真实请求 URL 与关键返回字段。表格每行写明参数名、类型与取值、含义、不传时的行为、字面示例，以及“给什么 → 返回什么”。带「写」字样的方法需要登录或更高等级。未实测范围见[边界与未实测](#边界与未实测)。
 
 ## 全页通用契约
 
-* **认证**：`username` 或 `api_key` 任一非空即发 HTTP Basic（缺项按空串补）；凭据不完整或无效由服务端
-  以 `401` 拒绝，不会静默降级为匿名；匿名读接口默认放行，权限不足返回 `403`。需要登录的方法在各自
-  条目里标注。
-* **参数分层**：列表方法的过滤条件放 `search` 字典（整包发成 `search[...]`），顶层参数走 `**params`
-  （`limit`、`page`、`tags`、`post_id` 等）。**帖子列表是唯一例外**：过滤条件全部写成顶层 `tags` 元标签。
-* **搜索后缀**：string 属性有 `_present`/`_eq`/`_not_eq`/`_like`/`_ilike`/`_regex`/`_array`/`_comma`/
-  `_space`/`_lower_array` 等；text 另有 `_matches`（全文，含 `*` 时按 `ILIKE`）；数值与时间支持 `5`、
-  `>5`、`5..10`、`5,6,7`；布尔收 `true`/`false`/`1`/`0`/`yes`/`no`；关联字段另有 `assoc_name`、
-  `assoc_tags_match`、`has_assoc` 与嵌套 `search[assoc][...]`。**集合之外的参数被静默忽略**——旧参数
-  失效时表现为“返回全集”，不报错。
-* **分页与配额**：默认每页 20；通用 `limit` 上限 1000，`posts` 与 `uploads` / `upload_media_assets` /
-  `media_assets` / `ai_tags` 为 200；页码上限普通账号 1000、Gold 5000，超出返回 `410`；一次查询的标签数
-  上限匿名 2、Gold 6、Platinum 不限，超出返回 `422`。`page` 也接受 ID 游标 `a<id>`（更新方向）/
-  `b<id>`（更旧方向）。翻页见 [pagination.md](pagination.md)。
-* **端点无关的顶层参数**：`only`（选返回字段与嵌套关联，如 `only=id,url,artist[name]`，只对 json/xml
-  生效）、`redirect=true`（结果唯一时 `302` 到对象页面）、`safe_mode`（强制 `rating:g`）、`save_data`
-  （省流模式）。
-* **失败**：非 2xx 抛 `AnybooruHTTPError`（保留状态码、URL 与正文），2xx 但非 JSON 抛
-  `AnybooruAPIError`；archive 未配置返回 `501`，IQDB 未配置返回空数组，各可选服务分别判断。见
-  [errors.md](errors.md)。
+* **认证**：`username` 或 `api_key` 任一非空即发 HTTP Basic（缺项按空串补）。凭据不完整或无效由服务端以 `401` 拒绝，不会静默降级为匿名。匿名读接口默认放行，权限不足返回 `403`。
+* **参数分层**：列表方法的过滤条件放 `search` 字典（整包发成 `search[...]`），顶层参数走 `**params`（`limit`、`page`、`tags`、`post_id` 等）。**帖子列表是唯一例外**：过滤条件全部写成顶层 `tags` 元标签。
+* **搜索后缀**：string 属性有 `_present`/`_eq`/`_not_eq`/`_like`/`_ilike`/`_regex`/`_array`/`_comma`/`_space`/`_lower_array` 等；text 另有 `_matches`（全文，含 `*` 时按 `ILIKE`）；数值与时间支持 `5`、`>5`、`5..10`、`5,6,7`；布尔收 `true`/`false`/`1`/`0`/`yes`/`no`；关联字段另有 `assoc_name`、`assoc_tags_match`、`has_assoc` 与嵌套 `search[assoc][...]`。**集合之外的参数被静默忽略**——旧参数失效时表现为“返回全集”，不报错。
+* **分页与配额**：默认每页 20。通用 `limit` 上限 1000，`posts` 与 `uploads` / `upload_media_assets` / `media_assets` / `ai_tags` 为 200。页码上限普通账号 1000、Gold 5000，超出返回 `410`。一次查询的标签数上限匿名 2、Gold 6、Platinum 不限，超出返回 `422`。`page` 也接受 ID 游标 `a<id>`（更新方向）/ `b<id>`（更旧方向）。翻页见 [pagination.md](pagination.md)。
+* **端点无关的顶层参数**：`only`（选返回字段与嵌套关联，如 `only=id,url,artist[name]`，只对 json/xml 生效）、`redirect=true`（结果唯一时 `302` 到对象页面）、`safe_mode`（强制 `rating:g`）、`save_data`（省流模式）。
+* **失败**：非 2xx 抛 `AnybooruHTTPError`（保留状态码、URL 与正文），2xx 但非 JSON 抛 `AnybooruAPIError`。archive 未配置返回 `501`，IQDB 未配置返回空数组。见 [errors.md](errors.md)。
 
 ## 状态、账号与限流（6 个方法）
 
-状态接口匿名可读；`api_keys_*` 四个方法要求登录，且控制器带 `requires_reauthentication`——只用
-HTTP Basic（本库的发法）可能过不了这道检查，未实测。本组方法的逐条路由、参数键与凭据见
-[附注的 状态节](danbooru-contract-notes.md#sec-status)。
+状态接口匿名可读。`api_keys_*` 四个方法要求登录，且控制器带 `requires_reauthentication`——只用 HTTP Basic（本库的发法）可能过不了这道检查，未实测。逐条路由、参数键与凭据见[附注的状态节](danbooru-contract-notes.md#sec-status)。
 
-**常用方法**
-
-**`status()`** — 查服务、数据库与缓存状态。不给参数，匿名可调；返回一个对象：`ip`、`headers`、
-`instance`、`version`、`server`、`postgres`、`redis`，例如 `state['postgres']['up']` 是数据库是否可用。
+**`status()`** — 查服务、数据库与缓存状态。无参数，匿名可调。返回对象含 `ip`、`headers`、`instance`、`version`、`server`、`postgres`、`redis`；`state['postgres']['up']` 说明数据库是否可用。
 
 ```python
 from anybooru import Danbooru
@@ -56,11 +31,9 @@ with Danbooru('danbooru') as client:
 
 | 参数 | 类型与取值 | 含义 | 不传时 | 例子 |
 | :--- | :--- | :--- | :--- | :--- |
-| — | — | 没有参数，路由也不带路径变量 | — | `client.status()` |
+| — | — | 没有参数，路由不带路径变量 | — | `client.status()` |
 
-**`api_keys_list(search=None, **params)`** — 列出自己可管理的 API key（需登录）。返回 api_key 数组，
-每项含 `id`、`user_id`、`name`、`permissions`；响应里**不含** `key`，明文只在 `api_key_create` 的
-响应里出现一次。
+**`api_keys_list(search=None, **params)`** — 列出自己可管理的 API key（需登录）。返回 api_key 数组，每项含 `id`、`user_id`、`name`、`permissions`；响应**不含** `key`，明文只在 `api_key_create` 的响应里出现一次。
 
 ```python
 from anybooru import Danbooru
@@ -74,7 +47,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 | 参数 | 类型与取值 | 含义 | 不传时 | 例子 |
 | :--- | :--- | :--- | :--- | :--- |
-| `search` | dict，如 `{'id': 5}`、`{'key': 'abc'}`、`{'user_id': 42}` | API key 的过滤条件，发成 `search[...]` | 不发送 `search`，列出全部可见项 | `search={'user_id': 42}` |
+| `search` | dict，如 `{'id': 5}`、`{'key': 'abc'}`、`{'user_id': 42}` | 过滤条件，发成 `search[...]` | 不发送 `search`，列出全部可见项 | `search={'user_id': 42}` |
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 `'a<id>'` / `'b<id>'` | 页码或 ID 游标 | 第一页 | `page=2` |
 
@@ -83,22 +56,15 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | 方法 | 参数：类型 / 取值 / 含义 / 不传时 | 给什么 → 返回什么 |
 | :--- | :--- | :--- |
 | `rate_limits_list(search=None, **params)` | `search`：dict，可筛 `id`、`action`（如 `'post_create'`）、`key`、`limited`（bool）、`points`（int）；`limit`：int 每页条数；`page`：int 页码 | 查限流记录，匿名可读（源码对齐、未实测）→ rate_limit 数组，字段随站点配置；例 `client.rate_limits_list(search={'action': 'post_create'})` |
-| `api_key_create(**attributes)` | `name`：str 这把 key 的名字，如 `'我的脚本'`；`permitted_ip_addresses`：str 空格分隔的允许 IP 段，不传时未规定；`permissions`：list 权限名 | **写**：新建一把 API key（需登录）→ 新建的 api_key 对象，含 `id`、`name`、`permissions` 与**明文 `key`**（只有这一次会返回）；例 `client.api_key_create(name='我的脚本', permitted_ip_addresses='203.0.113.0/24')` |
+| `api_key_create(**attributes)` | `name`：str 名字，如 `'我的脚本'`；`permitted_ip_addresses`：str 空格分隔的允许 IP 段，不传时未规定；`permissions`：list 权限名 | **写**：新建一把 API key（需登录）→ 新建的 api_key 对象，含 `id`、`name`、`permissions` 与**明文 `key`**（只有这一次返回）；例 `client.api_key_create(name='我的脚本', permitted_ip_addresses='203.0.113.0/24')` |
 | `api_key_update(api_key_id, **attributes)` | `api_key_id`：int，如 `7`（要先从 `api_keys_list` 取）；属性同 `api_key_create`（`name` / `permitted_ip_addresses` / `permissions`），不传的属性保持原值 | **写**：改名称、允许 IP 或权限（需登录）→ 更新后的 api_key 对象，不含 `key`；例 `client.api_key_update(7, name='新名字')` |
 | `api_key_delete(api_key_id)` | `api_key_id`：int，如 `7` | **写**：删除一把 key（需登录）→ 被删除的 api_key 对象，不含 `key`；例 `client.api_key_delete(7)` |
 
 ## posts（帖子）— 37 个方法
 
-`post_list` 的过滤条件全部写在顶层 `tags` 元标签里（`rating:g`、`score:>10`、`order:score`、`date:..`），
-**不吃 `search` 字典**；`md5=` 直接返回单个 post，`random=true` 会 `302`。发布新帖要先上传，见
-[上传与上传媒体](#上传与上传媒体6-个方法)。本组方法的路由、凭据与参数键见
-[附注的 posts 节](danbooru-contract-notes.md#sec-posts)。
+`post_list` 的过滤条件全部写在顶层 `tags` 元标签里（`rating:g`、`score:>10`、`order:score`、`date:..`），**不吃 `search` 字典**。`md5=` 直接返回单个 post，`random=true` 会 `302`。发布新帖要先上传，见[上传与上传媒体](#上传与上传媒体6-个方法)。路由、凭据与参数键见[附注的 posts 节](danbooru-contract-notes.md#sec-posts)。
 
-**常用方法**
-
-**`post_list(**params)`** — 搜索或列出帖子。过滤条件写进顶层 `tags`，每条常见元标签的写法见参数表；
-返回 post 数组，常用字段为 `id`、`rating`、`tag_string`、`md5`、`source`，图片地址类字段
-（`file_url` / `large_file_url` / `preview_file_url`）只在帖子对当前身份可见时出现。
+**`post_list(**params)`** — 搜索或列出帖子。过滤条件写进顶层 `tags`。返回 post 数组，常用字段 `id`、`rating`、`tag_string`、`md5`、`source`；图片地址类字段（`file_url` / `large_file_url` / `preview_file_url`）只在帖子对当前身份可见时出现。
 
 ```python
 from anybooru import Danbooru
@@ -112,7 +78,7 @@ with Danbooru('danbooru') as client:
 
 | 参数 | 类型与取值 | 含义 | 不传时 | 例子 |
 | :--- | :--- | :--- | :--- | :--- |
-| `tags` | str，标签查询串；元标签如 `rating:g`、`score:>10`、`order:score`、`date:2024-01-01..`、`id:>123` | 过滤条件与排序，空格分隔多个条件 | 空值即最新一页全部帖子 | `tags='rating:g order:score'` |
+| `tags` | str，标签查询串；元标签如 `rating:g`、`score:>10`、`order:score`、`date:2024-01-01..`、`id:>123` | 过滤与排序，空格分隔 | 空值即最新一页全部帖子 | `tags='rating:g order:score'` |
 | `limit` | int，服务端上限 200 | 每页帖子数 | 服务端默认每页 20 | `limit=50` |
 | `page` | int 或 `'a<id>'` / `'b<id>'` | 页码或 ID 游标 | 第一页 | `page='b12090564'` |
 | `md5` | str，32 位小写十六进制 | 直接返回这个 MD5 对应的单个 post，而不是数组 | 不发送，返回列表 | `md5='0f343b0931126a20f133d67c2b018a3b'` |
@@ -121,9 +87,7 @@ with Danbooru('danbooru') as client:
 | `show_votes` | bool | 把当前用户的投票并进 `tag_string`（表现为 `upvoted` / `downvoted` 标签） | 不发送 | `show_votes=True` |
 | `only` | str，逗号分隔字段与嵌套关联 | 只返回指定字段，如 `'id,media_asset'` | 返回完整对象 | `only='id,rating'` |
 
-**`post_show(post_id)`** — 读一个帖子的详情。给帖子编号，返回单个 post 对象，字段与 `post_list` 一致，
-另外带上该帖的父帖 `parent_id`、来源 `source`、收藏数 `favorite_count`、评分 `score`、图片尺寸
-（可见时含 `file_url`、`large_file_url`、`preview_file_url`、`file_size`、`image_width`、`image_height`）。
+**`post_show(post_id)`** — 读一个帖子的详情。给帖子编号，返回单个 post 对象，字段与 `post_list` 一致，另带 `parent_id`、`source`、`favorite_count`、`score`、图片尺寸（可见时含 `file_url`、`large_file_url`、`preview_file_url`、`file_size`、`image_width`、`image_height`）。
 
 ```python
 from anybooru import Danbooru
@@ -141,8 +105,7 @@ with Danbooru('danbooru') as client:
 | `post_id` | int，帖子编号，如 `12090564` | 要读哪个帖子，会进 URL 路径 | 必填 | `client.post_show(12090564)` |
 | `only` | str | 只返回指定字段（用 `request('GET', 'posts/<id>.json', params={'only': 'id,rating'})` 传，本方法签名没有该形参） | 返回完整对象 | `request('GET', 'posts/12090564.json', params={'only': 'id,rating'})` |
 
-**`post_random(tags=None)`** — 在查询范围内随机取一帖。给标签查询串（空值表示任意帖子），返回单个
-post 对象；查询无匹配时服务端返回 `404`。它不做分页，每次调用都是新的一次随机。
+**`post_random(tags=None)`** — 在查询范围内随机取一帖。给标签查询串（空值表示任意帖子），返回单个 post 对象；查询无匹配时服务端返回 `404`。不做分页，每次调用都是新的一次随机。
 
 ```python
 from anybooru import Danbooru
@@ -158,8 +121,7 @@ with Danbooru('danbooru') as client:
 | :--- | :--- | :--- | :--- | :--- |
 | `tags` | str，任何 `post_list` 能吃的标签查询串 | 限定随机范围 | 空值 / `None` 表示任意帖子 | `client.post_random(tags='rating:g')` |
 
-**`post_update(post_id, **attributes)`** — 改标签、来源、评分、父帖等属性（需登录，且对该帖有编辑
-权限）。给帖子编号与要改的属性，返回写后的 post 对象（含 `id`、`rating`、`tag_string`、`source` 等）。
+**`post_update(post_id, **attributes)`** — 改标签、来源、评分、父帖等属性（需登录，且对该帖有编辑权限）。给帖子编号与要改的属性，返回写后的 post 对象（含 `id`、`rating`、`tag_string`、`source` 等）。
 
 ```python
 from anybooru import Danbooru
@@ -176,17 +138,16 @@ with Danbooru('danbooru') as client:
 | 属性 | 类型与取值 | 含义 | 不传时 | 例子 |
 | :--- | :--- | :--- | :--- | :--- |
 | `tag_string` | str，空格分隔的标签 | 本次要写入的完整标签集 | 不改标签 | `tag_string='1girl solo'` |
-| `old_tag_string` | str | 你**编辑前**看到的标签，供服务端合并并发改动 | 不参与并发比对 | `old_tag_string=post['tag_string']` |
+| `old_tag_string` | str | 编辑前看到的标签，供服务端合并并发改动 | 不参与并发比对 | `old_tag_string=post['tag_string']` |
 | `source` | str，来源 URL 或文本 | 本次要写入的来源 | 不改来源 | `source='https://www.pixiv.net/artworks/12345678'` |
-| `old_source` | str | 编辑前的来源，同上用于并发比对 | 不参与比对 | `old_source=post['source']` |
+| `old_source` | str | 编辑前的来源，用于并发比对 | 不参与比对 | `old_source=post['source']` |
 | `rating` | str，`g` / `s` / `q` / `e` | 本次要写入的评分 | 不改评分 | `rating='s'` |
 | `old_rating` | str，同上四值 | 编辑前的评分 | 不参与比对 | `old_rating=post['rating']` |
-| `parent_id` | int 或 `null` | 父帖编号；`null` 表示清空父子关系 | 不改父帖 | `parent_id=12000000` |
+| `parent_id` | int 或 `null` | 父帖编号；`null` 清空父子关系 | 不改父帖 | `parent_id=12000000` |
 | `old_parent_id` | int 或 `null` | 编辑前的父帖编号 | 不参与比对 | `old_parent_id=post['parent_id']` |
 | `has_embedded_notes` | bool | 声明图内是否烧进了笔记内容 | 不发送 | `has_embedded_notes=False` |
 
-**`post_votes_list(search=None, **params)`** — 查询帖子投票记录。返回 post_vote 数组，每项含 `id`、
-`post_id`、`user_id`、`score`；非本人、非 moderator 的投票会被服务端按可见性过滤。
+**`post_votes_list(search=None, **params)`** — 查询帖子投票记录。返回 post_vote 数组，每项含 `id`、`post_id`、`user_id`、`score`；非本人、非 moderator 的投票会被服务端按可见性过滤。
 
 ```python
 from anybooru import Danbooru
@@ -205,9 +166,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int | 每页投票数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`post_vote_create(post_id, score)`** — 给帖子投票（需登录）。`score` 只接受数字：**`1` 是赞、`-1`
-是踩**（源码 docstring 写的 `'up'` / `'down'` 与模型校验不符，模型只认 `1` / `-1`）。返回新建的
-post_vote 对象，含 `id`、`post_id`、`user_id`、`score`。
+**`post_vote_create(post_id, score)`** — 给帖子投票（需登录）。`score` 只接受数字：`1` 是赞、`-1` 是踩（源码 docstring 写的 `'up'` / `'down'` 与模型校验不符，模型只认 `1` / `-1`）。返回新建的 post_vote 对象，含 `id`、`post_id`、`user_id`、`score`。
 
 ```python
 from anybooru import Danbooru
@@ -225,10 +184,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `post_id` | int，帖子编号 | 投给哪个帖子，会进 URL 路径 | 必填 | `client.post_vote_create(12090564, score=1)` |
 | `score` | int，只接受 `1`（赞）或 `-1`（踩） | 投票方向 | 必填 | `score=-1` |
 
-**`post_replacement_create(post_id, replacement_file=None, **attributes)`** — 用新文件或来源替换帖子
-文件（需 moderator）。两条二选一：本地上传走 `replacement_file`（multipart，字段名
-`post_replacement[replacement_file]`），或给 `replacement_url` 让服务端去取。返回新建的
-post_replacement 对象。
+**`post_replacement_create(post_id, replacement_file=None, **attributes)`** — 用新文件或来源替换帖子文件（需 moderator）。两条二选一：本地上传走 `replacement_file`（multipart，字段名 `post_replacement[replacement_file]`），或给 `replacement_url` 让服务端去取。返回新建的 post_replacement 对象。
 
 ```python
 from anybooru import Danbooru
@@ -252,8 +208,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `final_source` | str | 替换后要显示的来源 | 不发送 | `final_source='https://example.com/page'` |
 | `tags` | str，空格分隔 | 替换时要补的标签 | 不发送 | `tags='translated'` |
 
-**`post_flags_list(search=None, **params)`** — 查询帖子的待删标记。返回 post_flag 数组，每项含 `id`、
-`post_id`、`creator_id`、`reason`、`is_resolved`；非 moderator 看不到标记人的身份字段。
+**`post_flags_list(search=None, **params)`** — 查询帖子的待删标记。返回 post_flag 数组，每项含 `id`、`post_id`、`creator_id`、`reason`、`is_resolved`；非 moderator 看不到标记人的身份字段。
 
 ```python
 from anybooru import Danbooru
@@ -272,8 +227,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int | 每页条数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`post_approvals_list(search=None, **params)`** — 查询帖子批准记录。返回 post_approval 数组，每项含
-`id`、`user_id`、`post_id`。
+**`post_approvals_list(search=None, **params)`** — 查询帖子批准记录。返回 post_approval 数组，每项含 `id`、`user_id`、`post_id`。
 
 ```python
 from anybooru import Danbooru
@@ -309,7 +263,7 @@ with Danbooru('danbooru') as client:
 | `post_favorites_list(post_id, search=None, **params)` | `post_id`：int 帖子编号；`search`：dict 可筛 `user_id` 等；`limit`：int 每页条数 | 读某帖的收藏记录，匿名可读 → favorite 数组，含 `id`、`post_id`、`user_id`；例 `client.post_favorites_list(12090564, limit=10)` |
 | `post_replacements_list(search=None, **params)` | `search`：dict，可筛 `post_id`、`creator_id`、`creator_name`、`status`、`order`；顶层 `post_id`：int 也能限定单帖；`limit`：int 每页条数 | 查文件替换记录，匿名可读 → post_replacement 数组，含 `id`、`post_id`、`creator_id`、`original_url`、`replacement_url`；例 `client.post_replacements_list(post_id=12090564)` |
 | `post_replacement_show(replacement_id)` | `replacement_id`：int，替换记录编号，来自 `post_replacements_list` 的 `id` | 读一次文件替换，匿名可读 → 单个 post_replacement 对象，含 `id`、`post_id`、`creator_id`、`original_url`、`replacement_url`；例 `client.post_replacement_show(77)` |
-| `post_replacement_update(replacement_id, **attributes)` | `replacement_id`：int 替换记录编号；属性：`md5`、`file_ext`、`file_size`、`image_width`、`image_height`、`original_url`、`replacement_url` 及对应的 `old_*` 版本；不传的属性不动 | **写**：改替换记录的 MD5、尺寸与来源（需登录）→ 写后的 post_replacement 对象；例 `client.post_replacement_update(77, replacement_url='https://example.com/fixed.jpg')` |
+| `post_replacement_update(replacement_id, **attributes)` | `replacement_id`：int 替换记录编号；属性：`md5`、`file_ext`、`file_size`、`image_width`、`image_height`、`original_url`、`replacement_url` 及对应的 `old_*` 版本；不传的属性不动 | **写**：改替换记录的 MD5、尺寸与来源（需 moderator）→ 写后的 post_replacement 对象；例 `client.post_replacement_update(77, replacement_url='https://example.com/fixed.jpg')` |
 | `post_regeneration_create(post_id, category=None)` | `post_id`：int 帖子编号（顶层）；`category`：str 取 `'post'`（原图）/ `'large'` / `'preview'`，不传时服务端默认（未规定具体值） | **写**：提交媒体重建任务（moderator）→ 提交重建的 post 对象；例 `client.post_regeneration_create(12090564, category='large')` |
 | `post_approval_show(approval_id)` | `approval_id`：int 批准记录编号 | 读一条批准记录，匿名可读 → 单个 post_approval 对象，含 `id`、`user_id`、`post_id`；例 `client.post_approval_show(9)` |
 | `post_approval_create(post_id)` | `post_id`：int 帖子编号（顶层） | **写**：批准一个帖子（approver+）→ 写后的 post_approval 对象，含 `id`、`user_id`、`post_id`；例 `client.post_approval_create(12090564)` |
@@ -327,15 +281,9 @@ with Danbooru('danbooru') as client:
 
 ## 媒体资源与 AI 标签（6 个方法）
 
-`media_assets` 是文件层面的资源记录（一个文件一条），字段按可见性裁剪；AI 候选标签来自站点的识别
-服务，可以按帖子或媒体查。本组路由、凭据与参数键见
-[附注的 媒体节](danbooru-contract-notes.md#sec-media)。
+`media_assets` 是文件层面的资源记录（一个文件一条），字段按可见性裁剪。AI 候选标签来自站点的识别服务，可以按帖子或媒体查。路由、凭据与参数键见[附注的媒体节](danbooru-contract-notes.md#sec-media)。
 
-**常用方法**
-
-**`media_assets_list(search=None, **params)`** — 查询媒体资源。给文件指纹（`md5`、`pixel_hash`）或尺寸、
-状态等条件，返回 media_asset 数组，每项含 `id`、`md5`、`file_ext`、`file_size`、`image_width`、
-`image_height`、`status`；对当前身份不可见的资产会省掉 `md5`、`file_key`、`variants`。
+**`media_assets_list(search=None, **params)`** — 查询媒体资源。给文件指纹（`md5`、`pixel_hash`）或尺寸、状态等条件，返回 media_asset 数组，每项含 `id`、`md5`、`file_ext`、`file_size`、`image_width`、`image_height`、`status`；对当前身份不可见的资产会省掉 `md5`、`file_key`、`variants`。
 
 ```python
 from anybooru import Danbooru
@@ -354,9 +302,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int，服务端上限 200 | 每页条数 | 服务端默认每页 20 | `limit=50` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`ai_tags_list(search=None, **params)`** — 查询某个帖子或媒体的 AI 候选标签。给 `post_id`、
-`media_asset_id`、`tag_name`、`score` 等条件，返回 ai_tag 数组，每项含 `media_asset_id`、`tag_id`、
-`score`、`is_posted`。
+**`ai_tags_list(search=None, **params)`** — 查询某个帖子或媒体的 AI 候选标签。给 `post_id`、`media_asset_id`、`tag_name`、`score` 等条件，返回 ai_tag 数组，每项含 `media_asset_id`、`tag_id`、`score`、`is_posted`。
 
 ```python
 from anybooru import Danbooru
@@ -386,18 +332,9 @@ with Danbooru('danbooru') as client:
 
 ## 上传与上传媒体（6 个方法）
 
-上传新帖分两步：`upload_create` 建上传（**唯一用于上传新媒体的 multipart 端点**；另一条 multipart 是
-`post_replacement_create` 的 `replacement_file`），再用返回的 `upload_media_assets[0]['id']` 调
-`post_create(upload_media_asset_id, ...)` 发布。`files` 与 `source` 互斥，至少给一个；压缩包由服务端
-展开，单次上传文件数上限 100。本组路由、凭据与参数键见
-[附注的 上传节](danbooru-contract-notes.md#sec-uploads)。
+上传新帖分两步：`upload_create` 建上传（**唯一用于上传新媒体的 multipart 端点**；另一条 multipart 是 `post_replacement_create` 的 `replacement_file`），再用返回的 `upload_media_assets[0]['id']` 调 `post_create(upload_media_asset_id, ...)` 发布。`files` 与 `source` 互斥，至少给一个；压缩包由服务端展开，单次上传文件数上限 100。路由、凭据与参数键见[附注的上传节](danbooru-contract-notes.md#sec-uploads)。
 
-**常用方法**
-
-**`upload_create(files=None, source=None, referer_url=None)`** — 从本地文件或来源 URL 建上传（需登录）。
-至少给 `files` 或 `source` 之一：本地文件走 multipart 字面键 `upload[files][0]`、`upload[files][1]`…，
-来源 URL 让服务端自己去下载。返回 upload 对象（`id`、`source`、`status`、`media_asset_count` 等），
-并带上 `upload_media_assets` 关联数组。
+**`upload_create(files=None, source=None, referer_url=None)`** — 从本地文件或来源 URL 建上传（需登录）。至少给 `files` 或 `source` 之一：本地文件走 multipart 字面键 `upload[files][0]`、`upload[files][1]`…，来源 URL 让服务端自己去下载。返回 upload 对象（`id`、`source`、`status`、`media_asset_count` 等），并带上 `upload_media_assets` 关联数组。
 
 ```python
 from anybooru import Danbooru
@@ -421,8 +358,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `source` | str，来源 URL | 让服务端去下载这个地址 | 不发来源，必须改用 `files` | `source='https://example.com/a.jpg'` |
 | `referer_url` | str | `source` 的 referer，给需要它的私有站点用 | 不发送 | `referer_url='https://private.example.com/page'` |
 
-**`upload_list(search=None, **params)`** — 查询当前用户可见的上传记录。非 moderator 只能看到自己的；
-返回 upload 数组（含 `id`、`source`、`uploader_id`、`status`、`referer_url`、`media_asset_count`）。
+**`upload_list(search=None, **params)`** — 查询当前用户可见的上传记录。非 moderator 只能看到自己的。返回 upload 数组（含 `id`、`source`、`uploader_id`、`status`、`referer_url`、`media_asset_count`）。
 
 ```python
 from anybooru import Danbooru
@@ -452,14 +388,9 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 ## tags、别名、蕴含与相关标签（13 个方法）
 
-创建别名与蕴含没有专用方法，要走 `bulk_update_request_create`；`tag_alias_delete` /
-`tag_implication_delete` 的语义是**拒绝请求**，不是删除既有关系。本组路由、凭据与参数键见
-[附注的 tags 节](danbooru-contract-notes.md#sec-tags)。
+创建别名与蕴含没有专用方法，要走 `bulk_update_request_create`；`tag_alias_delete` / `tag_implication_delete` 的语义是**拒绝请求**，不是删除既有关系。路由、凭据与参数键见[附注的 tags 节](danbooru-contract-notes.md#sec-tags)。
 
-**常用方法**
-
-**`tag_list(search=None, **params)`** — 搜索标签。`search` 里放过滤条件（名称匹配、类别、`post_count`、
-排序等），返回 tag 数组，每项含 `id`、`name`、`post_count`、`category`、`is_deprecated`。
+**`tag_list(search=None, **params)`** — 搜索标签。`search` 里放过滤条件（名称匹配、类别、`post_count`、排序等），返回 tag 数组，每项含 `id`、`name`、`post_count`、`category`、`is_deprecated`。
 
 ```python
 from anybooru import Danbooru
@@ -477,12 +408,9 @@ with Danbooru('danbooru') as client:
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=2` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-JSON 下 `hide_empty` **没有默认值**：不传就不过滤空标签，只有显式传 `True` 才走 `nonempty`
-（HTML 页面才有默认过滤）。
+JSON 下 `hide_empty` **没有默认值**：不传就不过滤空标签，只有显式传 `True` 才走 `nonempty`（HTML 页面才有默认过滤）。
 
-**`related_tag(search=None, **params)`** — 根据标签查询取相关标签建议。`search['query']` 必填，
-返回**一个对象**而不是数组：`query`、`post_count`、`tag`、`related_tags`（每项含 `tag` 与共现统计）、
-`wiki_page_tags`。
+**`related_tag(search=None, **params)`** — 根据标签查询取相关标签建议。`search['query']` 必填，返回**一个对象**而不是数组：`query`、`post_count`、`tag`、`related_tags`（每项含 `tag` 与共现统计）、`wiki_page_tags`。
 
 ```python
 from anybooru import Danbooru
@@ -498,7 +426,7 @@ with Danbooru('danbooru') as client:
 | 参数 | 类型与取值 | 含义 | 不传时 | 例子 |
 | :--- | :--- | :--- | :--- | :--- |
 | `search['query']` | str，标签查询串，如 `'touhou'`、`'pixiv rating:g'` | 基于哪些标签找相关标签 | **必填**，不给会被服务端拒绝 | `search={'query': 'touhou'}` |
-| `search['category']` / `search['categories']` | int 或 str，标签类别，如 `0`、`'general'`、逗号/空格分隔多个 | 只统计这些类别的标签 | 不限类别 | `search={'query': 'touhou', 'category': 0}` |
+| `search['category']` / `search['categories']` | int 或 str，标签类别，如 `0`、`'general'`，逗号/空格分隔多个 | 只统计这些类别的标签 | 不限类别 | `search={'query': 'touhou', 'category': 0}` |
 | `search['order']` | str，`frequency`（默认）/ `cosine` / `jaccard` / `overlap`；其它值一律按 `frequency` 处理 | 相关度排序方式 | `frequency` | `search={'query': 'touhou', 'order': 'cosine'}` |
 | `search['search_sample_size']` | int，服务端钳到 `0..100000` | 参与统计的查询样本量 | 服务端默认 5000（传 0 也回到 5000） | `search={'query': 'touhou', 'search_sample_size': 1000}` |
 | `search['tag_sample_size']` | int，服务端钳到 `0..1000` | 每个样本统计的标签量 | 服务端默认 500（传 0 也回到 500） | `search={'query': 'touhou', 'tag_sample_size': 100}` |
@@ -510,30 +438,24 @@ with Danbooru('danbooru') as client:
 | 方法 | 参数：类型 / 取值 / 含义 / 不传时 | 给什么 → 返回什么 |
 | :--- | :--- | :--- |
 | `tag_show(tag_id)` | `tag_id`：int 标签编号，如 `29`（`touhou` 的编号），来自 `tag_list` 的 `id` | 读标签详情，匿名可读 → 单个 tag 对象，含 `id`、`name`、`post_count`、`category`、`is_deprecated`；例 `client.tag_show(29)` |
-| `tag_update(tag_id, **attributes)` | `tag_id`：int 标签编号；`category`：int `0` 通用 / `1` 画师 / `3` 版权 / `4` 角色 / `5` 元标签（改它要 Builder 及以上）；`is_deprecated`：bool（Builder 及以上）；不传的属性不动 | **写**：改获授权的标签属性（需登录）→ 写后的 tag 对象；例 `client.tag_update(29, is_deprecated=True)` |
+| `tag_update(tag_id, **attributes)` | `tag_id`：int 标签编号；`category`：int `0` 通用 / `1` 画师 / `3` 版权 / `4` 角色 / `5` 元标签（已挂画师记录的画师类标签不能改类别；其它标签由 admin，或 `post_count < 1000` 的 builder，或 `post_count < 50` 的未封禁会员修改）；`is_deprecated`：bool（仅 admin，且该标签有未删除的 wiki 页面或本来就标着废弃，才允许修改）；不传的属性不动 | **写**：改获授权的标签属性（需登录）→ 写后的 tag 对象；例 `client.tag_update(29, is_deprecated=True)` |
 | `tag_versions_list(search=None, **params)` | `search`：dict，可筛 `tag_id`、`updater_id`、`updater_name`、`name_matches`、`category`、`is_deprecated`、`version`、`order`（`created_at` / `updated_at` / `id` 及 `_asc` 形式）；`limit`：int 每页条数 | 查标签修改历史，匿名可读 → tag_version 数组，含 `id`、`tag_id`、`updater_id`、`previous_version_id`、`version`；例 `client.tag_versions_list(search={'tag_id': 29})` |
 | `tag_version_show(version_id)` | `version_id`：int 版本编号，来自 `tag_versions_list` 的 `id` | 读一个标签版本 → 单个 tag_version 对象，含 `id`、`tag_id`、`updater_id`、`previous_version_id`、`version`；例 `client.tag_version_show(456)` |
 | `tag_aliases_list(search=None, **params)` | `search`：dict，可筛 `id`、`antecedent_name`、`consequent_name`、`name_matches`、`antecedent_name_matches`、`consequent_name_matches`、`status`（`active` / `deleted` / `retired`）、`category`、`creator_id`、`creator_name`、`approver_id`、`forum_topic_id`、`order`（`created_at` / `updated_at` / `name` / `antecedent_tag_count` / `consequent_tag_count`）；`limit`：int 每页条数 | 查标签别名关系，匿名可读 → tag_alias 数组，含 `id`、`antecedent_name`、`consequent_name`、`status`、`creator_id`、`forum_topic_id`；例 `client.tag_aliases_list(search={'consequent_name': 'touhou'})` |
 | `tag_alias_show(tag_alias_id)` | `tag_alias_id`：int 别名记录编号 | 读一条别名关系 → 单个 tag_alias 对象，字段同上；例 `client.tag_alias_show(19)` |
-| `tag_alias_delete(tag_alias_id)` | `tag_alias_id`：int 别名请求编号 | **写**：**拒绝**一条别名请求（需登录；语义是拒绝，不是删除既有别名）→ 被更新/删除后的 tag_alias 对象，`status` 会变成 `rejected`；例 `client.tag_alias_delete(19)` |
+| `tag_alias_delete(tag_alias_id)` | `tag_alias_id`：int 别名请求编号 | **写**：**拒绝**一条别名请求（需 admin；语义是拒绝，不是删除既有别名）→ 被更新/删除后的 tag_alias 对象，`status` 会变成 `rejected`；例 `client.tag_alias_delete(19)` |
 | `tag_implications_list(search=None, **params)` | `search`：dict，可筛 `id`、`antecedent_name`、`consequent_name`、`name_matches`、`antecedent_name_matches`、`consequent_name_matches`、`status`、`category`、`creator_id`、`creator_name`、`approver_id`、`forum_topic_id`、`implied_from`、`implied_to`、`order`；`limit`：int 每页条数 | 查标签蕴含关系，匿名可读 → tag_implication 数组，含 `id`、`antecedent_name`、`consequent_name`、`status`、`forum_topic_id`；例 `client.tag_implications_list(search={'antecedent_name': '1girl'})` |
 | `tag_implication_show(tag_implication_id)` | `tag_implication_id`：int 蕴含记录编号 | 读一条蕴含关系 → 单个 tag_implication 对象，字段同上；例 `client.tag_implication_show(23)` |
-| `tag_implication_delete(tag_implication_id)` | `tag_implication_id`：int 蕴含请求编号 | **写**：拒绝一条蕴含请求（需登录）→ 被更新/删除后的 tag_implication 对象；例 `client.tag_implication_delete(23)` |
-| `autocomplete_list(query, type=None, limit=None)` | `query`：str 要补全的文本，如 `'touh'`（放进 `search[query]`）；`type`：str 取 `tag`（默认）/ `tag_query` / `artist` / `wiki_page` / `user` / `pool` / `comment` / `saved_search`，不传即 `tag`；`limit`：int 最多几条，不传时服务端默认 10 | 取输入补全建议，匿名可读 → 结果数组，元素形状随 `type` 不同（`tag` 给标签名与 `post_count`）；例 `client.autocomplete_list('touh', type='tag', limit=5)` |
+| `tag_implication_delete(tag_implication_id)` | `tag_implication_id`：int 蕴含请求编号 | **写**：拒绝一条蕴含请求（需 admin）→ 被更新/删除后的 tag_implication 对象；例 `client.tag_implication_delete(23)` |
+| `autocomplete_list(query, type=None, limit=None)` | `query`：str 要补全的文本，如 `'touh'`（放进 `search[query]`）；`type`：str 取 `opensearch` / `tag_query` / `tag` / `artist` / `wiki_page` / `user` / `mention` / `emoji` / `pool` / `favorite_group` / `saved_search_label`，不传或传表外的值返回空数组（服务端不设默认）；`limit`：int 最多几条，不传时服务端默认 10 | 取输入补全建议，匿名可读 → 结果数组，元素形状随 `type` 不同（`tag` 给标签名与 `post_count`）；例 `client.autocomplete_list('touh', type='tag', limit=5)` |
 
 <a id="artists"></a>
 
 ## artists（画师与主页记录）— 18 个方法
 
-画师记录里的 `name` 是与作品上的画师标签对应的名称，**不是**外部站点的作者 ID；主页地址是独立的
-`artist_urls` 记录。`search['url_matches']` 由服务端归一化后匹配：完整 `https://` 地址会先按来源解析
-成规范主页地址，也接受 `/正则/`、含 `*` 的通配与普通子串。本组路由、凭据与参数键见
-[附注的 artists 节](danbooru-contract-notes.md#sec-artists)。
+画师记录里的 `name` 是与作品上的画师标签对应的名称，**不是**外部站点的作者 ID；主页地址是独立的 `artist_urls` 记录。`search['url_matches']` 由服务端归一化后匹配：完整 `https://` 地址会先按来源解析成规范主页地址，也接受 `/正则/`、含 `*` 的通配与普通子串。路由、凭据与参数键见[附注的 artists 节](danbooru-contract-notes.md#sec-artists)。
 
-**常用方法**
-
-**`artist_list(search=None, **params)`** — 按名称、主页 URL、是否封禁等条件搜索画师。返回 artist 数组，
-每项含 `id`、`name`、`is_banned`、`is_deleted`、`group_name`、`other_names`。
+**`artist_list(search=None, **params)`** — 按名称、主页 URL、是否封禁等条件搜索画师。返回 artist 数组，每项含 `id`、`name`、`is_banned`、`is_deleted`、`group_name`、`other_names`。
 
 ```python
 from anybooru import Danbooru
@@ -553,9 +475,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int | 每页条数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`artist_show_or_new(name=None)`** — 按名称查画师，未找到时返回新记录形态。名字已存在时服务端 `302`
-到该画师；客户端带 `Accept: application/json` 跟随重定向，拿到的仍是该画师的 JSON（已实测）。名字不
-存在时返回一个未保存的 artist 对象（`id` 为 `null`，带 `name`），可以拿它做创建前的预填。
+**`artist_show_or_new(name=None)`** — 按名称查画师，未找到时返回新记录形态。名字已存在时服务端 `302` 到该画师；客户端带 `Accept: application/json` 跟随重定向，拿到的仍是该画师的 JSON（已实测）。名字不存在时返回一个未保存的 artist 对象（`id` 为 `null`，带 `name`），可以拿它做创建前的预填。
 
 ```python
 from anybooru import Danbooru
@@ -579,7 +499,7 @@ with Danbooru('danbooru') as client:
 | `artist_show(artist_id)` | `artist_id`：int 画师编号，如 `8704`（`fuzichoco` 的编号），来自 `artist_list` 的 `id` | 读一个画师记录，匿名可读 → 单个 artist 对象，含 `id`、`name`、`is_banned`、`group_name`、`other_names`；例 `client.artist_show(8704)` |
 | `artist_create(name, **attributes)` | `name`：str 主名称，也是将来的标签名，必填；`other_names`（list）/ `other_names_string`（str）：其他名；`group_name`：str 团体名；`url_string`：str 空格分隔的主页地址；`is_deleted`：bool 建成就标记删除；`source`：str 用来预填主页地址的来源；不传的属性不发送 | **写**：创建画师（需登录）→ 写后的 artist 对象；例 `client.artist_create('fuzichoco', url_string='https://www.pixiv.net/users/27517')` |
 | `artist_update(artist_id, **attributes)` | `artist_id`：int 画师编号；属性同 `artist_create`（`other_names_string`、`group_name`、`url_string` 等） | **写**：改名称、其他名、团体与主页（需登录）→ 写后的 artist 对象；例 `client.artist_update(8704, group_name='')` |
-| `artist_delete(artist_id)` | `artist_id`：int 画师编号 | **写**：软删除画师（置 `is_deleted`，需 builder）；服务端重定向到画师页，客户端跟随；最终响应不是 JSON 会抛 `AnybooruAPIError`，重定向是否成功未实测 → 最终响应对象；例 `client.artist_delete(8704)` |
+| `artist_delete(artist_id)` | `artist_id`：int 画师编号 | **写**：软删除画师（置 `is_deleted`，未封禁会员即可）；服务端重定向到画师页，客户端跟随；最终响应不是 JSON 会抛 `AnybooruAPIError`，重定向是否成功未实测 → 最终响应对象；例 `client.artist_delete(8704)` |
 | `artist_revert(artist_id, version_id)` | `artist_id`：int 画师编号；`version_id`：int 要恢复到的版本编号，来自 `artist_versions_list` 的 `id` | **写**：恢复画师记录的指定版本（需登录）→ 写后的 artist 对象；例 `client.artist_revert(8704, version_id=158)` |
 | `artist_ban(artist_id)` | `artist_id`：int 画师编号 | **写**：封禁画师（admin）；服务端重定向到画师页，最终响应决定结果（未实测）→ 最终响应对象；例 `client.artist_ban(8704)` |
 | `artist_unban(artist_id)` | `artist_id`：int 画师编号 | **写**：解除画师封禁（admin）；重定向同上 → 最终响应对象；例 `client.artist_unban(8704)` |
@@ -595,14 +515,9 @@ with Danbooru('danbooru') as client:
 
 ## comments（评论与评论投票）— 10 个方法
 
-非 moderator 看已删除评论时，正文、投票分与作者字段会被服务端省掉，按这些字段检索也受限（只能查到
-“自己的已删评论 + 全部未删除”）。本组路由、凭据与参数键见
-[附注的 comments 节](danbooru-contract-notes.md#sec-comments)。
+非 moderator 看已删除评论时，正文、投票分与作者字段会被服务端省掉，按这些字段检索也受限（只能查到“自己的已删评论 + 全部未删除”）。路由、凭据与参数键见[附注的 comments 节](danbooru-contract-notes.md#sec-comments)。
 
-**常用方法**
-
-**`comment_list(search=None, **params)`** — 搜索或列出评论。返回 comment 数组，每项含 `id`、`post_id`、
-`creator_id`、`body`、`score`、`is_deleted`。
+**`comment_list(search=None, **params)`** — 搜索或列出评论。返回 comment 数组，每项含 `id`、`post_id`、`creator_id`、`body`、`score`、`is_deleted`。
 
 ```python
 from anybooru import Danbooru
@@ -622,8 +537,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int | 每页条数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`comment_show(comment_id)`** — 读一条评论。给评论编号，返回单个 comment 对象，字段同上；评论已删除
-且当前身份看不到时，响应会省掉 `body`、`score`、`creator_id`。
+**`comment_show(comment_id)`** — 读一条评论。给评论编号，返回单个 comment 对象，字段同上；评论已删除且当前身份看不到时，响应会省掉 `body`、`score`、`creator_id`。
 
 ```python
 from anybooru import Danbooru
@@ -656,15 +570,9 @@ with Danbooru('danbooru') as client:
 
 ## notes（图上笔记与笔记历史）— 9 个方法
 
-笔记正文是 DText；坐标单位是像素（`x` / `y` 是左上角偏移，`width` / `height` 是宽高）。创建与更新
-失败时服务端返回 `422` + `{"success": false, "reasons": [...]}`。`note_list` **没有** `creator_id` /
-`creator_name` 过滤参数，写了会被静默忽略。本组路由、凭据与参数键见
-[附注的 notes 节](danbooru-contract-notes.md#sec-notes)。
+笔记正文是 DText；坐标单位是像素（`x` / `y` 是左上角偏移，`width` / `height` 是宽高）。创建与更新失败时服务端返回 `422` + `{"success": false, "reasons": [...]}`。`note_list` **没有** `creator_id` / `creator_name` 过滤参数，写了会被静默忽略。路由、凭据与参数键见[附注的 notes 节](danbooru-contract-notes.md#sec-notes)。
 
-**常用方法**
-
-**`note_list(search=None, **params)`** — 查询图上笔记。返回 note 数组，每项含 `id`、`post_id`、`x`、
-`y`、`width`、`height`、`body`、`is_active`、`version`。
+**`note_list(search=None, **params)`** — 查询图上笔记。返回 note 数组，每项含 `id`、`post_id`、`x`、`y`、`width`、`height`、`body`、`is_active`、`version`。
 
 ```python
 from anybooru import Danbooru
@@ -683,8 +591,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int | 每页条数 | 服务端默认每页 20 | `limit=20` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`note_preview(body)`** — 给笔记的 HTML 正文，返回清理后的 `sanitized_body`，可以先看显示结果再决定是否保存。
-这个 POST 只预览、不保存；业务权限允许匿名，但本轮匿名 POST 被 CSRF 校验拒绝（403），尚未取得成功预览。
+**`note_preview(body)`** — 给笔记的 HTML 正文，返回清理后的 `sanitized_body`，可以先看显示结果再决定是否保存。这个 POST 只预览、不保存；业务权限允许匿名，但本轮匿名 POST 被 CSRF 校验拒绝（403），尚未取得成功预览。
 
 ```python
 from anybooru import Danbooru
@@ -714,14 +621,9 @@ with Danbooru('danbooru') as client:
 
 ## pools（合集）— 11 个方法
 
-`post_ids` 就是帖子编号数组；`pool_update` 传显式空数组会真的发出 `[]`（用于清空合集内容，表单编码
-丢不掉它）。合集有两个类别：`series`（系列）与 `collection`（集合）。本组路由、凭据与参数键见
-[附注的 pools 节](danbooru-contract-notes.md#sec-pools)。
+`post_ids` 就是帖子编号数组；`pool_update` 传显式空数组会真的发出 `[]`（用于清空合集内容，表单编码丢不掉它）。合集有两个类别：`series`（系列）与 `collection`（集合）。路由、凭据与参数键见[附注的 pools 节](danbooru-contract-notes.md#sec-pools)。
 
-**常用方法**
-
-**`pool_list(search=None, **params)`** — 搜索合集。返回 pool 数组，每项含 `id`、`name`、`description`、
-`category`、`is_active`、`is_deleted`、`post_ids`。
+**`pool_list(search=None, **params)`** — 搜索合集。返回 pool 数组，每项含 `id`、`name`、`description`、`category`、`is_active`、`is_deleted`、`post_ids`。
 
 ```python
 from anybooru import Danbooru
@@ -739,8 +641,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=5` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`pool_show(pool_id)`** — 读合集及其帖子编号列表。返回单个 pool 对象，`post_ids` 是整数数组，按合集
-内顺序排列，可直接拿去 `post_show` 或当 `post_list(tags='id:...')` 的输入。
+**`pool_show(pool_id)`** — 读合集及其帖子编号列表。返回单个 pool 对象，`post_ids` 是整数数组，按合集内顺序排列，可直接拿去 `post_show` 或当 `post_list(tags='id:...')` 的输入。
 
 ```python
 from anybooru import Danbooru
@@ -765,7 +666,7 @@ with Danbooru('danbooru') as client:
 | `pool_create(name, **attributes)` | `name`：str 合集名，必填；`description`：str DText 说明；`category`：`series` / `collection`；`post_ids_string`：str 空格分隔的初始帖子编号；`post_ids`：list 初始帖子编号 | **写**：创建合集（需登录）→ 写后的 pool 对象；例 `client.pool_create('东方 Project', category='series', post_ids=[12090564])` |
 | `pool_update(pool_id, **attributes)` | `pool_id`：int 合集编号；属性同 `pool_create`（`name`、`description`、`category`、`post_ids` / `post_ids_string`）；传 `post_ids=[]` 会真的发空数组，即清空合集内容 | **写**：修改说明或帖子成员（需登录）→ 写后的 pool 对象；例 `client.pool_update(12345, post_ids=[12090564, 12070768])` |
 | `pool_delete(pool_id)` | `pool_id`：int 合集编号 | **写**：软删除合集（需 builder）→ 被更新/删除后的 pool 对象，`is_deleted` 变 `true`；例 `client.pool_delete(12345)` |
-| `pool_undelete(pool_id)` | `pool_id`：int 合集编号 | **写**：恢复已删除合集（需 moderator）→ 写后的 pool 对象；例 `client.pool_undelete(12345)` |
+| `pool_undelete(pool_id)` | `pool_id`：int 合集编号 | **写**：恢复已删除合集（需 builder）→ 写后的 pool 对象；例 `client.pool_undelete(12345)` |
 | `pool_revert(pool_id, version_id)` | `pool_id`：int 合集编号；`version_id`：int 要恢复到的版本编号，来自 `pool_versions_list` 的 `id` | **写**：恢复合集的指定版本（需登录）→ 写后的 pool 对象；例 `client.pool_revert(12345, version_id=88)` |
 | `pool_gallery(search=None, **params)` | `search`：dict 搜索条件（服务端默认 `{"category": "series"}`）；`limit`：int 每页条数 | 合集画廊，匿名可读 → pool 数组，每项带一张预览帖（`post_ids` 只含预览帖）；例 `client.pool_gallery(limit=10)` |
 | `pool_element_create(post_id, pool_id=None, pool_name=None)` | `post_id`：int 要加入的帖子（顶层）；`pool_id`：int 目标合集编号；`pool_name`：str 目标合集名；`pool_id` 与 `pool_name` 二选一，都不给时未规定 | **写**：向合集加入帖子（需登录，且对该合集有更新权限）→ 加入后所属的 pool 对象；例 `client.pool_element_create(12090564, pool_id=12345)` |
@@ -774,14 +675,9 @@ with Danbooru('danbooru') as client:
 
 ## wiki（wiki 页面与历史）— 10 个方法
 
-`wiki_page_show` 的路径部分接受编号或标题（标题会被 URL 转义，所以 `'help:api'` 可以直接传）；要列表
-结果必须用 `search={'title': ...}`，顶层参数 `title=` 会被服务端 `302` 到标题搜索页。本组路由、凭据与
-参数键见 [附注的 wiki 节](danbooru-contract-notes.md#sec-wiki)。
+`wiki_page_show` 的路径部分接受编号或标题（标题会被 URL 转义，所以 `'help:api'` 可以直接传）；要列表结果必须用 `search={'title': ...}`，顶层参数 `title=` 会被服务端 `302` 到标题搜索页。路由、凭据与参数键见[附注的 wiki 节](danbooru-contract-notes.md#sec-wiki)。
 
-**常用方法**
-
-**`wiki_page_list(search=None, **params)`** — 搜索 wiki 页面。返回 wiki_page 数组，每项含 `id`、`title`、
-`body`、`is_locked`、`other_names`、`is_deleted`。
+**`wiki_page_list(search=None, **params)`** — 搜索 wiki 页面。返回 wiki_page 数组，每项含 `id`、`title`、`body`、`is_locked`、`other_names`、`is_deleted`。
 
 ```python
 from anybooru import Danbooru
@@ -800,9 +696,7 @@ with Danbooru('danbooru') as client:
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 | `title` | str | 顶层 `title=` 会被服务端 `302` 到标题搜索，不是列表过滤；要列表结果请放进 `search` | 不发送 | 别用；改用 `search={'title': 'help:api'}` |
 
-**`wiki_page_show(id_or_title)`** — 按编号或标题读 wiki 页面。给 `'help:api'` 这种标题时内部会 URL 转义
-（`:` → `%3A`）；标题不存在时服务端返回 `404`。返回单个 wiki_page 对象（`title`、`body`、`other_names`、
-`is_locked` 等）。
+**`wiki_page_show(id_or_title)`** — 按编号或标题读 wiki 页面。给 `'help:api'` 这种标题时内部会 URL 转义（`:` → `%3A`）；标题不存在时服务端返回 `404`。返回单个 wiki_page 对象（`title`、`body`、`other_names`、`is_locked` 等）。
 
 ```python
 from anybooru import Danbooru
@@ -824,7 +718,7 @@ with Danbooru('danbooru') as client:
 | :--- | :--- | :--- |
 | `wiki_page_create(title, **attributes)` | `title`：str 页面标题，必填；`body`：str DText 正文；`other_names`（list）/ `other_names_string`（str）：别名标题；`is_deleted`：bool 建成就标记删除（需 Builder）；`is_locked`：bool 锁定编辑（需 Builder） | **写**：创建页面（需登录）→ 写后的 wiki_page 对象；例 `client.wiki_page_create('help:custom', body='自定义说明')` |
 | `wiki_page_update(wiki_page_id, **attributes)` | `wiki_page_id`：int 编号或 str 标题（转义后进路径）；属性同 `wiki_page_create`，另有 `is_deleted` | **写**：改正文、其他名或删除标记（需登录）→ 写后的 wiki_page 对象；例 `client.wiki_page_update('help:api', body='<新正文>')` |
-| `wiki_page_delete(wiki_page_id)` | `wiki_page_id`：int 编号或 str 标题 | **写**：软删除并返回对象（需 builder）→ 被更新/删除后的 wiki_page 对象，`is_deleted` 为 `true`；例 `client.wiki_page_delete('help:custom')` |
+| `wiki_page_delete(wiki_page_id)` | `wiki_page_id`：int 编号或 str 标题 | **写**：软删除并返回对象（未锁定的页面未封禁会员即可，锁定页面需 builder）→ 被更新/删除后的 wiki_page 对象，`is_deleted` 为 `true`；例 `client.wiki_page_delete('help:custom')` |
 | `wiki_page_revert(wiki_page_id, version_id)` | `wiki_page_id`：int 编号或 str 标题；`version_id`：int 要恢复到的版本编号 | **写**：恢复指定版本（需登录）→ 写后的 wiki_page 对象；例 `client.wiki_page_revert('help:api', version_id=4321)` |
 | `wiki_page_show_or_new(title=None)` | `title`：str 页面标题（顶层参数）；不传时未规定（源码 docstring 未写空标题行为） | 按标题定位页面或新建入口（服务端 `302`）→ 标题已存在时跟随重定向拿到该页面对象，否则返回未保存的 wiki_page 对象；例 `client.wiki_page_show_or_new('help:api')` |
 | `wiki_page_versions_list(search=None, **params)` | `search`：dict，可筛 `wiki_page_id`、`updater_id`、`updater_name`、`title`、`title_like`、`title_ilike`、`title_regex`、`body_matches`、`other_names_include_any`、`is_locked`、`is_deleted`；`limit`：int 每页条数 | 查 wiki 修改历史 → wiki_page_version 数组，含 `id`、`wiki_page_id`、`updater_id`、`title`、`body`；例 `client.wiki_page_versions_list(search={'wiki_page_id': 1234})` |
@@ -833,15 +727,9 @@ with Danbooru('danbooru') as client:
 
 ## users（用户、用户记录与改名）— 15 个方法
 
-匿名只拿到 `id`、`created_at`、`name`、`inviter_id`、`level`、`level_string`、各类计数与
-`is_banned` / `is_deleted`；偏好设置类字段（`favorite_tags`、`blacklisted_tags`、`per_page`、`theme` 等）
-只有本人可见。注意 `search['name']` 在 User 上会被服务端改写成模糊匹配的 `name_matches`。本组路由、
-凭据与参数键见 [附注的 users 节](danbooru-contract-notes.md#sec-users)。
+匿名只拿到 `id`、`created_at`、`name`、`inviter_id`、`level`、`level_string`、各类计数与 `is_banned` / `is_deleted`；偏好设置类字段（`favorite_tags`、`blacklisted_tags`、`per_page`、`theme` 等）只有本人可见。注意 `search['name']` 在 User 上会被服务端改写成模糊匹配的 `name_matches`。路由、凭据与参数键见[附注的 users 节](danbooru-contract-notes.md#sec-users)。
 
-**常用方法**
-
-**`user_list(search=None, **params)`** — 搜索用户。返回 user 数组，字段按身份裁剪（匿名只有上面那批
-公开字段，本人多出偏好设置）。
+**`user_list(search=None, **params)`** — 搜索用户。返回 user 数组，字段按身份裁剪（匿名只有上面那批公开字段，本人多出偏好设置）。
 
 ```python
 from anybooru import Danbooru
@@ -860,8 +748,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=2` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`user_show(user_id)`** — 读用户资料。给用户编号，返回单个 user 对象；字段按身份裁剪，本人视角比
-看别人多出偏好设置（`favorite_tags`、`blacklisted_tags`、`per_page`、`theme` 等）。
+**`user_show(user_id)`** — 读用户资料。给用户编号，返回单个 user 对象；字段按身份裁剪，本人视角比看别人多出偏好设置（`favorite_tags`、`blacklisted_tags`、`per_page`、`theme` 等）。
 
 ```python
 from anybooru import Danbooru
@@ -879,8 +766,7 @@ with Danbooru('danbooru') as client:
 | `user_id` | int 用户编号 | 读哪个用户，会进 URL 路径 | 必填 | `client.user_show(270235)` |
 | `only` | str | 只返回指定字段（用 `request('GET', 'users/<id>.json', params={'only': 'id,name'})` 传） | 返回完整对象 | `request('GET', 'users/270235.json', params={'only': 'id,name'})` |
 
-**`user_profile()`** — 读当前登录用户（需登录）。不接受参数，返回当前登录的 user 对象，字段比
-`user_show` 看别人多（含偏好设置与 `favorite_count`、`statement_timeout` 等）。
+**`user_profile()`** — 读当前登录用户（需登录）。不接受参数，返回当前登录的 user 对象，字段比 `user_show` 看别人多（含偏好设置与 `favorite_count`、`statement_timeout` 等）。
 
 ```python
 from anybooru import Danbooru
@@ -915,14 +801,9 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 ## favorites（收藏与收藏组）— 10 个方法
 
-`favorite_list` 默认列自己的收藏，用顶层 `user_id` 指定看别人的；取消收藏的路径 id 就是 `post_id`
-（没有单独的收藏记录编号）。私密收藏只有本人看得到。本组路由、凭据与参数键见
-[附注的 users 节](danbooru-contract-notes.md#sec-users)。
+`favorite_list` 默认列自己的收藏，用顶层 `user_id` 指定看别人的；取消收藏的路径 id 就是 `post_id`（没有单独的收藏记录编号）。私密收藏只有本人看得到。路由、凭据与参数键见[附注的 users 节](danbooru-contract-notes.md#sec-users)。
 
-**常用方法**
-
-**`favorite_list(search=None, **params)`** — 查询收藏。返回 favorite 数组，每项含 `id`、`user_id`、
-`post_id`；`post_id` 可以继续拿去 `post_show`。
+**`favorite_list(search=None, **params)`** — 查询收藏。返回 favorite 数组，每项含 `id`、`user_id`、`post_id`；`post_id` 可以继续拿去 `post_show`。
 
 ```python
 from anybooru import Danbooru
@@ -942,8 +823,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=5` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`favorite_create(post_id)`** — 收藏一个帖子（需登录）。返回**被收藏的 post 对象**（不是 favorite
-记录）。
+**`favorite_create(post_id)`** — 收藏一个帖子（需登录）。返回**被收藏的 post 对象**（不是 favorite 记录）。
 
 ```python
 from anybooru import Danbooru
@@ -975,14 +855,9 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 ## forum（论坛主题、帖子与投票）— 18 个方法
 
-公开主题可匿名读，并按 `min_level` 过滤（等级不够的看不到）；发主题、回帖与投票需要登录，删除类
-动作需要 moderator。本组路由、凭据与参数键见
-[附注的 forum 节](danbooru-contract-notes.md#sec-forum)。
+公开主题可匿名读，并按 `min_level` 过滤（等级不够的看不到）；发主题、回帖与投票需要登录，删除类动作需要 moderator。路由、凭据与参数键见[附注的 forum 节](danbooru-contract-notes.md#sec-forum)。
 
-**常用方法**
-
-**`forum_topics_list(search=None, **params)`** — 搜索可见的论坛主题。返回 forum_topic 数组，每项含
-`id`、`creator_id`、`updater_id`、`title`、`response_count`、`is_sticky`、`is_locked`。
+**`forum_topics_list(search=None, **params)`** — 搜索可见的论坛主题。返回 forum_topic 数组，每项含 `id`、`creator_id`、`updater_id`、`title`、`response_count`、`is_sticky`、`is_locked`。
 
 ```python
 from anybooru import Danbooru
@@ -1000,8 +875,7 @@ with Danbooru('danbooru') as client:
 | `limit` | int，服务端上限 1000 | 每页条数 | 服务端默认每页 20 | `limit=5` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`forum_posts_list(search=None, **params)`** — 搜索论坛帖子。返回 forum_post 数组，每项含 `id`、
-`topic_id`、`creator_id`、`updater_id`、`body`、`is_deleted`。
+**`forum_posts_list(search=None, **params)`** — 搜索论坛帖子。返回 forum_post 数组，每项含 `id`、`topic_id`、`creator_id`、`updater_id`、`body`、`is_deleted`。
 
 ```python
 from anybooru import Danbooru
@@ -1043,13 +917,9 @@ with Danbooru('danbooru') as client:
 
 ## dmails（站内信）— 5 个方法
 
-只能看自己的站内信；**没有独立的删除方法**，删除就是 `dmail_update(dmail_id, is_deleted=True)`。
-本组路由、凭据与参数键见 [附注的 dmails 节](danbooru-contract-notes.md#sec-dmails)。
+只能看自己的站内信；**没有独立的删除方法**，删除就是 `dmail_update(dmail_id, is_deleted=True)`。路由、凭据与参数键见[附注的 dmails 节](danbooru-contract-notes.md#sec-dmails)。
 
-**常用方法**
-
-**`dmail_list(search=None, **params)`** — 查询自己的站内信（需登录）。返回 dmail 数组，每项含 `id`、
-`owner_id`、`from_id`、`to_id`、`title`、`is_read`、`is_deleted`。
+**`dmail_list(search=None, **params)`** — 查询自己的站内信（需登录）。返回 dmail 数组，每项含 `id`、`owner_id`、`from_id`、`to_id`、`title`、`is_read`、`is_deleted`。
 
 ```python
 from anybooru import Danbooru
@@ -1067,8 +937,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `limit` | int | 每页条数 | 服务端默认每页 20 | `limit=10` |
 | `page` | int 或 ID 游标 | 页码 | 第一页 | `page=2` |
 
-**`dmail_create(title, body, to_name=None, to_id=None)`** — 发送站内信（需登录）。收件人用 `to_name`
-（用户名）或 `to_id`（用户编号）指定；返回写后的 dmail 对象。
+**`dmail_create(title, body, to_name=None, to_id=None)`** — 发送站内信（需登录）。收件人用 `to_name`（用户名）或 `to_id`（用户编号）指定；返回写后的 dmail 对象。
 
 ```python
 from anybooru import Danbooru
@@ -1099,15 +968,9 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 ## bans 与 bulk update requests（封禁与批量标签变更）— 11 个方法
 
-批量变更请求（BUR）是申请别名（`alias a -> b`）、蕴含（`imply a -> b`）与批量改标签的正规入口；
-`bulk_update_request_delete` 的语义是**拒绝**该请求（不是删除记录），批准要 approver。本组路由、凭据与
-参数键见 [附注的 审核节](danbooru-contract-notes.md#sec-bans)。
+批量变更请求（BUR）是申请别名（`alias a -> b`）、蕴含（`imply a -> b`）与批量改标签的正规入口；`bulk_update_request_delete` 的语义是**拒绝**该请求（不是删除记录），批准要 approver。路由、凭据与参数键见[附注的审核节](danbooru-contract-notes.md#sec-bans)。
 
-**常用方法**
-
-**`bulk_update_request_create(script, **attributes)`** — 提交批量标签变更请求（需登录）。`script` 是
-BUR 脚本，别名写 `alias foo -> bar`、蕴含写 `imply foo -> bar`；返回写后的 bulk_update_request 对象，
-`status` 初始为 `pending`。
+**`bulk_update_request_create(script, **attributes)`** — 提交批量标签变更请求（需登录）。`script` 是 BUR 脚本，别名写 `alias foo -> bar`、蕴含写 `imply foo -> bar`；返回写后的 bulk_update_request 对象，`status` 初始为 `pending`。
 
 ```python
 from anybooru import Danbooru
@@ -1140,17 +1003,13 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `bulk_update_request_show(request_id)` | `request_id`：int 请求编号，来自列表的 `id` | 读一个批量变更请求，匿名可读 → 单个 bulk_update_request 对象，字段同上；例 `client.bulk_update_request_show(4567)` |
 | `bulk_update_request_update(request_id, **attributes)` | `request_id`：int 请求编号；`script`：str 新脚本；`forum_topic_id` / `forum_post_id`：int（需要该主题的更新权限） | **写**：改脚本或关联话题（需登录，本人）→ 写后的 bulk_update_request 对象；例 `client.bulk_update_request_update(4567, script='alias foo -> baz')` |
 | `bulk_update_request_approve(request_id)` | `request_id`：int 请求编号 | **写**：批准（需 approver）→ 写后的 bulk_update_request 对象，`status` 变 `approved`；例 `client.bulk_update_request_approve(4567)` |
-| `bulk_update_request_delete(request_id)` | `request_id`：int 请求编号 | **写**：语义是**拒绝**该请求（需登录，本人或 moderator）→ 被更新/删除后的 bulk_update_request 对象，`status` 变 `rejected`；例 `client.bulk_update_request_delete(4567)` |
+| `bulk_update_request_delete(request_id)` | `request_id`：int 请求编号 | **写**：语义是**拒绝**该请求（需登录，本人或 admin，且请求仍是 `pending`；已批准或已拒绝的改不了）→ 被更新/删除后的 bulk_update_request 对象，`status` 变 `rejected`；例 `client.bulk_update_request_delete(4567)` |
 
 ## IP、审核日志、队列与举报（13 个方法）
 
-审核队列返回的是**帖子列表**（不是队列记录）；举报要求登录且对象类型可举报；处理状态只有 moderator
-能改。本组路由、凭据与参数键见 [附注的 审核节](danbooru-contract-notes.md#sec-moderation)。
+审核队列返回的是**帖子列表**（不是队列记录）；举报要求登录且对象类型可举报；处理状态只有 moderator 能改。路由、凭据与参数键见[附注的审核节](danbooru-contract-notes.md#sec-moderation)。
 
-**常用方法**
-
-**`modqueue_list(search=None, **params)`** — 读取待审核帖子队列（要求 approver 权限）。返回**post
-数组**，可以直接用 `post_show` 的字段集处理；服务端默认 `search[order]=modqueue`，`limit` 钳到 200。
+**`modqueue_list(search=None, **params)`** — 读取待审核帖子队列（要求 approver 权限）。返回**post 数组**，可以直接用 `post_show` 的字段集处理；服务端默认 `search[order]=modqueue`，`limit` 钳到 200。
 
 ```python
 from anybooru import Danbooru
@@ -1168,11 +1027,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `mode` | str，默认 `'gallery'` | 返回模式（顶层参数） | `'gallery'` | `client.modqueue_list(mode='gallery')` |
 | `limit` | int，服务端钳到 `0..200` | 每页条数 | 服务端默认每页数 | `limit=20` |
 
-**`moderation_report_create(**attributes)`** — 举报评论、论坛帖子或站内信（需登录）。`model_type` 只接受
-`'Comment'`、`'ForumPost'`、`'Dmail'`（模型 `ModerationReport::MODEL_TYPES`；客户端 docstring 写的
-`Post` / `User` 在本版源码里**不是**可举报类型，带上会被校验拒绝），且被举报对象的 `reportable?` 还要
-通过（例如不能举报自己的评论、不能举报 moderator 的内容、只能是最近一年内的）。返回写后的
-moderation_report 对象，`status` 初始为 `pending`。
+**`moderation_report_create(**attributes)`** — 举报评论、论坛帖子或站内信（需登录）。`model_type` 只接受 `'Comment'`、`'ForumPost'`、`'Dmail'`（模型 `ModerationReport::MODEL_TYPES`；客户端 docstring 写的 `Post` / `User` 在本版源码里**不是**可举报类型，带上会被校验拒绝），且被举报对象的 `reportable?` 还要通过（例如不能举报自己的评论、不能举报 moderator 的内容、只能是最近一年内的）。返回写后的 moderation_report 对象，`status` 初始为 `pending`。
 
 ```python
 from anybooru import Danbooru
@@ -1198,7 +1053,7 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | 方法 | 参数：类型 / 取值 / 含义 / 不传时 | 给什么 → 返回什么 |
 | :--- | :--- | :--- |
 | `mod_actions_list(search=None, **params)` | `search`：dict，可筛 `id`、`category`、`description_matches`、`creator_id`、`creator_name`、`subject_type`、`subject_id`、`order`（`created_at_asc`）；`limit`：int 每页条数 | 查管理操作日志，匿名可读（非 moderator 的结果里会滤掉敏感类目）→ mod_action 数组，含 `id`、`creator_id`、`description`、`category`、`subject_type`；例 `client.mod_actions_list(limit=10)` |
-| `mod_action_show(mod_action_id)` | `mod_action_id`：int 记录编号 | 读一条管理操作日志（需 janitor）→ 单个 mod_action 对象，字段同上；例 `client.mod_action_show(7654321)` |
+| `mod_action_show(mod_action_id)` | `mod_action_id`：int 记录编号 | 读一条管理操作日志（敏感类目需 moderator，其余类目任何身份可读）→ 单个 mod_action 对象，字段同上；例 `client.mod_action_show(7654321)` |
 | `ip_bans_list(search=None, **params)` | `search`：dict，可筛 `id`、`ip_addr`、`reason_matches`、`category`（`warning` / `block`）、`is_deleted`、`hit_count`、`last_hit_at`、`creator_id`、`creator_name`、`order`（`created_at` / `updated_at` / `last_hit_at` 及 `_asc`）；`limit`：int 每页条数 | 查 IP 封禁（需 moderator+；docstring 未写前提，两处口径见[附注矛盾项](danbooru-contract-notes.md#矛盾易错点与客户端取舍)）→ ip_ban 数组，含 `id`、`creator_id`、`ip_addr`、`reason`、`category`、`is_deleted`；例 `client.ip_bans_list(search={'category': 'block'})` |
 | `ip_ban_show(ip_ban_id)` | `ip_ban_id`：int IP 封禁编号 | 读一条 IP 封禁（需 moderator+，同上口径）→ 单个 ip_ban 对象，字段同上；例 `client.ip_ban_show(42)` |
 | `ip_ban_create(**attributes)` | `ip_addr`：str IP 或网段，如 `'203.0.113.0/24'`；`reason`：str 理由；`category`：str 取 `warning` / `block`；`is_deleted`：bool | **写**：创建 IP 封禁（需 moderator+）→ 写后的 ip_ban 对象；例 `client.ip_ban_create(ip_addr='203.0.113.7', reason='刷屏', category='block')` |
@@ -1211,13 +1066,9 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 
 ## 公告、保存的搜索、站点凭据与反应（18 个方法）
 
-公告与站点凭据是 admin 面；保存的搜索与反应属于已登录用户自己的数据。本组路由、凭据与参数键见
-[附注的 运维节](danbooru-contract-notes.md#sec-moderation)。
+公告与站点凭据是 admin 面；保存的搜索与反应属于已登录用户自己的数据。路由、凭据与参数键见[附注的运维节](danbooru-contract-notes.md#sec-moderation)。
 
-**常用方法**
-
-**`saved_search_create(**attributes)`** — 保存一个搜索查询（需登录）。给查询串与显示标签，返回写后的
-saved_search 对象；之后在站点的保存搜索列表里能看到这条（`labels` 字段是标签数组）。
+**`saved_search_create(**attributes)`** — 保存一个搜索查询（需登录）。给查询串与显示标签，返回写后的 saved_search 对象；之后在站点的保存搜索列表里能看到这条（`labels` 字段是标签数组）。
 
 ```python
 from anybooru import Danbooru
@@ -1253,22 +1104,16 @@ with Danbooru('danbooru', username='me', api_key='my-key') as client:
 | `site_credential_create(site, **attributes)` | `site`：str 站点名，如 `'pixiv'`；`credential`：dict，键随站点而定（如 `login`、`password`）；`is_enabled`：bool | **写**：添加外部站点凭据（需 admin）→ 写后的 site_credential 对象；例 `client.site_credential_create('pixiv', credential={'login': 'me', 'password': '...'})` |
 | `site_credential_update(site_credential_id, **attributes)` | `site_credential_id`：int 凭据编号；`is_enabled`：bool | **写**：改启用状态（需 admin 或本人）→ 写后的 site_credential 对象；例 `client.site_credential_update(3, is_enabled=False)` |
 | `site_credential_delete(site_credential_id)` | `site_credential_id`：int 凭据编号 | **写**：删除站点凭据（公开项需 owner，私有项需本人）→ 被更新/删除后的 site_credential 对象；例 `client.site_credential_delete(3)` |
-| `reactions_list(search=None, **params)` | `search`：dict，可筛 `model_type`、`model_id`、`creator_id`、`reaction_id`；`limit`：int 每页条数 | 查反应记录，可见范围受限 → reaction 数组，含 `id`、`creator_id`、`reaction_id`、`model_type`、`model_id`；例 `client.reactions_list(search={'model_type': 'Post', 'model_id': 12090564})` |
-| `reaction_show(reaction_id)` | `reaction_id`：int 反应记录编号 | 读一条反应，可见范围受限 → 单个 reaction 对象，字段同上；例 `client.reaction_show(99)` |
-| `reaction_create(**attributes)` | `model_type`：str，模型允许 `Post` / `Comment` / `ForumPost` / `User` / `Tag` / `Pool`（docstring 只列了前三种）；`model_id`：int 对象编号；`reaction_id`：str 反应名，取值来自站点的 `reactions` 配置，包内默认配置是空字典（即未规定有哪些），给未配置的名字会被校验拒绝 | **写**：为帖子、评论或论坛帖子添加反应（需登录）→ 写后的 reaction 对象；例 `client.reaction_create(model_type='Post', model_id=12090564, reaction_id='heart')` |
-| `reaction_delete(reaction_id)` | `reaction_id`：int 反应记录编号 | **写**：撤回反应（需登录）→ 被更新/删除后的 reaction 对象；例 `client.reaction_delete(99)` |
+| `reactions_list(search=None, **params)` | `search`：dict，可筛 `model_type`、`model_id`、`creator_id`、`reaction_id`；`limit`：int 每页条数 | 查反应记录，当前上游源码允许匿名读取、不按身份筛选记录（本轮未实测）→ reaction 数组，含 `id`、`creator_id`、`reaction_id`、`model_type`、`model_id`；例 `client.reactions_list(search={'model_type': 'Post', 'model_id': 12090564})` |
+| `reaction_show(reaction_id)` | `reaction_id`：int 反应记录编号 | 读一条反应，当前上游源码允许匿名读取（本轮未实测）→ 单个 reaction 对象，字段同上；例 `client.reaction_show(99)` |
+| `reaction_create(**attributes)` | `model_type`：str，模型允许 `Post` / `Comment` / `ForumPost` / `User` / `Tag` / `Pool`（docstring 只列了前三种）；`model_id`：int 对象编号；`reaction_id`：str 反应名，取值来自站点的 `reactions` 配置，包内默认配置是空字典（即未规定有哪些），给未配置的名字会被校验拒绝 | **写**：为帖子、评论或论坛帖子添加反应——当前所核对的上游源码里 `ReactionPolicy#create?` 恒为 `false`，任何身份都会被拒（本轮未实测）→ 写后的 reaction 对象；例 `client.reaction_create(model_type='Post', model_id=12090564, reaction_id='heart')` |
+| `reaction_delete(reaction_id)` | `reaction_id`：int 反应记录编号 | **写**：撤回反应——当前所核对的上游源码里 `ReactionPolicy#destroy?` 恒为 `false`，任何身份都会被拒（本轮未实测）→ 被更新/删除后的 reaction 对象；例 `client.reaction_delete(99)` |
 
 ## 报表、后台任务与杂项（11 个方法）
 
-`counts_posts` 默认走估算与缓存（要精确计数或绕过缓存得显式传参）；`source_show`、`iqdb_query` 依赖
-站点的来源解析与 IQDB 服务，**方法存在不代表每个站点都启用**。本组路由、凭据与参数键见
-[附注的 杂项节](danbooru-contract-notes.md#sec-misc)。
+`counts_posts` 默认走估算与缓存（要精确计数或绕过缓存得显式传参）；`source_show`、`iqdb_query` 依赖站点的来源解析与 IQDB 服务，**方法存在不代表每个站点都启用**。路由、凭据与参数键见[附注的杂项节](danbooru-contract-notes.md#sec-misc)。
 
-**常用方法**
-
-**`counts_posts(tags=None, estimate_count=None, skip_cache=None)`** — 统计标签查询匹配的帖子数。返回
-`{"counts": {"posts": <int>}}`；默认用估算值并走缓存，要精确计数传 `estimate_count=False`，要绕过缓存
-传 `skip_cache=True`。
+**`counts_posts(tags=None, estimate_count=None, skip_cache=None)`** — 统计标签查询匹配的帖子数。返回 `{"counts": {"posts": <int>}}`；默认用估算值并走缓存，要精确计数传 `estimate_count=False`，要绕过缓存传 `skip_cache=True`。
 
 ```python
 from anybooru import Danbooru
@@ -1286,9 +1131,7 @@ with Danbooru('danbooru') as client:
 | `estimate_count` | bool | 用快速估算代替精确计数 | 服务端默认估算（`true`） | `estimate_count=False` |
 | `skip_cache` | bool | 绕过计数缓存 | 服务端默认用缓存 | `skip_cache=True` |
 
-**`source_show(url, ref=None, mode=None)`** — 请求站点解析来源 URL。给一个作品页或画师页地址，站点用
-自己的来源规则解析出规范信息（画师、作品编号等）；返回解析出的来源数据对象，字段随站点配置与来源
-类型而定。
+**`source_show(url, ref=None, mode=None)`** — 请求站点解析来源 URL。给一个作品页或画师页地址，站点用自己的来源规则解析出规范信息（画师、作品编号等）；返回解析出的来源数据对象，字段随站点配置与来源类型而定。
 
 ```python
 from anybooru import Danbooru
@@ -1306,8 +1149,7 @@ with Danbooru('danbooru') as client:
 | `ref` | str，referer 地址 | 给需要 referer 的来源站点用 | 不发送 | `ref='https://www.pixiv.net/'` |
 | `mode` | str，`'card'`（默认）或 `'post'` | 展示模式 | `'card'` | `mode='post'` |
 
-**`iqdb_query(**params)`** — 通过站点的 IQDB 服务查相似图。给图片地址、预计算的 hash、帖子编号或媒体
-资源编号之一；返回匹配结果数组，每项含 `score`、`post` 等。**站点未配置 IQDB 时返回空数组**（不是报错）。
+**`iqdb_query(**params)`** — 通过站点的 IQDB 服务查相似图。给图片地址、预计算的 hash、帖子编号或媒体资源编号之一；返回匹配结果数组，每项含 `score`、`post` 等。**站点未配置 IQDB 时返回空数组**（不是报错）。
 
 ```python
 from anybooru import Danbooru
@@ -1333,10 +1175,10 @@ with Danbooru('danbooru') as client:
 | :--- | :--- | :--- |
 | `report_show(report, search=None, **params)` | `report`：str，取 `posts`、`post_approvals`、`post_appeals`、`post_flags`、`post_replacements`、`post_votes`、`media_assets`、`pools`、`comments`、`comment_votes`、`forum_posts`、`bulk_update_requests`、`tag_aliases`、`tag_implications`、`artist_versions`、`artist_commentary_versions`、`note_versions`、`wiki_page_versions`、`mod_actions`、`bans`、`users` 之一（共 21 个，取自控制器的名字表）；`search`：dict，可筛 `period`、`from`、`to`、`columns`、`group`、`group_limit`、`mode` 与该模型自己的搜索参数；`mode` 不传时为 `chart`，`from`/`to` 不传时分别是「一个月前」与「现在」，`columns` 用空白或逗号分隔，`group_limit` 不传时为 10 | 查统计报表，匿名可读 → 报表对象，列与分组由 `columns`、`group` 决定；例 `client.report_show('posts', search={'group': 'rating'})` |
 | `jobs_list(search=None, **params)` | `search`：dict，可筛 `id`、`active_job_id`、`job_class`、`queue_name`、`labels`、`priority`、`status`、`name`（按 job class 模糊匹配）；`limit`：int 每页条数 | 查后台任务，匿名可读；非 admin 看不到 `serialized_params` → background_job 数组，含 `id`、`job_class`、`queue_name`、`status`、`active_job_id` 与 `runtime_latency` / `queue_latency`；例 `client.jobs_list(limit=10)` |
-| `job_cancel(job_id)` | `job_id`：str，任务的 ActiveJob id（响应里的 `active_job_id`） | **写**：取消任务（需 janitor）→ 写后的 background_job 对象；例 `client.job_cancel('a1b2c3d4-...')` |
-| `job_retry(job_id)` | `job_id`：str ActiveJob id | **写**：重试任务（需 janitor）→ 写后的 background_job 对象；例 `client.job_retry('a1b2c3d4-...')` |
-| `job_run(job_id)` | `job_id`：str ActiveJob id | **写**：立即运行任务（需 janitor）→ 写后的 background_job 对象；例 `client.job_run('a1b2c3d4-...')` |
-| `job_delete(job_id)` | `job_id`：str ActiveJob id | **写**：删除任务（需 janitor）→ 被更新/删除后的 background_job 对象；例 `client.job_delete('a1b2c3d4-...')` |
+| `job_cancel(job_id)` | `job_id`：str，任务的 ActiveJob id（响应里的 `active_job_id`） | **写**：取消任务（需 admin）→ 写后的 background_job 对象；例 `client.job_cancel('a1b2c3d4-...')` |
+| `job_retry(job_id)` | `job_id`：str ActiveJob id | **写**：重试任务（需 admin）→ 写后的 background_job 对象；例 `client.job_retry('a1b2c3d4-...')` |
+| `job_run(job_id)` | `job_id`：str ActiveJob id | **写**：立即运行任务（需 admin）→ 写后的 background_job 对象；例 `client.job_run('a1b2c3d4-...')` |
+| `job_delete(job_id)` | `job_id`：str ActiveJob id | **写**：删除任务（需 admin）→ 被更新/删除后的 background_job 对象；例 `client.job_delete('a1b2c3d4-...')` |
 | `dtext_links_list(search=None, **params)` | `search`：dict，可筛 `link_type`、`link_target`、`model_type`、`model_id`、`linked_wiki_id`、`linked_tag_id`；`limit`：int 每页条数 | 查正文里的 DText 链接关系，匿名可读 → dtext_link 数组，含 `id`、`model_type`、`model_id`、`link_type`、`link_target`；例 `client.dtext_links_list(search={'model_type': 'Post', 'model_id': 12090564})` |
 | `recommended_posts_list(search=None, **params)` | `search`：dict，原样发给站点的推荐服务，典型是 `{'user_id': ...}` 或 `{'post_id': ...}`；`limit`：int，服务端上限 200 | 向站点推荐服务查询，匿名可读（依赖站点配置）→ post 数组，含 `id`、`up_score`、`down_score`、`score`、`source`；例 `client.recommended_posts_list(search={'post_id': 12090564}, limit=10)` |
 
@@ -1358,35 +1200,18 @@ with Danbooru('danbooru') as client:
 
 ## 边界与未实测
 
-本节集中说明本家族的实测状态与不可用分支，主干条目里不再逐段插入免责声明。
+`rating:g order:score` 的两组查询返回 500（`ActiveRecord::QueryCanceled`，数据库查询超时），`note_preview` 返回 403（`ActionController::InvalidAuthenticityToken`），这些不是成功响应。用户搜索 `fuzichoco` 返回 200 空列表，旧示例据此访问首项时越界；上面的示例已改为直接显示列表，修改后未重跑。
 
-`rating:g order:score` 的两组查询返回 500（`ActiveRecord::QueryCanceled`，数据库查询超时），`note_preview` 返回 403（`ActionController::InvalidAuthenticityToken`），这些不是成功响应。
-用户搜索 `fuzichoco` 返回 200 空列表，旧示例据此访问首项时越界；上面的示例已改为直接显示列表，修改后未重跑。
-
-**已实测（匿名只读，2026-09-15，`danbooru.donmai.us`，无凭据）**：15 次请求中 12 次 `200`，
-3 次为预期失败（`404` 不存在的帖子、`410` 页码超限、`422` 标签数超限），另外单独验证了重定向端点
-`artist_show_or_new`（`302` → JSON）。覆盖的方法：`post_list`（含 `tags` 搜索与 `page=b<id>` 游标）、
-`post_show`、`tag_list`、`artist_list`（URL 匹配、布尔过滤、`order`、`any_name_matches`）、
-`artist_show_or_new`、`related_tag`、`wiki_page_list`、`wiki_page_show`、`comment_list`、`pool_list`。
-逐条记录见 [verification.md](verification.md)。
+**已实测（匿名只读，2026-09-15，`danbooru.donmai.us`，无凭据）**：15 次请求中 12 次 `200`，3 次为预期失败（`404` 不存在的帖子、`410` 页码超限、`422` 标签数超限），另外单独验证了重定向端点 `artist_show_or_new`（`302` → JSON）。覆盖的方法：`post_list`（含 `tags` 搜索与 `page=b<id>` 游标）、`post_show`、`tag_list`、`artist_list`（URL 匹配、布尔过滤、`order`、`any_name_matches`）、`artist_show_or_new`、`related_tag`、`wiki_page_list`、`wiki_page_show`、`comment_list`、`pool_list`。逐条记录见 [verification.md](verification.md)。
 
 **源码对齐但未实测**：其余 217 个方法没有线上成功记录。
 
-* **写接口**：`post_create`、`post_update`、`post_delete`、投票、收藏、评论、笔记、合集编辑、审核动作、
-  站内信、批量变更请求、公告、后台任务等全部未执行——本仓库不带凭据，也没有为这些方法发过写请求。
-* **上传与媒体链路**：`upload_create`（multipart）与 `post_replacement_create`（`replacement_file`）只有
-  源码依据，上传归属与压缩包展开行为未验证。
+* **写接口**：`post_create`、`post_update`、`post_delete`、投票、收藏、评论、笔记、合集编辑、审核动作、站内信、批量变更请求、公告、后台任务等全部未执行——本仓库不带凭据，也没有为这些方法发过写请求。
+* **上传与媒体链路**：`upload_create`（multipart）与 `post_replacement_create`（`replacement_file`）只有源码依据，上传归属与压缩包展开行为未验证。
 * **高权限与重新认证**：`api_keys_*`、`site_credentials_*`、`ip_*`、`jobs_*`、公告类动作未验证。
-* **重定向类写操作**：`artist_delete` / `artist_ban` / `artist_unban` / `forum_topics_mark_all_as_read` /
-  `wiki_page_show_or_new` 在服务端是 `redirect_to`；只有 `artist_show_or_new` 的跟随重定向实测过，写类
-  重定向未实测，因此不断言成功或失败——最终响应不是 JSON 时会抛 `AnybooruAPIError`，用
-  `last_call['status_code']` 与 `last_call['url']` 判断实际结果。
-* **能力依赖**：archive 未配置时 `post_versions_list` / `pool_versions_list` 返回 `501`；IQDB 未配置时
-  `iqdb_query` 返回空数组（与 archive 的 `501` 是不同分支）；推荐服务依赖站点配置，未验证成功路径。
-* 同族站点另有独立只读探测（Safebooru 匿名可用且是 Danbooru）；候选站复核访问过 `/users.json`、
-  `/autocomplete.json` 等读路径，不能把上面的早期覆盖清单当作全量当前状态。
-* 未列出的路由只有源码依据；「已实测」只覆盖当时那次调用用到的参数组合，换参数、换身份、换站点都不算
-  已验证。完整路由、参数与上游出处见 [契约审计附注](danbooru-contract-notes.md)。
+* **重定向类写操作**：`artist_delete` / `artist_ban` / `artist_unban` / `forum_topics_mark_all_as_read` / `wiki_page_show_or_new` 在服务端是 `redirect_to`；只有 `artist_show_or_new` 的跟随重定向实测过，写类重定向未实测，因此不断言成功或失败——最终响应不是 JSON 时会抛 `AnybooruAPIError`，用 `last_call['status_code']` 与 `last_call['url']` 判断实际结果。
+* **能力依赖**：archive 未配置时 `post_versions_list` / `pool_versions_list` 返回 `501`；IQDB 未配置时 `iqdb_query` 返回空数组（与 archive 的 `501` 是不同分支）；推荐服务依赖站点配置，未验证成功路径。
+* 同族站点另有独立只读探测（Safebooru 匿名可用且是 Danbooru）；候选站复核访问过 `/users.json`、`/autocomplete.json` 等读路径，不能把上面的早期覆盖清单当作全量当前状态。
+* 未列出的路由只有源码依据；「已实测」只覆盖当时那次调用用到的参数组合，换参数、换身份、换站点都不算已验证。完整路由、参数与上游出处见[契约审计附注](danbooru-contract-notes.md)。
 
 本次文档重排没有新增网络请求。
-
