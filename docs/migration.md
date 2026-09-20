@@ -18,9 +18,11 @@ Cosine（Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + M
 `page` / `pageSize` / `limit` / `offset` / `start`。`artwork_revalidate` 与 `search_index_admin` 本轮都未执行，
 公开结论以匿名只读响应为准，依据与矛盾见 [Cosine 契约审计附注](cosine-contract-notes.md)。
 ArtStation（公开作品集站点 `artstation.com`，配置条目只有 `url`）本轮未取得官方 API 文档页、
-OpenAPI 或服务端源码：接入 15 个原生方法，全部是 `GET`（14 个返回 JSON + `feed()` 返回 `artwork.rss`
-原文），覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索与可搜索字段、专辑、频道与其作品、
-作品评论、探索最新与订阅源。本类没有凭据字段、原生写方法或指定作品详情方法——固定详情
+OpenAPI 或服务端源码：接入 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，16 个返回 JSON + `feed()` 返回
+`artwork.rss` 原文），覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索（`project_search` 与
+只读的 `project_search_post`）与可搜索字段、专辑、频道与其作品、作品评论、探索最新、订阅源，以及取公开
+CSRF token 的 `csrf_token()`。两个 POST 都不是内容写入：token 由调用方取回后每次传入，本库不自动获取、
+不续期、不重放、不重试、不落盘。本类没有凭据字段、内容写入方法或指定作品详情方法——固定详情
 `/projects/{hash}.json` 实测被站点质询挡下（`403`）、v2 单作品 `/api/v2/community/projects/{id}.json`
 匿名 `401`；依据只有匿名只读响应，样本之外的取值仍是候选，见
 [ArtStation 契约审计附注](artstation-contract-notes.md)。
@@ -337,9 +339,15 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
   本轮真实执行过的是匿名只读探测；10 次上限的冒烟与两个示例的结果同样列在
   [验证记录](verification.md#cosine匿名只读实测2026-09-20)；两个 POST（`artwork_revalidate`、`search_index_admin`）
   从未调用，成功与拒绝形态都未实测。样本之外的参数取值仍是候选，不构成返回值承诺。
-* ArtStation 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 15 个原生方法（全部是 GET，14 个 JSON +
-  1 个 RSS 原文）接入，本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例。固定作品详情
-  `/projects/{hash}.json` 实测 `403`（站点质询，HTML）、v2 单作品 `/api/v2/community/projects/{id}.json`
-  匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，也没有自动回退到随机或搜索；排序只实测过
-  `relevance`、订阅源只实测过 `latest`，其余排序取值与频道/专辑/探索的分页边界仍是候选，不构成返回值承诺。
+* ArtStation 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，
+  16 个返回 JSON + 1 个 RSS 原文）接入，`GET` 面本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例；
+  两条只读 POST 方法（`csrf_token` 与 `project_search_post`）随后单独跟进，其记录与本批 `GET` 结果分开标注
+  （POST 侧的实际尝试与结果见[验证记录](verification.md)），不复用也不改写前面的数字：跟到的样本是 token
+  请求 `200` + `application/json`（正文顶层只有 `public_csrf_token`，会话 Cookie 由会话自然保存），搜索请求
+  `200` + `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳 `{"total_count","data"}`；
+  缺 token、过期 token、其它 `filters` 形状与 `412` 一类边界仍未实测。固定作品详情
+  `/projects/{hash}.json` 实测 `403`（站点质询，HTML）、v2 单作品
+  `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，
+  也没有自动回退到随机或搜索；排序只实测过 `relevance`、订阅源只实测过 `latest`，POST 表单里 `filters` 的
+  嵌套形状同样按候选处理，其余排序取值与频道/专辑/探索的分页边界也不构成返回值承诺。
   逐条见 [ArtStation 契约审计附注](artstation-contract-notes.md) 与[验证记录](verification.md)。
