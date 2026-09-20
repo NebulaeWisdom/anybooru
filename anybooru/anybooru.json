@@ -200,6 +200,8 @@
       "pages": [1, 2],
       "list_query": {"per_page": 2},
       "search_query": {"query": "", "per_page": 3, "sorting": "relevance", "filters": "[{\"field\":\"title\",\"method\":\"contain\",\"value\":\"dragon\"}]"},
+      "csrf_request": {"create_csrf_token_request": "true"},
+      "post_search_query": {"query": "cat", "page": 1, "per_page": 3, "sorting": "relevance", "additional_fields": ["assets", "description"]},
       "username": "timwarnock",
       "album_id": 104104,
       "album_query": {"page": 1, "per_page": 4},
