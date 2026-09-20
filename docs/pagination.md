@@ -10,7 +10,7 @@ Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `
 Anime-Pictures 的帖子列表用 **0 起步**的 `page` / `posts_per_page`，标签、用户与评论列表用 `limit` / `offset`。
 Cosine 的 `image_list` / `artist_list` 用 `page`（1 起）/ `pageSize`，`search` 用 `limit` / `offset`，
 `tag_images` 用 `start` / `limit`。
-ArtStation 的列表路由用 `page`（1 起）/ `per_page`，且对这几个参数的取值有硬性检查（见下）。
+ArtStation 的列表路由（含只读的 POST 搜索）用 `page`（1 起）/ `per_page`，且对这几个参数的取值有硬性检查（见下）。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
@@ -451,11 +451,13 @@ with Cosine('cosine') as client:
 ArtStation 的列表路由用 `page`（页码，实测从 `1` 开始——搜索上 `page=0` 直接回 `400`
 「page should be a positive integer」）与 `per_page`（每页条数），两个参数都原样转发，客户端不补默认值、
 不裁剪、不自动翻页。收这一对参数的有 `project_list` / `user_projects` / `user_following` / `project_search` /
-`album_projects` / `channel_projects` / `explore_latest`（`project_comments` 的分页参数本轮没有实测）；
+`project_search_post` / `album_projects` / `channel_projects` / `explore_latest`（`project_comments` 的分页参数
+本轮没有实测）；`project_search_post` 与 `project_search` 名下的参数一样，只是走表单体（见下）；
 `random_project` / `user_show` / `user_quick` / `user_profile` / `search_filter_fields` 是单对象或全量列表，
 没有分页参数；`feed(sorting='latest')` 的 RSS 也没有页码，本轮只试过 `sorting='latest'` 这一个取值。
 
-**服务端对取值是硬性检查，越界直接 `400`、不夹到范围内**。本轮实测（全部匿名请求）：
+**服务端对取值是硬性检查，越界直接 `400`、不夹到范围内**。下表**全是 `GET` 路由**的实测（全部匿名请求），
+`POST` 搜索的边界另见本节末：
 
 | 路由 | 输入 | 实测 |
 | :--- | :--- | :--- |
@@ -484,7 +486,7 @@ ArtStation 的列表路由用 `page`（页码，实测从 `1` 开始——搜索
 
 其余边界未测：`per_page` 1 与 50 之间、3 与 75 之间没有细分，用户作品在第 2 页与第 9999 页之间没有细分，
 `channel_projects` 的 `page` 取值、`user_following` 的深页、非数字的 `page` / `per_page` 都没有样本。
-逐条 URL 与响应正文见[验证记录](verification.md)。
+逐条 URL 与响应正文见[验证记录](verification.md#artstation匿名只读实测2026-09-20)。
 
 ```python
 from anybooru import ArtStation
@@ -521,8 +523,21 @@ with ArtStation('artstation') as client:
 `explore_latest` 的正文**只有 `data`**（本轮 `per_page=10` 收 10 条），没有 `total_count`，所以拿不到总数、
 也不能按总数反推末页；`channel_list()` 不吃参数、一次给全部 64 个频道，同一个频道的作品才用
 `channel_projects(channel_id=70, page=1, per_page=5)`（本轮 5 条，`total_count` 10000）。所有路由的推进方式都是
-手动把 `page` 加 1；客户端没有游标参数，也不会替你换算 `total_count`。参数细节见[方法参考](artstation-api.md)，
-错误形态见[错误处理](errors.md#artstation)。
+手动把 `page` 加 1；客户端没有游标参数，也不会替你换算 `total_count`。
+
+**`POST` 搜索（`project_search_post`）**用同一组参数名（`query` / `page` / `per_page` / `sorting` /
+`additional_fields` 等），但走**表单体**并带 `PUBLIC-CSRF-TOKEN` 请求头。本轮实测表单体是
+`query=cat&page=1&per_page=3&sorting=relevance&additional_fields[]=assets&additional_fields[]=description`
+（数组编码成重复的 `additional_fields[]`），回 `200` 与 `{"total_count": 118783, "data": […3 条…]}`；
+条目比 GET 搜索多两个字段：`description`（正文文本）与 `assets`（资产数组，首条 6 个资产，每个资产有
+`id` / `title` / `asset_type` / `width` / `height` / `position` / `viewport_constraint_type` /
+`small_image_url` / `large_image_url` / `has_image` / `has_embedded_player`）。同一个 `additional_fields`
+用 GET 查询串送时，样本里的条目仍是原来那 9 个字段——**要 `description` / `assets` 就走 `POST`**，
+但它加的是搜索结果里选定条目的这两个字段，不是按编号取任意作品。
+
+`GET` 的 `per_page` 区间**不要搬到 `POST`**：POST 只试过 `per_page=3` 这一个取值，
+`filters` 与其它嵌套表单形态、缺 token / token 失效等分支都没有样本（只能算候选）。
+参数细节见[方法参考](artstation-api.md)，错误形态见[错误处理](errors.md#artstation)。
 
 ## 相关文档
 
