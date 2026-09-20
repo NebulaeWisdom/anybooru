@@ -4,8 +4,11 @@
 作品在站点里叫 project，标识同时有数字 `id` 与短码 `hash_id`
 （两者用途不同，见[编号：`id` 与 `hash_id`](#编号id-与-hash_id)）。
 
-本类一共 **15 个原生方法，全部是匿名只读 `GET`**：**14 个返回 JSON**，`feed()` 返回 **RSS 原文**（字符串）。
-**没有凭据字段、原生写方法或媒体下载方法**，构造函数不读取账号配置。
+本类一共 **17 个原生方法**：**15 个匿名只读 `GET`**（**14 个返回 JSON**，`feed()` 返回 **RSS 原文**字符串）
+加 **2 个 `POST`**——准备匿名 CSRF 令牌的 `csrf_token()` 与只读搜索 `project_search_post()`。
+两个 `POST` **不是内容写入**：一个只取会话令牌，一个只读搜索结果；
+站点里发作品、改资料、评论、收藏、关注、上传、删除这类**内容与账号写操作一个都没有包装**。
+**没有凭据字段、没有媒体下载方法**，构造函数不读取账号配置。
 覆盖范围是**公开作品集资源与 RSS 订阅源**——全站作品流、搜索、用户与作品集、社区（相册 / 频道 /
 评论 / 探索）加一个订阅源；**不是 ArtStation 的完整封装**：站点的打印、市集、学习、招聘、博客、
 公告、词典、合集等路由与站点页面 HTML 都不在这里，也没有对应的包装方法。
@@ -13,15 +16,18 @@
 [客户端用法](artstation.md)；「我要做什么 → 用哪个方法」见[能力入口](artstation-capabilities.md)；
 依据出处、排除项与候选输入的错误见[契约附注](artstation-contract-notes.md)。
 
-本页的公开结论来自**本轮 37 次匿名只读 `GET`**（31 次路由与边界 + 6 次取值边界补充；串行、
-相邻至少 1.3 秒、各发一次、不重试、不跟随跳转、不下载媒体），真实请求记录见
-[验证记录](verification.md#artstation匿名只读实测2026-09-20)。37 个响应的状态分布是
+本页的公开结论来自**本轮 37 次直接匿名只读 `GET`**（31 次路由与边界 + 6 次取值边界补充；串行、
+相邻至少 1.3 秒、各发一次、不重试、不跟随跳转、不下载媒体；冒烟与示例脚本自己发起的调用另按脚本统计），
+真实请求记录见
+[验证记录](verification.md#artstation匿名只读实测2026-09-20)。这 37 个响应的状态分布是
 `200`×25、`400`×9、`401`×1、`403`×1、`404`×1；格式分布是 `application/json`×28、
-`application/rss+xml`×1、`text/html`×4、`text/plain`×4。样本里的 `total_count`、作品编号、频道编号
+`application/rss+xml`×1、`text/html`×4、`text/plain`×4。**两个 `POST` 另有单独一组匿名样本
+（CSRF 令牌与只读搜索）**，观测值单列在[匿名 CSRF 令牌与只读搜索 POST](#匿名-csrf-令牌与只读搜索-post)，
+不并入上面的 GET 统计。样本里的 `total_count`、作品编号、频道编号
 都只是那次请求的读数，**不保证稳定**；以下字段清单描述选定样本，不是字段全集或必填 schema。
 
-接入时收到的候选输入资料只用来选请求，**只有下面的 L 证据算契约**：文中每个参数、字段、边界
-要么有 L 支持，要么当场标成"未实测"。
+接入时收到的候选输入资料只用来选请求，**算契约的只有下面的 L 与 P 证据**：文中每个参数、字段、边界
+要么有 L 或 P 支持，要么当场标成"未实测"。
 
 ## 方法索引
 
@@ -42,15 +48,18 @@
 | [`project_comments`](#project_comments) | `GET` | `/api/v2/community/projects/{project_id}/comments.json` | `{"data": […], "total_count": N}` | 本轮为空 |
 | [`explore_latest`](#explore_latest) | `GET` | `/api/v2/community/explore/projects/latest.json` | `{"data": […]}`（**没有** `total_count`） | 10 |
 | [`feed`](#feedrss-订阅源) | `GET` | `/artwork.rss` | **XML 文本**（字符串） | RSS 2.0，50 个 `<item>` |
+| [`csrf_token`](#匿名-csrf-令牌与只读搜索-post) | `POST` | `/api/v2/csrf_protection/token.json` | 裸对象（唯一键 `public_csrf_token`，str，本轮 88 字符） | 1 |
+| [`project_search_post`](#匿名-csrf-令牌与只读搜索-post) | `POST` | `/api/v2/search/projects.json` | `{"data": […], "total_count": N}` | 11（搜索 9 键 + `assets` + `description`） |
 
-另有通用入口 [`request()`](#通用入口-request)，用来打 15 条路由之外的路径（例如两条固定作品详情）。
+另有通用入口 [`request()`](#通用入口-request)，用于调用17个原生方法之外的路径或动词。
 
 ## 依据标注与阅读方式
 
 | 标记 | 来源 | 能说明什么 |
 | :--- | :--- | :--- |
-| **L** | 本轮 37 次完整直接 HTTP 观察，另引用前期缺 per_page 的匿名 400；随后脚本另计 | 路由的状态码、Content-Type、形状、字段与部分边界；**不等于 15 个 Python 方法都执行过** |
-| **未实测** | 候选输入资料声称、本轮没有请求或没有复现 | 参数缺省值、枚举全集、上限、认证成功路径、写入与 POST、媒体规则；**不作为契约** |
+| **L** | 本轮 37 次完整直接 HTTP 观察，另引用前期缺 per_page 的匿名 400；随后脚本另计 | 路由的状态码、Content-Type、形状、字段与部分边界；**不等于每个 Python 方法都执行过** |
+| **P** | 另一组匿名 `POST` 样本（CSRF 令牌与只读搜索；同样串行、不下载媒体） | 只有这两条 `POST` 的状态码、Content-Type、外层与字段；**账户写操作、令牌续期与其它 `POST` 不在其中** |
+| **未实测** | 候选输入资料声称、本轮没有请求或没有复现 | 参数缺省值、枚举全集、上限、账号认证成功路径、账户写入、媒体规则；**不作为契约** |
 
 * **本轮没有取到官方契约文本**：`/openapi.json` 返回的是站点自己的 `200 text/html` 兜底页，
   不是 OpenAPI 文档，也没有可读到的官方 API 文档页或服务端源码。这只说明**本轮的依据只有匿名响应**，
@@ -62,23 +71,28 @@
 ## 通用约定
 
 * **基地址**：`https://www.artstation.com`，来自包内配置 `sites.artstation.url`。
-  15 条路由都拼在它后面；路径里可以带前导 `/`，客户端会先 `lstrip('/')` 再拼接。
-* **方法**：15 个原生方法全部发 `GET`。查询参数放查询串；只有用户名与评论所属的作品编号各作为一个
-  路径段（见下一条），`album_id` / `channel_id` 仍是查询参数。
+  原生方法的路径都拼在它后面；路径可以带前导 `/`，客户端先去掉它再拼接。
+* **方法**：15 个原生方法发 `GET`（查询参数放查询串），2 个 `POST` 发 JSON 正文或表单正文
+  （见[匿名 CSRF 令牌与只读搜索 POST](#匿名-csrf-令牌与只读搜索-post)）。
+  只有用户名与评论所属的作品编号各作为一个路径段（见下一条），`album_id` / `channel_id` 仍是查询参数。
 * **认证**：`sites.artstation` 只有一个 `url` 字段，构造函数**没有凭据参数**，共享传输层的
-  `username` 传空串。15 条路由本轮全部匿名拿到响应，客户端不自动生成认证头，也不做登录。
+  `username` 传空串。15 条 GET 路由本轮全部匿名拿到响应，客户端不自动生成认证头，也不做登录。
+  POST搜索显式使用PUBLIC-CSRF-TOKEN头，它的值由调用方传参
+  （客户端既不去取、也不缓存、不续期），见
+  [匿名 CSRF 令牌与只读搜索 POST](#匿名-csrf-令牌与只读搜索-post)。
   401/403 的样本见[固定作品详情路径](#固定作品详情路径403401与没有-project_show)。
-* **参数编码**：`params` 走共享的 Rails 风格编码——`None` 值不发送、布尔写成小写 `true`/`false`、
-  嵌套字典写成 `key[child]`、序列写成重复的 `key[]` 键。库**不做本地校验、不钳位、不补默认值、
-  不猜上限**；没写进下面参数表的参数名也会原样进查询串，站点拒绝什么就报什么。
+* **参数编码**：`params`（查询串）与 `form`（表单正文）都走共享的 Rails 风格编码——`None` 值不发送、
+  布尔写成小写 `true`/`false`、嵌套字典写成 `key[child]`、序列写成重复的 `key[]` 键。
+  库**不做本地校验、不钳位、不补默认值、不猜上限**；没写进下面参数表的参数名也会原样进查询串或正文，
+  站点拒绝什么就报什么。`data` 是 JSON 正文，不走这套编码。
 * **路径标识符**：只有**用户名**（三条用户资料、用户作品、关注）与**评论所属作品编号**是路径段，
   按 `quote(str(value), safe='')` 逐段编码后拼进路径；库不校验合法性，服务端怎么回就怎么抛。
   `album_id` 与 `channel_id` 不是路径段，它们是**查询参数**（`album_projects` / `channel_projects`
   内部把它们并进 `params` 一起走查询编码）。
-* **返回**：JSON 原样返回，**不拆外层、不改字段名、不转换类型**。`response_format='json'`（14 个 JSON
-  方法固定用它）走共享 JSON 通路解析；`'xml'` / `'html'` 只把 `response.text` 原样给你（`feed()` 用
-  `'xml'`）；其它取值直接抛 `KeyError`，**客户端不看 Content-Type 嗅探格式**。在 JSON 通路中，
-  2xx 空正文返回 `None`，2xx 非空但不是 JSON 则抛 `AnybooruAPIError`；文本通路仍返回字符串。
+* **返回**：JSON 原样返回，**不拆外层、不改字段名、不转换类型**。`response_format='json'`（16 个 JSON
+  方法固定用它：14 个 GET 加 2 个 POST）走共享 JSON 通路解析；`'xml'` / `'html'` 只把 `response.text`
+  原样给你（`feed()` 用 `'xml'`）；其它取值直接抛 `KeyError`，**客户端不看 Content-Type 嗅探格式**。
+  在 JSON 通路中，2xx 空正文返回 `None`，2xx 非空但不是 JSON 则抛 `AnybooruAPIError`；文本通路仍返回字符串。
 * **错误**：非 2xx 抛 `AnybooruHTTPError`，带 `http_code` / `url` / `body` / `data` 与 `response`；
   正文是合法 JSON 时 `data` 是解析结果，正文为空或不是 JSON 时 `data` 为 `None`。库**不重试、
   不降级、不自动换路、不把错误正文补成正常结构**。
@@ -88,16 +102,20 @@
 
 ## 通用入口 request()
 
-签名：`request(method, path, *, params=None, data=None, headers=None, response_format='json')`
+签名：`request(method, path, *, params=None, data=None, form=None, headers=None, response_format='json')`
 
 | 参数 | 取值、含义 | 不传时怎样 | 字面示例 |
 | :--- | :--- | :--- | :--- |
-| `method` | HTTP 动词字符串，如 `'GET'` | 必填（Python 报缺参） | `client.request('GET', '/projects.json')` |
+| `method` | HTTP 动词字符串，如 `'GET'` / `'POST'` | 必填（Python 报缺参） | `client.request('GET', '/projects.json')` |
 | `path` | 站点相对路径；前导 `/` 会被去掉后拼在站点根后 | 必填 | `client.request('GET', '/api/v2/community/channels/channels.json')` |
 | `params` | 查询参数字典，经共享编码后拼进查询串 | `None`，不发查询参数 | `client.request('GET', '/projects.json', params={'page': 1, 'per_page': 1})` |
-| `data` | JSON 正文，原样作为 requests 的 `json` 发送 | `None`，不发请求体 | 原生 GET 不需要正文；其它方法的正文契约未实测 |
-| `headers` | 本次请求的额外请求头字典，原样发送 | `None`，只带客户端默认头 | `client.request('GET', '/projects.json', headers={'Accept-Language': 'zh-CN'})` |
+| `data` | JSON 正文，原样作为 requests 的 `json` 发送 | `None`，不发 JSON 正文 | `client.request('POST', '/api/v2/csrf_protection/token.json', data={'create_csrf_token_request': 'true'})` |
+| `form` | 表单正文：经共享的 `encode_params` 编码后作为请求体发送（Rails 风格，序列写成重复 `key[]`） | `None`，不发表单正文 | `client.request('POST', '/api/v2/search/projects.json', form={'query': 'cat', 'page': 1, 'per_page': 3})` |
+| `headers` | 本次请求的额外请求头字典，原样发送 | `None`，只带客户端默认头 | `client.request('POST', '/api/v2/search/projects.json', headers={'PUBLIC-CSRF-TOKEN': '…'})` |
 | `response_format` | `'json'`（默认）、`'xml'`、`'html'`；后两者返回 `response.text` 原文 | `'json'` | `client.request('GET', '/artwork.rss', response_format='xml')` |
+
+`form` 与 `data` 是**两条不同的正文通路**，调用方按方法选一条：`csrf_token()` 用 `data`（JSON），
+`project_search_post()` 用 `form`（表单）。两者都不传时不发正文；客户端不校验正文形状、不互相兜底。
 
 `last_call['API']` 是去掉前导 `/` 后的路径原文（`'projects.json'`、`'artwork.rss'` …）。
 
@@ -283,8 +301,8 @@ with ArtStation('artstation') as client:
 `id`（`95733`）、`title`、`user_id`、`created_at` / `updated_at`、`position`（`-1`）、
 `community_projects_count`、`total_projects`、`website_projects_count`、`public_projects_count`、
 `profile_visibility`、`website_visibility`、`album_type`（`"all_projects"`）。
-**这不是"相册编号"接口的取值来源**：`album_projects()` 要的 `album_id` 是另一个数（本轮样本 `104104`），
-两者不是同一个东西。
+候选输入把albums_with_community_projects[].id作为专辑编号来源；本轮timwarnock响应为95733，
+专辑成功样本另选104104。没有请求95733的专辑列表，不从两个样本编号不同推断它们是不同编号体系。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -532,6 +550,98 @@ with ArtStation('artstation') as client:
     print([opt['id'] for opt in asset_types['select_options']])
 ```
 
+## 匿名 CSRF 令牌与只读搜索 POST
+
+15个GET之外还有2个POST。它们不写入作品或账号：一个向站点索取匿名CSRF令牌，
+另一个是同一搜索接口的 `POST` 形式、结果只读。改数据、改关系、改账号的请求本类一个都没有包装。
+
+两条路由要**配成一对**用：先 `csrf_token()` 取令牌——响应会带会话 Cookie，共享的 requests 会话
+按常规自动保存它；再在**同一个 `ArtStation` 实例**上调用 `project_search_post(token, ...)`，
+客户端把令牌原样放进请求头 `PUBLIC-CSRF-TOKEN`。客户端**不会**自己去取令牌、不会缓存、不会续期、
+不会重试、不会伪造 Cookie，也不会替你调用搜索——两步都由调用方显式发起。
+
+### csrf_token
+
+签名：`csrf_token(**attributes)`。路由：`POST /api/v2/csrf_protection/token.json`。
+正文是 **JSON**：`attributes` 原样作为 JSON 对象发送（内部走 `request(..., data=attributes)`）。
+
+| 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
+| :--- | :--- | :--- | :--- | :--- |
+| `create_csrf_token_request` | 字符串 `'true'` | 让站点生成一个公开 CSRF 令牌；本轮只用过这一个键 | 不传就不发这个键；省略时是否仍发令牌**未实测** | `client.csrf_token(create_csrf_token_request='true')` |
+
+**返回**：`200 application/json; charset=utf-8`，**裸对象，本轮只有唯一一个键**：
+`public_csrf_token`（str，本轮88字符，值不复述；有效期与可复用次数未测）。令牌响应同时下发
+`Set-Cookie`（本轮记录到的 Cookie 名字是 `PRIVATE-CSRF-TOKEN` 与 Cloudflare 的 `__cf_bm`），
+由共享 requests 会话按常规保存。客户端**不把令牌存成实例属性**、不写磁盘、不重试：它只出现在这次
+调用的返回值里，要留着自己留。
+
+### project_search_post
+
+签名：`project_search_post(public_csrf_token, **params)`。路由：`POST /api/v2/search/projects.json`。
+正文是**表单**（`application/x-www-form-urlencoded`，`params` 经共享 `encode_params` 编码后走
+`request(..., form=params)`）；请求头 `PUBLIC-CSRF-TOKEN` 的值就是第一个参数 `public_csrf_token` 的**原值**
+（不由客户端生成、修改或补齐）。
+
+| 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
+| :--- | :--- | :--- | :--- | :--- |
+| `public_csrf_token` | `str`，`csrf_token()` 响应里的 `public_csrf_token` 原值 | 放进 `PUBLIC-CSRF-TOKEN` 请求头的令牌；**必填位置参数**，且要与取令牌时**同一个 `ArtStation` 实例**（Cookie 配对） | Python 报缺参 | `client.project_search_post(token, query='cat', page=1, per_page=3, sorting='relevance')` |
+| `query` | `str` 关键词，与 GET 搜索同名 | 搜索词 | 未实测 | 同上 |
+| `page` | `int`，本轮1成功；其它边界未测 | 第几页 | 未实测 | 同上 |
+| `per_page` | `int`，本轮3成功；POST上下限未测，不沿用GET的3..75结论 | 每页条数 | 未实测 | 同上 |
+| `sorting` | `str`，本轮只跑过 `'relevance'` | 排序方式 | 未实测 | 同上 |
+| `pro_first` | 候选（GET 侧未测） | 输入称是否优先展示 Pro 会员作品 | 未规定，未实测 | `client.project_search_post(token, query='cat', page=1, per_page=3, pro_first='1')`（未实测） |
+| `filters` | 候选对象数组，form编码为filters[][field/method/value]，本轮POST未实测 | 结构化条件 | 未规定，未实测 | `filters=[{'field':'title','method':'contain','value':'dragon'}]`（未实测） |
+| `additional_fields` | 序列，本轮用 `['assets', 'description']` | 让结果项追加这两个字段 | POST 不传它的样本**未测**；GET 搜索不带它时结果项是 9 键 | `client.project_search_post(token, query='cat', page=1, per_page=3, sorting='relevance', additional_fields=['assets', 'description'])` |
+
+**返回**：`200 application/json; charset=utf-8`，外层与 GET 搜索**同形**：`{"total_count": N, "data": [...]}`
+（本轮样本 `total_count` 为 `118783`）。带 `additional_fields=['assets', 'description']` 时每个结果项是
+**11 个键**：GET 搜索的 9 键（`id`、`hash_id`、`url`、`smaller_square_cover_url`、`hide_as_adult`、
+`is_adult_content`、`title`、`icons`、`user`）再加这两个字段——
+
+* `description`：**字符串**（本轮样本是带 `<p>` 的 HTML 片段，不是纯文本）。
+* `assets`：数组；图片资产样本有11键：id/title/asset_type/width/height/position/
+  viewport_constraint_type/small_image_url/large_image_url/has_image/has_embedded_player。
+  video/video_clip项另有player_embedded/oembed，不能把11键当所有类型的全集。
+  三个结果分别有6/11/17个资产；地址只是字符串，本库不下载。
+
+本轮命中的三个作品编号与同名 GET 搜索一致（`10122141`、`17985153`、`3049628`）。
+**不带 `additional_fields` 的 POST 样本未测**；GET 搜索不带它时结果项是 9 键（见
+[project_search](#project_search) 的字段表），`additional_fields` 的**其它取值**也没有样本。
+
+### 两步调用（同一个客户端）
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:
+    token_body = client.csrf_token(create_csrf_token_request='true')
+    # POST https://www.artstation.com/api/v2/csrf_protection/token.json
+    # 请求 Content-Type application/json，正文 {"create_csrf_token_request": "true"}
+    # P：200 application/json; charset=utf-8，{"public_csrf_token":"<公开token>"}（样本88字符）
+    token = token_body['public_csrf_token']
+
+    result = client.project_search_post(
+        token, query='cat', page=1, per_page=3, sorting='relevance',
+        additional_fields=['assets', 'description'])
+    # POST https://www.artstation.com/api/v2/search/projects.json
+    # 请求 Content-Type application/x-www-form-urlencoded，正文
+    #   query=cat&page=1&per_page=3&sorting=relevance&additional_fields%5B%5D=assets&additional_fields%5B%5D=description
+    # 请求头 PUBLIC-CSRF-TOKEN 就是上面 token 的原值；同一个实例，会话 Cookie 来自上一步
+    # P：200 application/json; charset=utf-8，{"total_count": 118783, "data": [ …3 项… ]}
+    print(result['total_count'])
+    for item in result['data']:
+        print(item['id'], item['title'], len(item['assets']), len(item['description']))
+        # 10122141 Cat Cat Cat 6 89
+        # 17985153 YT ver.cat 11 …
+        # 3049628  Lion anatomy 17 …
+    print(result['data'][0]['assets'][0]['asset_type'],
+          result['data'][0]['assets'][0]['large_image_url'])
+```
+
+`additional_fields` 只对**选定的搜索结果**追加字段，不是"按编号取任意作品"的通用入口：
+相册（`album_projects`）与随机（`project_random`）本来就有各自的 `assets`；
+这条 `POST` 给的是搜索命中的作品外加 `assets` / `description`，**不是唯一的资产入口**。
+
 ## album_projects
 
 签名：`album_projects(album_id, **params)`。路由：`GET /api/v2/community/projects/by_album.json`。
@@ -734,6 +844,8 @@ with ArtStation('artstation') as client:
 | 裸作品对象 | `project_random` | 直接 `body['id']` / `body['assets']`，没有 `data` 键 |
 | 裸用户对象 | `user_show`、`user_quick`、`user_profile` | 直接 `body['id']`，三份对象键集不同（70 / 59 / 63） |
 | 裸数组 | `search_filter_fields` | `body` 就是 12 项字段清单 |
+| `{"data": [...], "total_count": N}`（与 GET 搜索同形） | `project_search_post` | 同上；带 `additional_fields` 时每个结果项会加宽 |
+| 裸对象（本轮仅public_csrf_token） | `csrf_token` | 返回公开token字符串；有效期与复用次数未测 |
 | XML 字符串 | `feed` | `body` 是 RSS 原文，要自己解析 |
 
 上表的 `{"data": …, "total_count": …}` 里**两个键的先后顺序只是样本细节**：站点有的路由先给
@@ -752,12 +864,16 @@ with ArtStation('artstation') as client:
 | `album_projects` | 13 | 有 `album_id`、`album_title`、`position` 与**自带的 `assets`**；无 `user` / `views_count` / `likes_count` / `icons` |
 | `channel_list` | 24 | 是频道对象，不是作品 |
 | `search_filter_fields` | 2（`select_multiple` 为 3） | `{name, type}`，可能多一个 `select_options` |
+| `project_search_post` | 11 | GET 搜索的 9 键再加 `assets`（数组，元素 11 键）与 `description`（HTML 字符串）；只在带 `additional_fields` 的样本里观测到 |
 
 封面与资产也不是一套结构：`project_list` / `user_projects` 的 `cover` 是 4 键
 （`id`、`small_square_url`、`micro_square_image_url`、`thumb_url`）；`project_random` 的 `cover` 是 11 键
 （`thumb_url`、`medium_image_url`、`large_image_url`、`*_square_*`、四个 `crop_*`）；
 `album_projects` 的 `cover` 是 7 键（含 `small_image_url` / `large_image_url`，没有 `crop_*`）。
-`project_random` 的 `assets[]` 是 21 键，`album_projects` 的 `assets[]` 是 8 键。
+`project_random` 的 `assets[]` 是 21 键，`album_projects` 的 `assets[]` 是 8 键，
+`project_search_post` 的 `assets[]` 是 11 键（`id`、`title`、`asset_type`、`width`、`height`、`position`、
+`viewport_constraint_type`、`small_image_url`、`large_image_url`、`has_image`、`has_embedded_player`）——
+三套都只是字符串地址，本库不下载、不改写。
 
 ## 筛选字符串：`filters` 必须是 JSON 字符串
 
@@ -801,6 +917,8 @@ with ArtStation('artstation') as client:
 一个筛选元素本轮的形状是 `{"field": ..., "method": ..., "value": ...}`（`field=title`、`method=contain`、
 `value=dragon` 有效）。**还有哪些 `field` / `method` / `value` 组合可用没有系统测过**；
 `search_filter_fields()` 给的是字段名与可选值清单，不能当成"所有组合都成立"的证明。
+以上都针对 GET 的 `project_search`；[`project_search_post`](#匿名-csrf-令牌与只读搜索-post) 把 `params`
+编成**表单正文**，**`filters` 在表单编码下的形态本轮没有样本**。
 
 ## 编号：`id` 与 `hash_id`
 
@@ -875,21 +993,28 @@ with ArtStation('artstation') as client:
   这些点之间的精确上下限**没有二分**；`user_projects` / `user_following` / `channel_projects` /
   `project_comments` 的每页条数上限**完全没测**。客户端**不钳位**，越界一律由站点报错。
 * **排序与筛选枚举未实测**：`sorting` 只跑过搜索的 `'relevance'` 与 RSS 的 `'latest'`；
-  `pro_first` 未测；GET additional_fields 有一次200，结果未追加 assets/description，POST 分支未测；
+  `pro_first` 未测；GET additional_fields 有一次200，结果未追加 assets/description，POST 侧另见下节；
   频道 `sorting` / `dimension`、`project_comments` 的 `page` / `per_page`、
   `user_projects` 的 `album_id` **一次都没有测过**；`filters` 只测过 `title` + `contain` + `dragon` 一组。
-* **认证与写入**：全部 POST/PUT/PATCH/DELETE、登录、CSRF、任何带凭据的成功路径
-  **都没有测过**；无凭据的 `401` / `403` 也不能证明站点用的是哪种认证。
+* **账号与内容写入未测**：登录、发 / 改 / 删作品、评论、收藏、关注、上传、admin，以及任何带账号凭据的
+  请求**一个都没有测过**。本轮新增的 `POST` 只有这两条路由（CSRF 令牌与只读搜索），它们不改数据；
+  其未测项见下一条与[匿名 CSRF 令牌与只读搜索 POST](#匿名-csrf-令牌与只读搜索-post)。
+  无凭据的 `401` / `403` 也不能证明站点用的是哪种认证。
+* **`POST` 侧未测**：令牌的省略参数行为、有效期、复用 / 续期 / 失效、同一令牌跨实例或跨进程的表现，
+  缺令牌 / 过期令牌 / 被拒（例如 `412` 之类）的响应，其它 `POST` 路由，`filters` 在表单编码下的形态，
+  `POST` 搜索自己的 `page` / `per_page` 边界，以及 `additional_fields` 的其它取值，**都没有单独样本**。
 * **两条固定详情路径**只有 `403` 挑战页与 `401 {"data": null}` 两个样本，
   它们的成功结构、其它固定详情写法、匿名受限内容**都没有样本**。
 * **未知路径没有穷举**：只有 `/openapi.json` 与一条随便编的路径返回 `200 text/html` 兜底页；
   "所有未知路径都 200"与"所有 `/api/v2/**` 都不被挑战"都**没有证据**。
 * **随机详情样本有限**：直接观察一条，冒烟与示例另各一条，tags 都是空数组；直接样本 original_url 为 null。
   随机分布、tags 元素形态与 assets 的稳定键集未验证，不能称均匀随机或任意字段恒有。
-* **列表项的键集只是当时的快照**：21 / 19 / 13 / 10 / 9 / 30 / 24 这些数字不保证恒定；
-  `tag_list` 本轮全是 `null`，非空内容未测；`total_count` 都是当天读数
+* **列表项的键集只是当时的快照**：21 / 19 / 13 / 10 / 11 / 9 / 30 / 24 这些数字不保证恒定
+  （`11` 是带 `additional_fields` 的 `POST` 搜索项）；`tag_list` 本轮全是 `null`，非空内容未测；
+  `total_count` 都是当天读数
   （全局 `14522955`、搜索 `cat` `118784`、过滤 `dragon` `111156`、关注 `409`、用户作品 `40`、
-  频道 `10000`、频道数 `64`、相册 `49`），**不保证稳定，也不代表站点上限**。
+  频道 `10000`、频道数 `64`、相册 `49`、`POST` 搜索 `118783`），**不保证稳定，也不代表站点上限**；
+  同名 GET 与 POST 搜索的 `118784` / `118783` 是两次不同请求的读数，不要当成同一个常量。
 * **评论非空结构未测**：直接观察与浏览示例都只有 `{"total_count":0,"data":[]}`，
   所以本文不写评论字段名。
 * **用户对象的三份差异没有定论**：70 / 59 / 63 键只是样本；三条路由为什么在
