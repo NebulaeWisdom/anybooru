@@ -4,7 +4,7 @@
 作品有数字 `id` 和短码 `hash_id`：例如作品 `22900098` 的短码是 `1LxzVq`，网页地址为
 `https://www.artstation.com/artwork/1LxzVq`；评论路径用数字 ID，两者不能互换。
 
-本类有 **15 个原生 GET：14 个 JSON 读取与 1 个 RSS 读取**，没有凭据字段、登录或原生写方法。
+本类有 **17 个原生方法：15 GET + 2 POST，16 个 JSON 响应与 1 个 RSS 响应**；不登录、不发布或修改内容。
 完整方法与参数只放在 [方法参考](artstation-api.md)，按任务查 [能力入口](artstation-capabilities.md)。
 
 ## 三行上手
@@ -120,19 +120,55 @@ with ArtStation('artstation') as client:
 `https://www.artstation.com/artwork.rss?sorting=latest`（200 `application/rss+xml; charset=utf-8`）。
 随机样本各次不同；RSS 本轮为 RSS 2.0、50 个 item。本库不解析 RSS、不访问其中链接。
 
+## 为搜索结果取 assets 与 description
+
+GET 搜索本轮即使传 `additional_fields` 也没有追加这两个字段。改用显式 POST 两步：
+先取匿名 CSRF，再把响应里的公开 token 交给同一客户端的 form 搜索。
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:
+    csrf = client.csrf_token(create_csrf_token_request='true')
+    projects = client.project_search_post(
+        csrf['public_csrf_token'], query='cat', page=1, per_page=3,
+        sorting='relevance', additional_fields=['assets', 'description'])
+    for project in projects['data']:
+        print(project['id'], len(project['assets']), project['description'])
+        for asset in project['assets']:
+            print(asset['id'], asset['width'], asset['height'], asset['large_image_url'])
+```
+
+第一步 `POST https://www.artstation.com/api/v2/csrf_protection/token.json` 发 JSON
+`{"create_csrf_token_request":"true"}`；本轮200，返回 `{"public_csrf_token":"…"}`，
+并设置配对的 `PRIVATE-CSRF-TOKEN` Cookie。第二步
+`POST https://www.artstation.com/api/v2/search/projects.json` 发 form-urlencoded，
+序列被编码为 `additional_fields[]=assets&additional_fields[]=description`，请求头为
+`PUBLIC-CSRF-TOKEN`。本轮200，三个项目都追加了 `assets` 数组与 `description` 字符串，
+项目 `10122141/17985153/3049628` 分别有 `6/11/17` 个资产。
+
+**必须使用同一客户端会话**保留服务端自然设置的 Cookie；公开 token 由调用者显式传递。
+构造、GET 搜索和 POST 搜索都不会自动取 token、刷新、重放或持久化凭据；两个新方法各发一次请求。
+这里没有账号登录，也没有内容写入。专辑和随机接口本来就能给资产；POST 的增量是为主动选择的
+搜索结果补充资产与描述，不是按任意 ID 精确取详情，也不能称全站“唯一资产入口”。
+
+包内 `examples.artstation.csrf_request/post_search_query` 提供对应参数；两个现有示例与10GET冒烟
+仍保持不变，不会自动执行这两条 POST。其它 POST 参数组合、token失效与错误分支集中列为未实测。
+
 ## 通用入口 `request()`
 
 ```python
-request(method, path, *, params=None, data=None, headers=None,
-        response_format='json')
+request(method, path, *, params=None, data=None, form=None,
+        headers=None, response_format='json')
 ```
 
 | 参数 | 含义 | 不传时 | 示例 |
 | :--- | :--- | :--- | :--- |
-| `method` | HTTP 动词，显式发送；原生方法都是 GET | 必填 | `'GET'` |
+| `method` | HTTP 动词；15个原生GET，CSRF与form搜索为POST | 必填 | `'GET'` 或 `'POST'` |
 | `path` | 相对配置基址的路径；去掉前导 `/`，不自动补 `.json` | 必填 | `'projects.json'` |
 | `params` | 查询字典，走共享 Rails 编码 | 不加查询参数 | `{'page': 1, 'per_page': 2}` |
-| `data` | JSON 正文，值原样发送，包括内部 `None` | 不发 JSON 正文 | 原生读取不需要正文；非 GET 未实测 |
+| `data` | JSON 正文，值原样发送，包括内部 None | 不发 JSON 正文 | `{'create_csrf_token_request': 'true'}` |
+| `form` | 表单字典，共享编码器生成 application/x-www-form-urlencoded；与data二选一 | 不发表单 | `{'query':'cat','page':1,'per_page':3,'additional_fields':['assets','description']}` |
 | `headers` | 本次请求头字典，合并到会话默认头 | 默认 Accept 为 application/json | `{'Accept': 'application/rss+xml'}` |
 | `response_format` | `json` 解析完整 JSON；`xml/html` 返回 `.text` 原文 | `json` | `'html'` |
 
@@ -153,7 +189,7 @@ with ArtStation('artstation') as client:
 
 查询值为 `None` 时省略；布尔编码为小写 `true/false`；字典/序列使用 `key[child]` / 重复 `key[]`。
 原生路径中的用户名、评论作品 ID 逐段百分号编码；`album_id/channel_id` 是查询参数，不是路径段。
-`filters` 的 JSON 字符串由调用者准备，客户端不特殊处理它。
+GET搜索的 `filters` JSON字符串由调用者准备；POST表单中的嵌套列表走共享Rails编码，过滤组合仍未实测。
 默认保留 requests 的重定向行为；仓库冒烟与示例明确关闭重定向，避免把一次调用变成隐含多次请求。
 
 ## last_call 与错误
@@ -204,7 +240,7 @@ python -X utf8 test/artstation.py --config my-anybooru.json
 
 - 两条指定作品样本 `/projects/G1ew2N.json` 和 `/api/v2/community/projects/22897630.json` 分别为
   403 HTML 挑战与 401 `{"data":null}`，没有 `project_show`；随机/搜索/专辑不是失败后的自动备用路径。
-- POST 搜索、CSRF、所有写请求与凭据成功未测；不根据 401 猜认证方式，不解挑战。
+- CSRF与POST搜索已有一次完整匿名成功样本；token失效/缺失、POST filters与其它参数组合、所有内容写入和账号认证成功仍未测。
 - 只有少量分页、`sorting=relevance`、`title contain dragon` 与 RSS `latest` 样本；缺省值、其它排序、
   过滤组合、全部每页上限与精确末页未穷举。非空评论、随机分布和非空 tags 元素类型也未测。
 - 未取得官方 API 规范或服务端源码，不把输入资料当本轮证据；未知路径 200 不等于全站没有 404。
