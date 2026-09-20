@@ -97,6 +97,8 @@ Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失�
 见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、
 `AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。
+ArtStation 的错误样本同样只覆盖本轮试过的路径；它的 `400` 正文有两种 JSON 形状（`{"data": "…"}` 与
+`{"message": …, "code": …}`），另有一类**空正文**的 `400` / `404`，而未知路径还会回 `200` + HTML，见下节。
 
 ### Danbooru 引擎
 
@@ -241,6 +243,50 @@ JSON 路由拿到 2xx 却不是 JSON 时，仍按共享规则抛 `AnybooruAPIErr
 只能说本轮样本没有这些头，不能当成“站点没有配额”或“浏览器跨域一定可用”的保证。
 客户端不做任何自动重试：`search_index_admin` 这类写入口更没有兜底或回滚，见[不重试](#不重试)。
 
+### ArtStation
+
+本轮两批匿名探测共 37 次请求里的非 2xx 样本（12 个）。
+ArtStation 的错误正文**有两种 JSON 形状，还有空正文**，别假定错误里一定有字段：
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **空正文**：`GET /projects.json?page=1&per_page=51` 与 `GET /projects.json?page=999999&per_page=1` 都是 `400`、`Content-Type: text/plain; charset=utf-8`、正文为空字符串——`AnybooruHTTPError.data` 是 `None`，`.body` 也是 `""`，只能靠 `.http_code` 与 `.url` 判断 |
+| `400` | **`{"data": "…"}` 形状**（v2 搜索的参数检查）：缺 `page` → `{"data":"page should be given"}`；`page=0` → `{"data":"page should be a positive integer"}`；`filters` 传成数组而不是字符串 → `{"data":"filters should be a string"}` |
+| `400` | **`{"message": …, "code": …}` 形状**（`per_page` 越界）：搜索 `per_page=76` → `{"message":"per_page should be <= 75","code":"per_page"}`；搜索 `per_page=2` → `{"message":"per_page should be >= 3","code":"per_page"}`；专辑 `per_page=3` → `{"message":"per_page should be >= 4","code":"per_page"}`；探索 `per_page=9` → `{"message":"per_page should be >= 10","code":"per_page"}` |
+| `401` | **v2 单作品详情**：`GET /api/v2/community/projects/22897630.json` 回 `401`、`application/json`、正文 `{"data": null}`——值是 `null`，读不出原因 |
+| `403` | **固定作品详情**：`GET /projects/G1ew2N.json` 回 `403`、`text/html; charset=UTF-8`，正文是 Cloudflare 质询页，响应头带 `Cf-Mitigated: challenge`——这是反脚本挑战，不是权限不足的 JSON 错误 |
+| `404` | **缺失用户**：`GET /users/zzzz_no_such_user_99.json` 回 `404`、`text/plain; charset=utf-8`、**空正文**（与上面两个空正文 `400` 一样，`.data` 是 `None`） |
+
+`429`、`5xx` 与带凭据的成功路径都没有样本；`per_page` 的区间只在四条路由上试过（见
+[分页](pagination.md#artstation-的分页)），非数字 / 负数等取值未测。上表不是全集。
+这些失败都原样抛出（`400` / `401` / `404`，以及 `403` 那张质询页），客户端**不重试、不换路径、不把越界参数
+夹回合法范围**，也不把空数组换成异常。
+
+```python
+from anybooru import ArtStation, AnybooruHTTPError
+
+with ArtStation('artstation') as client:
+    try:
+        client.project_list(page=1, per_page=51)        # 超过 50 的直接 400
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.body)              # 400 与空的正文
+        print(error.data)                               # None：正文不是 JSON
+
+    try:
+        client.project_search(query='cat', page=1, per_page=2)   # 搜索下界是 3
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['message'])   # 400 per_page should be >= 3
+        print(error.data['code'])                       # per_page
+```
+
+另有一条容易踩的：**不存在的路径也可能回 `200` + HTML**。本轮 `GET /openapi.json` 与
+`GET /no-such-route-xyz-123` 都回 `200`、`Content-Type: text/html`，正文是站点的 `ArtStation - Explore` 页面。
+所以「状态码是 2xx」不等于「拿到了 API 数据」：JSON 出口遇到这种正文时按共享规则抛 `AnybooruAPIError`；
+想拿到这层 HTML 必须显式要求文本出口（`request('GET', 'no-such-route-xyz-123', response_format='html')`），
+客户端不做格式嗅探。反过来，`feed(sorting='latest')` 内部固定 XML 格式，返回 RSS 原文（`200`、
+`Content-Type: application/rss+xml`），客户端直接给 `.text`，不会因为正文不是 JSON 而抛异常。
+本轮只试过这两条未知路径，**不能推广成「所有未知路径都回 `200`」**，也没有取得任何带凭据的样本。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -264,6 +310,10 @@ Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探�
 `400` / `404` / `500` 样本；两个 POST（`artwork_revalidate`、`search_index_admin`）从未调用，
 `401` / `403` / `429` 都没有样本，未知参数是否被忽略也没有证据。逐条见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
+ArtStation 的错误路径同样只跑了有界样本：两批匿名探测共 37 次请求，其中非 2xx 12 个（`400` 九个、
+`401` / `403` / `404` 各一）、其余 25 个是 `200`；`429`、`5xx` 与带凭据的路径都没有样本，
+`per_page` 只试过四条路由的几个取值，未知路径回 `200` + HTML 也只试过两条路径，不能推广成全站行为。
+逐条见[验证记录](verification.md)与[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
 
