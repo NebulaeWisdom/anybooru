@@ -1,17 +1,18 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine / ArtStation 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问十一类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问十二类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
 、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
-Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）
-与 Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）。
+Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）、
+Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）
+与 ArtStation（`artstation.com`，公开作品集与 RSS 订阅源）。
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
-同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十一个例子里：
+同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十二个例子里：
 
 | 调用 | 真实请求 | 你拿到什么 |
 | :--- | :--- | :--- |
@@ -26,8 +27,9 @@ Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自
 | Sakuria：`client.illust_search(q='blue', page=1, size=2)` | `GET https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=2` | 完整字典中的 `items` 是插画数组；每项含 `id/title/urls/author/tags`，图片尺寸在 `urls.w/urls.h`，不是顶层 |
 | Anime-Pictures：`client.posts_list(search_tag='hatsune miku', posts_per_page=2, page=0)` | `GET https://api.anime-pictures.net/api/v3/posts?search_tag=hatsune+miku&posts_per_page=2&page=0` | 完整信封：`posts` 是帖子数组，另有 `page_number` / `posts_per_page` / `response_posts_count` / `posts_count` / `max_pages`；每帖含 `id`、`md5`、`ext`（如 `.png`，**带点**）与 `score_number`（评分看它；`score` 原样保留，样本里既有 `0.0` 也有非零值）。列表**不给**预览地址 |
 | Cosine：`client.image_list(page=1, pageSize=2)` | `GET https://pic.cosine.ren/api/list?page=1&pageSize=2` | 站内作品列表；方法原样返回 `{"images": [...], "total": N}`，不剥层。每项 `id` 是站内自增编号，上游编号在 `pid`；`rawurl` / `thumburl` 是地址。列表样本里 `size` 是 `null`、`guest` 是 `false`（只代表这批样本，不推广成恒值） |
+| ArtStation：`client.project_list(page=1, per_page=2)` | `GET https://www.artstation.com/projects.json?page=1&per_page=2` | 公开作品列表；方法原样返回 `{"data": [...], "total_count": N}`，不剥 `data` 层。条目样本含 `id`、`hash_id`、`title`、`permalink`、`cover`、`assets_count` 与 `tag_list`。**用户作品列表是另一套条目字段**：`user_projects` 的条目没有 `user` / `views_count`，不要跨路由照抄字段清单 |
 
-十一个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
+十二个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
 认证头不代表同一套契约；Serika 是独立的 Next.js 应用，官方版本化 `/api/v1` 与站内未版本化 `/api/*`
 两面分开标注；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，契约依据是官方 API 页面快照
 加真实请求实测——见
@@ -55,12 +57,18 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
 `{"success":true,"data":…}` 与裸数组），本库一个都不拆。站点前端源码在公开仓库里，本轮只按需只读了个别
 文件当线索（不 clone、不写行号），没有 OpenAPI 与服务端源码快照，公开结论以匿名只读响应为准，
 未实测项单独标明，见[契约附注](docs/cosine-contract-notes.md)。
+ArtStation（`artstation.com`）是公开作品集站点，本类只覆盖它的公开作品集 JSON 路由与一个 RSS 订阅源
+（`artwork.rss`）：15 个原生方法全部是 `GET`，14 个返回 JSON、`feed()` 返回 RSS 原文。本轮**未取得
+官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应实测，所以成功字段、状态码与排除项都按
+实测边界写；固定作品详情与 v2 单作品详情两条路由被站点挡下（`403` 质询与 `401`），因此**没有** `project_show`，
+也不提供到随机或搜索的自动替代路径。本类没有凭据字段或原生写方法，不下载媒体、不重写媒体地址，
+见[契约附注](docs/artstation-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan
-  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures 与 Cosine 九个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
+  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine 与 ArtStation 十个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
   重新起算。除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；
   原项目的 MIT 许可与版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
 
@@ -88,7 +96,7 @@ python -m venv .venv
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 15 个条目，下面列出部分站点）：
+包内文件的开头长这样（`sites` 段一共 16 个条目，下面列出部分站点）：
 
 ```json
 {
@@ -106,13 +114,14 @@ python -m venv .venv
     "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" },
     "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" },
     "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" },
-    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" }
+    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" },
+    "artstation": { "url": "https://www.artstation.com" }
   }
 }
 ```
 
 - 用命名站点：`site_name` 是 `sites` 段的键，例如 `Danbooru('danbooru')`、`Moebooru('yandere')`、
-  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`、`AnimePictures('anime_pictures')`、`Cosine('cosine')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
+  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`、`AnimePictures('anime_pictures')`、`Cosine('cosine')`、`ArtStation('artstation')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
   显式构造参数优先。
 - 用清单外的站点：直接给 `site_url=`，例如
   `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3')`、`E621(site_url='https://e926.net')`。
@@ -146,8 +155,10 @@ python -m venv .venv
   `revalidate_secret=''` 表示本次固定发空密钥、**不读**配置里的值，`None`（或不传）才读配置。
   不用这个接口时，任何请求都不会带上它，也不会带别的认证头；该接口本轮从未调用，成功与拒绝形态都未实测。
   `POST /api/search/admin` 会重建或删除站点搜索索引，本轮**绝不会执行**，见[客户端用法](docs/cosine.md)。
+- ArtStation 的条目**只有 `url`**：公开作品集路由与 `artwork.rss` 订阅源都匿名可读，本类因此没有凭据字段，
+  不自动生成认证头。通用 `request()` 可显式带头调用未封装路由，但本库不代管登录，也不保证认证成功。
 
-## 十一个家族的第一次调用
+## 十二个家族的第一次调用
 
 每段代码都可以直接复制执行（匿名只读），默认站点都来自包内配置。
 
@@ -483,17 +494,64 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 非数字路径段与 `page=0` 一类 `500`）与状态码含义见[错误处理](docs/errors.md#cosine)，凭据语义见
 [认证](docs/authentication.md)，可调用能力见[能力入口](docs/cosine-capabilities.md)。
 
+### ArtStation（artstation.com）
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:
+    # GET https://www.artstation.com/projects.json?page=1&per_page=2
+    # 服务端返回 {"data": [...], "total_count": N}，方法原样给你这个对象，不剥 data 层。
+    # 全站列表的条目样本含 id、hash_id、title、permalink、cover、assets_count 与 tag_list
+    #（样本里 tag_list 是 null，不能据此认为它恒为 null 或恒为数组）。
+    page = client.project_list(page=1, per_page=2)
+    for project in page['data']:
+        print(project['id'], project['hash_id'], project['title'], project['permalink'])
+    print(page['total_count'])
+
+    # GET https://www.artstation.com/users/timwarnock/projects.json?page=1&per_page=2
+    # 用户作品列表是同一族的另一套条目字段：样本里没有 user 与 views_count，
+    # 不要拿全站列表的字段清单去要求这个路由。
+    user_page = client.user_projects('timwarnock', page=1, per_page=2)
+    print([project['id'] for project in user_page['data']], user_page['total_count'])
+
+    # GET https://www.artstation.com/api/v2/search/projects.json?query=&page=1&per_page=3&sorting=relevance
+    # 搜索外壳同样是 {"total_count": N, "data": [...]}；filters 是 JSON 字符串，不是嵌套对象。
+    hits = client.project_search(query='', page=1, per_page=3, sorting='relevance')
+    print(hits['total_count'], [item['hash_id'] for item in hits['data']])
+
+    # GET https://www.artstation.com/artwork.rss?sorting=latest
+    # response_format='xml' 走 .text，返回订阅源原文（不解析、不转 JSON、不看 Content-Type 猜格式）
+    feed_xml = client.feed(sorting='latest')
+    print(len(feed_xml), feed_xml[:60])
+```
+
+ArtStation 面固定 **15 个原生方法，全部是 `GET`**：14 个返回 JSON、`feed()` 返回 `artwork.rss` 的 RSS 原文。
+范围是**公开作品集资源与订阅源**：作品列表与随机作品，用户资料三面（`user_show` / `user_quick` /
+`user_profile`）、用户作品与关注，搜索与可搜索字段（`project_search` / `search_filter_fields`），
+专辑作品（`album_projects`），频道列表与频道作品（`channel_list` / `channel_projects`），
+作品评论（`project_comments`）、探索最新（`explore_latest`）与 `feed()`。
+本类**没有凭据字段**，不做登录、不写数据、不下载媒体、不拼接或改写媒体地址；固定作品详情
+`/projects/{hash}.json` 实测被站点质询挡下（`403`，HTML），v2 的单作品 `/api/v2/community/projects/{id}.json`
+匿名返回 `401`，所以这里**没有** `project_show`，也没有指向随机或搜索的替代路径——确需那两条路由时用通用
+`request()` 显式调用。参数按站点原样转发，客户端不钳位、不补默认值：`project_search` 缺 `per_page` 时服务端回
+`400`（正文是 `{"data":"per_page should be given"}`），异常原样抛出，不会被改写成默认分页。
+本轮**未取得 ArtStation 官方 API 文档页、OpenAPI 或服务端源码**，公开结论以匿名只读响应为准；
+`sorting` 只实测过 `relevance`，订阅源只实测过 `latest`，样本之外的取值仍是候选。
+逐方法参数见[方法参考](docs/artstation-api.md)，按任务查[能力入口](docs/artstation-capabilities.md)，
+依据与排除项见[契约附注](docs/artstation-contract-notes.md)。
+
 ## 文档
 
 文档全部是 `docs/` 下的中文 Markdown，每份只回答一类问题：
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十一个家族怎么选 |
+| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十二个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
-| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空 |
-| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page` 与 Cosine 的 `page`/`pageSize`、`limit`/`offset` 两套 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空，ArtStation 无凭据字段 |
+| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page`、Cosine 的 `page`/`pageSize`、`limit`/`offset` 两套，以及 ArtStation 的 `page`/`per_page` |
 | [docs/errors.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/errors.md) | `AnybooruHTTPError` / `AnybooruAPIError`、状态码与错误正文 |
 | [docs/danbooru.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru.md) | Danbooru 客户端：构造、`request()`、参数编码、返回值、坑 |
 | [docs/danbooru-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru-api.md) | Danbooru 227 个方法：参数、路由、返回形态 |
@@ -539,12 +597,16 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 | [docs/cosine-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-api.md) | 13 个原生方法：参数、路由与返回字段 |
 | [docs/cosine-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-capabilities.md) | Cosine：按目的选方法、匿名可读范围与两个 POST 入口 |
 | [docs/cosine-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-contract-notes.md) | 匿名响应依据、上游前端文件、排除项与未实测项 |
+| [docs/artstation.md](docs/artstation.md) | ArtStation 客户端：站点根路径拼接、`request()`、RSS 原文与无凭据边界 |
+| [docs/artstation-api.md](docs/artstation-api.md) | 15 个原生 GET（14 JSON + 1 RSS）：参数、路径与返回字段 |
+| [docs/artstation-capabilities.md](docs/artstation-capabilities.md) | ArtStation：按目的选方法、公开作品集与订阅源范围 |
+| [docs/artstation-contract-notes.md](docs/artstation-contract-notes.md) | 匿名响应依据、工作范围、排除路由与未实测项 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移到 0.1.x 的逐项对照 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 哪些端点真的跑过（含状态码与返回摘要）、哪些没有 |
 
 ## 可运行示例
 
-`examples/` 下 31 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
+`examples/` 下 33 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
 站点名与参数（标签、页码、条数、间隔）取自 `examples.<家族>` 段——例如上面 Zerochan 那段的
 `entry_list(p=1, l=2, s='id')` 对应 `examples.zerochan.entry_query`，`entry_show(3793685)` 对应
 `examples.zerochan.entry_id`。示例里不硬编码站点、代理与分页。
@@ -563,6 +625,7 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 | `examples/sakuria/` | `search_illusts.py`（两页搜索与 ID 去重）、`browse_resources.py`（插画详情、评论与作者）——两个匿名脚本，分别最多两次与三次 GET |
 | `examples/anime_pictures/` | `list_posts.py`（配置的两页帖子列表，打印真实 URL、状态、`page_number`、`posts_count`、`max_pages` 与每帖 `id` / `score_number`）、`browse_resources.py`（帖子详情、该帖评论、详情里 `user.id` 的用户资料、非空评论首条的评论详情）——两个匿名只读脚本，分别两次与四次 GET，不访问媒体 |
 | `examples/cosine/` | `list_images.py`（配置的两页 `image_list` 与两个 `offset` 的搜索）、`browse_resources.py`（作品详情、标签筛图、画师作品与 `infoOnly=True` 的画师资料）——两个匿名只读脚本，各四次 GET，调用之间按 `pause_seconds` 暂停，不下载媒体 |
+| `examples/artstation/` | `list_projects.py`（配置的两页全站作品列表与两页过滤搜索）、`browse_resources.py`（用户资料、配置专辑的作品、随机作品与配置作品的评论）——两个匿名只读脚本，各四次 GET，调用之间按 `pause_seconds` 暂停，不下载媒体、不调用被站点挡下的详情路由 |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -578,6 +641,8 @@ python examples/sakuria/search_illusts.py
 .venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
 .venv/Scripts/python.exe examples/cosine/list_images.py
 .venv/Scripts/python.exe examples/cosine/browse_resources.py
+python examples/artstation/list_projects.py
+python examples/artstation/browse_resources.py
 ```
 
 哪些脚本真的跑过、每条命令的状态码与返回摘要，见
@@ -588,7 +653,7 @@ python examples/sakuria/search_illusts.py
 安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
 列表条数、分页、详情编号和预期错误。文件名对应 `sites`：`serika`、`danbooru`、`safebooru`、
 `konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`、`tbib`、
-`sakuria`、`anime_pictures`、`cosine`。
+`sakuria`、`anime_pictures`、`cosine`、`artstation`。
 
 ```bash
 python test/danbooru.py
@@ -598,18 +663,21 @@ python test/tbib.py --config <你的配置文件>
 python test/sakuria.py --config <你的配置文件>
 python test/anime_pictures.py --config <你的配置文件>
 python test/cosine.py --config <你的配置文件>
+python test/artstation.py --config <你的配置文件>
 ```
 
 全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
-不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria、Cosine 与 Anime-Pictures 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
+不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria、Cosine、Anime-Pictures 与 ArtStation 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
 其余各最多 4 次；前置列表失败时跳过依赖的详情/翻页，不补发请求。两次请求之间按配置暂停：
 通用 `smoke.pause_seconds=1.2`，Shuushuu 用 `smoke.shuushuu.pause_seconds=2.1`，Sakuria 用 `smoke.sakuria.pause_seconds=1.2`，
-Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`，Cosine 用 `smoke.cosine.pause_seconds=1.3`。不依赖测试框架，不在 CI 自动运行。
+Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`，Cosine 用 `smoke.cosine.pause_seconds=1.3`，
+ArtStation 用 `smoke.artstation.pause_seconds=1.3`。不依赖测试框架，不在 CI 自动运行。
 
 每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段/条数，最后汇总实际尝试次数；
 退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是
 **预期拒绝**，不是失败；Anime-Pictures 的缺失帖子 `410` 与非法路径段 `400`（正文是 `text/plain`、
-`AnybooruHTTPError.data` 为 `None`）、Cosine 查缺失作品的 `404` 同样是**预期拒绝**；网络失败也不会伪装成站点变化。
+`AnybooruHTTPError.data` 为 `None`）、Cosine 查缺失作品的 `404` 同样是**预期拒绝**；ArtStation 的缺失用户名
+`404`（`text/plain` 空正文）与非法搜索参数的 `400` 也是**预期拒绝**，不是失败；网络失败也不会伪装成站点变化。
 这里不是全 API 覆盖或长期可用性保证。
 
 省略 `--config` 时读包内默认配置（不含代理）；若所在网络需要代理，必须用 `--config` 指向自己的
