@@ -1950,3 +1950,111 @@ with ArtStation('artstation', config_file='my-anybooru.json') as client:
 缺/坏/过期token、跨会话、412、POST filters/JSON搜索/其它additional_fields组合、POST分页默认值与边界
 仍未实测；GET的3..75范围不冒称POST也已验证。所有内容写入与账号认证分支仍未执行。
 专辑和随机本来就能返回资产，新增POST仅证明为搜索结果补充assets/description，不证明任意ID详情或全站唯一入口。
+
+
+## Nhentai 与 ArtStation：合并 master 后重跑（2026-09-20）
+
+本节是两家族合并到master后的新运行，**不是重写前面各功能分支的历史记录**。
+先以普通非快进合并纳入Nhentai，再纳入ArtStation；两个家族的实现、导出、配置与历史证据均保留。
+合并提交分别为 `a13d118`（Nhentai）与 `1e2b6b3`（ArtStation），随后单独统一清单计数。
+
+### 导入、配置与真实清单
+
+项目Python环境实际执行 `from anybooru import ArtStation, Nhentai` 成功，退出0；包内JSON解析成功，
+`sites/examples/smoke` 均同时含 nhentai 与 artstation，原有15个站点键全部保留，没有缺失。
+等价的核心导入与配置读取可以这样执行（不发网络请求）：
+
+```bash
+python -c "from anybooru import ArtStation, Nhentai; from anybooru.resources import load_config; c=load_config(); print(ArtStation.__name__, Nhentai.__name__, len(c['sites']))"
+```
+
+观测结果：ArtStation、Nhentai均可导入，`site_count=17`。
+按合并后的实际树计数：**13家族、17站点、35示例脚本**；配置examples有13个家族键，
+examples目录有13个家族目录，docs/index家族表有13行，setup.cfg描述也列出13个家族。
+35个脚本组成：Danbooru7、Moebooru5、Serika3、e621ng3、Gelbooru1，
+Zerochan/Gelbooru02/Shuushuu/Sakuria/Anime-Pictures/Cosine/Nhentai/ArtStation各2。
+这些是合并后计数，不沿用任何单一功能分支的12/16/33。
+
+### 六条实际运行命令
+
+命令使用中性配置文件名；实际查询值来自完整配置的smoke/examples段，没有加入新的查询请求：
+
+```bash
+python -X utf8 test/nhentai.py --config my-anybooru.json
+python -X utf8 examples/nhentai/list_galleries.py --config my-anybooru.json
+python -X utf8 examples/nhentai/browse_resources.py --config my-anybooru.json
+python -X utf8 test/artstation.py --config my-anybooru.json
+python -X utf8 examples/artstation/list_projects.py --config my-anybooru.json
+python -X utf8 examples/artstation/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本 | 请求数 | HTTP | 退出码 | UTC（2026-09-20） |
+| :--- | :--- | :--- | :--- | :--- |
+| `test/nhentai.py` | 10 | 200×8, 404×1, 400×1 | 0 | 12:15:26.130920–12:15:43.442783 |
+| `examples/nhentai/list_galleries.py` | 3 | 200×3 | 0 | 12:15:44.745038–12:15:49.710655 |
+| `examples/nhentai/browse_resources.py` | 5 | 200×5 | 0 | 12:15:51.012292–12:15:59.506830 |
+| `test/artstation.py` | 10 | 200×8, 404×1, 400×1 | 0 | 12:16:00.808218–12:16:22.121732 |
+| `examples/artstation/list_projects.py` | 4 | 200×4 | 0 | 12:16:23.423951–12:16:32.371520 |
+| `examples/artstation/browse_resources.py` | 4 | 200×4 | 0 | 12:16:33.672924–12:16:42.416942 |
+
+六个脚本均一次执行完成、退出0、stderr为空，没有失败复跑。合计**36个匿名GET：32×200、2×404、2×400**，
+其中两站各一个缺失资源404和非法分页/条数400为预期结果。两份冒烟分别输出：
+
+```text
+SUMMARY nhentai | requests=10 | passed=10 failed=0
+SUMMARY artstation | requests=10 | passed=10 failed=0
+```
+
+所有脚本串行；脚本内部按既有配置暂停至少1.2秒，两个脚本启动之间也额外等待1.3秒，
+已记录的五个进程边界间隔均超过1.301秒。没有并发、重试、登录、账号凭据、写请求或媒体下载。
+
+### 本次逐请求结果
+
+| 脚本与调用 | 真实URL | HTTP与Content-Type | 返回关键字段/实际摘要 |
+| :--- | :--- | :--- | :--- |
+| `test/nhentai.py` PASS gallery_list page 1 | `https://nhentai.net/api/v2/galleries?page=1&per_page=2` | HTTP 200 application/json | result:list,num_pages:int,per_page:int；page=1 requested_per_page=2 num_pages=323047 total=646078 galleries=2 ids=[682626, 682625] first=682626 media_id=4194928 pages=223 favorites=3 tag_ids=47 blacklisted=False thumbnail=250x354 |
+| `test/nhentai.py` PASS gallery_list page 2 | `https://nhentai.net/api/v2/galleries?page=2&per_page=2` | HTTP 200 application/json | result:list,num_pages:int,per_page:int；page=2 requested_per_page=2 num_pages=323047 total=646078 galleries=2 ids=[682624, 682623] first=682624 media_id=4194903 pages=32 favorites=5 tag_ids=10 blacklisted=False thumbnail=250x355 |
+| `test/nhentai.py` PASS gallery_show configured id | `https://nhentai.net/api/v2/galleries/658856` | HTTP 200 application/json | id:int,media_id:str,title:dict,cover:dict,thumbnail:dict,upload_date:int,tags:list,num_pages:int,num_favorites:int,scanlator:str,pages:list；id=658856 media_id=4006343 title_keys=['english', 'japanese', 'pretty'] cover=350x496 scanlator_chars=0 upload_date=1782208892 pages=18 favorites=59 tags=15 tag_types=['category', 'character', 'language', 'parody', 'tag'] page_objects=18 page_keys=['height', 'number', 'path', 'thumbnail', 'thumbnail_height', 'thumbnail_width', 'width'] nullable_present=[] |
+| `test/nhentai.py` PASS search configured query | `https://nhentai.net/api/v2/search?sort=date&page=1&query=language%3Aenglish` | HTTP 200 application/json | result:list,num_pages:int,per_page:int；page=1 num_pages=5901 total=147506 galleries=25 ids=[682624, 682620, 682619, 682617, 682616, 682613, 682612, 682609, 682608, 682600, 682597, 682590, 682588, 682586, 682582, 682579, 682578, 682577, 682574, 682571, 682568, 682567, 682566, 682565, 682564] first=682624 media_id=4194903 pages=32 favorites=5 tag_ids=10 blacklisted=False thumbnail=250x355 |
+| `test/nhentai.py` PASS gallery_popular | `https://nhentai.net/api/v2/galleries/popular` | HTTP 200 application/json | galleries=5 ids=[682478, 682245, 682225, 682058, 682034] |
+| `test/nhentai.py` PASS tag_show configured slug | `https://nhentai.net/api/v2/tags/language/english` | HTTP 200 application/json | id:int,type:str,name:str,slug:str,url:str,count:int；id=12227 count=147350 name_chars=7 type_matches slug_matches description_present=True |
+| `test/nhentai.py` PASS gallery_comment_count | `https://nhentai.net/api/v2/galleries/658856/comments/count` | HTTP 200 application/json | gallery_id=658856 comment_count=0 |
+| `test/nhentai.py` PASS gallery_comments configured gallery | `https://nhentai.net/api/v2/galleries/658856/comments?per_page=2` | HTTP 200 application/json | result:list,num_pages:int,per_page:int；gallery_id=658856 requested_per_page=2 num_pages=0 total=0 comments=0 comment_ids=[] poster_ids=[] body_chars=[] post_dates=[] |
+| `test/nhentai.py` PASS gallery_show missing id | `https://nhentai.net/api/v2/galleries/999999999` | HTTP 404 AnybooruHTTPError (expected) | data=dict body_chars=29 content_type='application/json' last_call=HTTP 404 https://nhentai.net/api/v2/galleries/999999999 |
+| `test/nhentai.py` PASS gallery_list rejected page | `https://nhentai.net/api/v2/galleries?page=0&per_page=2` | HTTP 400 AnybooruHTTPError (expected) | data=dict body_chars=100 content_type='application/json' last_call=HTTP 400 https://nhentai.net/api/v2/galleries?page=0&per_page=2 |
+| `examples/nhentai/list_galleries.py` gallery_list | `https://nhentai.net/api/v2/galleries?page=1&per_page=2` | 200 application/json | {"requested_page": 1, "requested_per_page": 2, "num_pages": 323047, "per_page": 2, "total": 646078, "count": 2, "ids": [682626, 682625]} |
+| `examples/nhentai/list_galleries.py` gallery_list | `https://nhentai.net/api/v2/galleries?page=2&per_page=2` | 200 application/json | {"requested_page": 2, "requested_per_page": 2, "num_pages": 323047, "per_page": 2, "total": 646078, "count": 2, "ids": [682624, 682623]} |
+| `examples/nhentai/list_galleries.py` search | `https://nhentai.net/api/v2/search?sort=date&page=1&query=language%3Aenglish` | 200 application/json | {"search_query": {"query": "language:english", "sort": "date", "page": 1}, "num_pages": 5901, "per_page": 25, "total": 147506, "count": 25, "ids": [682624, 682620, 682619, 682617, 682616, 682613, 682612, 682609, 682608, 682600, 682597, 682590, 682588, 682586, 682582, 682579, 682578, 682577, 682574, 682571, 682568, 682567, 682566, 682565, 682564]} |
+| `examples/nhentai/browse_resources.py` gallery_show | `https://nhentai.net/api/v2/galleries/658856` | 200 application/json | {"gallery_id": 658856, "media_id": "4006343", "title_keys": ["english", "japanese", "pretty"], "cover": [350, 496], "scanlator_chars": 0, "upload_date": 1782208892, "pages": 18, "favorites": 59, "tags": 15, "tag_types": ["category", "character", "language", "parody", "tag"], "page_objects": 18, "page_keys": ["height", "number", "path", "thumbnail", "thumbnail_height", "thumbnail_width", "width"], "populated_optional": [], "field_keys": ["cover", "id", "media_id", "num_favorites", "num_pages", "pages", "scanlator", "tags", "thumbnail", "title", "upload_date"]} |
+| `examples/nhentai/browse_resources.py` tag_show | `https://nhentai.net/api/v2/tags/language/english` | 200 application/json | {"requested_type": "language", "requested_slug": "english", "id": 12227, "type": "language", "count": 147350, "name_chars": 7, "description_present": true, "field_keys": ["count", "description", "id", "is_community", "name", "pending_describe_id", "slug", "type", "url"]} |
+| `examples/nhentai/browse_resources.py` tag_ids | `https://nhentai.net/api/v2/tags/ids?ids=12227%2C6346` | 200 application/json | {"requested_ids": "12227,6346", "count": 2, "ids": [12227, 6346], "types": ["language", "language"], "field_keys": ["count", "description", "id", "is_community", "name", "pending_describe_id", "slug", "type", "url"]} |
+| `examples/nhentai/browse_resources.py` gallery_comments | `https://nhentai.net/api/v2/galleries/658856/comments?page=1&per_page=2` | 200 application/json | {"gallery_id": 658856, "requested_page": 1, "requested_per_page": 2, "num_pages": 0, "per_page": 2, "total": 0, "count": 0, "comment_ids": [], "poster_ids": [], "body_chars": [], "post_dates": []} |
+| `examples/nhentai/browse_resources.py` site_config | `https://nhentai.net/api/v2/config` | 200 application/json | {"image_servers": 4, "thumb_servers": 4, "announcement_keys": null, "field_keys": ["announcement", "image_servers", "thumb_servers"]} |
+| `test/artstation.py` PASS project_list configured page | `https://www.artstation.com/projects.json?page=1&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；per_page<=2 count=2 total_count=14522955 ids=[22900098, 22899727] first: id=22900098 hash_id=1LxzVq title='Field Journal' assets_count=8 tag_list=NoneType user=gabe-11 views_count=292 |
+| `test/artstation.py` PASS user_projects page 1 | `https://www.artstation.com/users/timwarnock/projects.json?page=1&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；user=timwarnock per_page<=2 count=2 total_count=40 ids=[17792515, 13201269] first: id=17792515 hash_id=eln233 title='Expanse' assets_count=10 tag_list=NoneType cover_keys=4 item_keys=19 |
+| `test/artstation.py` PASS user_projects page 2 | `https://www.artstation.com/users/timwarnock/projects.json?page=2&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；user=timwarnock per_page<=2 count=2 total_count=40 ids=[13207332, 13201229] first: id=13207332 hash_id=EamVr0 title='Legends Of Runeterra - Nakotak Caves' assets_count=5 tag_list=NoneType cover_keys=4 item_keys=19 |
+| `test/artstation.py` PASS project_random | `https://www.artstation.com/random_project.json` | HTTP 200 application/json; charset=utf-8 | id:int,hash_id:str,title:str,permalink:str,tags:list,assets:list,user:dict,cover:dict；id=955210 hash_id=1BEaZ title='Star Crystals' permalink=https://www.artstation.com/artwork/1BEaZ tags=['NoAI'] assets=2 first_asset=id=2722394 asset_type=image width=3556 height=1600 user=shant cover_id=2722394 |
+| `test/artstation.py` PASS project_search configured query | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=3&sorting=relevance` | HTTP 200 application/json; charset=utf-8 | total_count:int,data:list；per_page<=3 count=3 total_count=118785 ids=[10122141, 17985153, 3049628] first: id=10122141 hash_id=aY5nBq title='Cat Cat Cat' url=https://www.artstation.com/artwork/aY5nBq is_adult_content=False hide_as_adult=False user=dajeong_park |
+| `test/artstation.py` PASS search_filter_fields | `https://www.artstation.com/api/v2/search/projects/filter_fields.json` | HTTP 200 application/json; charset=utf-8 | items=12 names=['title', 'category_ids', 'asset_types', 'medium_ids', 'software_ids', 'comments_count', 'following', 'editor_pick', 'artist_name', 'medium_id', 'artist_followers_count', 'tags'] |
+| `test/artstation.py` PASS album_projects configured album | `https://www.artstation.com/api/v2/community/projects/by_album.json?page=1&per_page=4&album_id=104104` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；album_id=104104 per_page<=4 count=4 total_count=49 ids=[21341650, 319055, 621145, 412659] first: id=21341650 hash_id=XJLVv0 title='North African Witch' album_title='All projects' assets=5 |
+| `test/artstation.py` PASS feed configured sorting | `https://www.artstation.com/artwork.rss?sorting=latest` | HTTP 200 application/rss+xml; charset=utf-8 | chars=99163 items=50 content_type='application/rss+xml; charset=utf-8' |
+| `test/artstation.py` PASS user_show missing username | `https://www.artstation.com/users/zzzz_no_such_user_99.json` | HTTP 404 AnybooruHTTPError (expected) | user=zzzz_no_such_user_99 data=NoneType body_chars=0 content_type='text/plain; charset=utf-8' last_call=HTTP 404 https://www.artstation.com/users/zzzz_no_such_user_99.json |
+| `test/artstation.py` PASS project_search per_page below minimum | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=2` | HTTP 400 AnybooruHTTPError (expected) | message:str,code:str；code='per_page' message_chars=23 body_chars=60 content_type='application/json; charset=utf-8' |
+| `examples/artstation/list_projects.py` project_list | `https://www.artstation.com/projects.json?page=1&per_page=2` | 200 application/json; charset=utf-8 | {"page": 1, "total_count": 14522955, "count": 2, "ids": [22900098, 22899727], "first_project": {"id": 22900098, "hash_id": "1LxzVq", "title": "Field Journal", "assets_count": 8}} |
+| `examples/artstation/list_projects.py` project_list | `https://www.artstation.com/projects.json?page=2&per_page=2` | 200 application/json; charset=utf-8 | {"page": 2, "total_count": 14522955, "count": 2, "ids": [22899929, 22900319], "first_project": {"id": 22899929, "hash_id": "2L9EbA", "title": "潮生异变：拾海一家", "assets_count": 4}} |
+| `examples/artstation/list_projects.py` project_search | `https://www.artstation.com/api/v2/search/projects.json?page=1&query=&per_page=3&sorting=relevance&filters=%5B%7B%22field%22%3A%22title%22%2C%22method%22%3A%22contain%22%2C%22value%22%3A%22dragon%22%7D%5D` | 200 application/json; charset=utf-8 | {"page": 1, "query": "", "total_count": 111158, "count": 3, "ids": [3823430, 13723199, 712739], "hash_ids": ["GXOBA1", "8wNbL6", "g9qwQ"]} |
+| `examples/artstation/list_projects.py` project_search | `https://www.artstation.com/api/v2/search/projects.json?page=2&query=&per_page=3&sorting=relevance&filters=%5B%7B%22field%22%3A%22title%22%2C%22method%22%3A%22contain%22%2C%22value%22%3A%22dragon%22%7D%5D` | 200 application/json; charset=utf-8 | {"page": 2, "query": "", "total_count": 111158, "count": 3, "ids": [4221553, 12429036, 5421695], "hash_ids": ["lVG44a", "036RN4", "nQOGb1"]} |
+| `examples/artstation/browse_resources.py` user_show | `https://www.artstation.com/users/timwarnock.json` | 200 application/json; charset=utf-8 | {"username": "timwarnock", "user_id": 1, "full_name": "Tim Warnock", "projects_count": 40, "followers_count": 4744, "key_count": 70, "album_count": 1, "first_album": "All"} |
+| `examples/artstation/browse_resources.py` album_projects | `https://www.artstation.com/api/v2/community/projects/by_album.json?page=1&per_page=4&album_id=104104` | 200 application/json; charset=utf-8 | {"album_id": 104104, "page": 1, "per_page": 4, "total_count": 49, "count": 4, "ids": [21341650, 319055, 621145, 412659], "first_project": {"id": 21341650, "hash_id": "XJLVv0", "title": "North African Witch", "album_id": 104104, "assets": 5}} |
+| `examples/artstation/browse_resources.py` project_random | `https://www.artstation.com/random_project.json` | 200 application/json; charset=utf-8 | {"id": 4514423, "hash_id": "DxdnPy", "title": "Scouting Party", "tags": ["NoAI"], "assets": 1, "user": "mrdream", "cover_id": 16015806, "first_asset": {"id": 16015806, "asset_type": "image", "width": 1920, "height": 1080}} |
+| `examples/artstation/browse_resources.py` project_comments | `https://www.artstation.com/api/v2/community/projects/22897630/comments.json` | 200 application/json; charset=utf-8 | {"project_id": 22897630, "total_count": 0, "count": 0} |
+
+### 本次验证范围与未验证项
+
+- 这次只重跑上述六脚本，验证合并后的公开导出、包内配置读取以及其中的匿名读取/分页/详情/错误路径。
+  各家族前述完整路由调查、OpenAPI读取、参数边界调查没有重新执行，也不计入本节36请求。
+- Nhentai的4POST/1DELETE、账号Key/User Token成功路径及所有内容写入仍未执行。
+- ArtStation的CSRF与POST搜索保留既有方法和功能分支的成功记录，本次合并验证**没有再次调用它们**；
+  缺失/过期token、其它POST参数边界、固定详情成功路径仍未验证。
+- 其它家族的脚本、媒体/CDN与权限分支、本轮未列参数组合没有运行；不由这36请求保证全站或全部方法长期可用。
+- 未跑formatter、lint、构建、安装包、CI或项目测试套件，未新增测试；上面的清单/导入检查与六脚本即本次执行范围。
