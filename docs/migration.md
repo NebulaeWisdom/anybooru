@@ -3,7 +3,7 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine 与 Nhentai 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine、Nhentai 与 ArtStation 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
 迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
 44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
@@ -29,6 +29,15 @@ Nhentai 也是 4.x 里没有的家族，没有方法级对照可谈；但把旧�
 本库不为它留站点条目、不做 ID 转换或回退。
 36 个原生方法的分组、参数与返回字段见 [Nhentai 方法参考](nhentai-api.md)，依据与排除项见
 [Nhentai 契约审计附注](nhentai-contract-notes.md)。
+ArtStation（公开作品集站点 `artstation.com`，配置条目只有 `url`）本轮未取得官方 API 文档页、
+OpenAPI 或服务端源码：接入 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，16 个返回 JSON + `feed()` 返回
+`artwork.rss` 原文），覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索（`project_search` 与
+只读的 `project_search_post`）与可搜索字段、专辑、频道与其作品、作品评论、探索最新、订阅源，以及取公开
+CSRF token 的 `csrf_token()`。两个 POST 都不是内容写入：token 由调用方取回后每次传入，本库不自动获取、
+不续期、不重放、不重试、不落盘。本类没有凭据字段、内容写入方法或指定作品详情方法——固定详情
+`/projects/{hash}.json` 实测被站点质询挡下（`403`）、v2 单作品 `/api/v2/community/projects/{id}.json`
+匿名 `401`；依据只有匿名只读响应，样本之外的取值仍是候选，见
+[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 一、破坏性变更总览
 
@@ -348,3 +357,15 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
   从未调用，账号成功路径、第一方账号与用户令牌写操作、媒体字节均未实测。参数边界只在本轮列出的取值上
   验证过（`per_page` 不是每条路由都照办，`total` 与 `num_pages` 是快照），样本之外的取值仍是候选，
   不构成返回值承诺。逐条见 [Nhentai 契约审计附注](nhentai-contract-notes.md) 与[验证记录](verification.md)。
+* ArtStation 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，
+  16 个返回 JSON + 1 个 RSS 原文）接入，`GET` 面本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例；
+  两条只读 POST 方法（`csrf_token` 与 `project_search_post`）随后单独跟进，其记录与本批 `GET` 结果分开标注
+  （POST 侧的实际尝试与结果见[验证记录](verification.md)），不复用也不改写前面的数字：跟到的样本是 token
+  请求 `200` + `application/json`（正文顶层只有 `public_csrf_token`，会话 Cookie 由会话自然保存），搜索请求
+  `200` + `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳 `{"total_count","data"}`；
+  缺 token、过期 token、其它 `filters` 形状与 `412` 一类边界仍未实测。固定作品详情
+  `/projects/{hash}.json` 实测 `403`（站点质询，HTML）、v2 单作品
+  `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，
+  也没有自动回退到随机或搜索；排序只实测过 `relevance`、订阅源只实测过 `latest`，POST 表单里 `filters` 的
+  嵌套形状同样按候选处理，其余排序取值与频道/专辑/探索的分页边界也不构成返回值承诺。
+  逐条见 [ArtStation 契约审计附注](artstation-contract-notes.md) 与[验证记录](verification.md)。

@@ -9,7 +9,7 @@
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
 * [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单（判引擎、摸契约、写客户端、
   冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界）。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai 十二个家族共 33 个可运行脚本。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation 十二个家族共 33 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -23,7 +23,7 @@
 * `Serika.art/`：Serika 引擎，官方 v1 在 `app/api/v1/**/route.ts`，站内面在 `app/api/**/route.ts`。
 * `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`，帖子序列化在 `app/blueprints/`。
 
-**Zerochan、Gelbooru、Gelbooru02（TBIB）、e-shuushuu、Sakuria 与 Anime-Pictures 没有可引用的本地上游服务端源码**：
+**Zerochan、Gelbooru、Gelbooru02（TBIB）、e-shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 没有可引用的本地上游服务端源码**：
 
 * `zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，本仓库拿不到可引用的源码或行号。依据是
   **官方 API 页面快照 + 真实请求实测**，逐条出处、与实现的差异以及排除项（`xml` 格式、meta 标签、限流语义）
@@ -74,6 +74,21 @@
   与超上限的 `per_page` 记作 `422`，实测是 `400`。`nhentai.to` 一类克隆站被排除，不当作 `.net` 的替代基址。
   来源层级、排除项与未实测项记在 [`docs/nhentai-contract-notes.md`](docs/nhentai-contract-notes.md)。
 
+* `artstation.com`（ArtStation，公开作品集站点）本轮**未取得官方 API 文档页、OpenAPI 或服务端源码**，
+  依据只有**匿名只读响应实测**。本站点不是 booru：本类覆盖公开作品集资源（`projects.json`、随机作品、
+  用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、
+  作品评论、探索最新）、只读搜索与一个 RSS 订阅源（`artwork.rss`），共 17 个原生方法（15 个 `GET` +
+  2 个只读 `POST`，16 个 JSON + `feed()` 的 RSS 原文）。两个 POST 都不是内容写入：`csrf_token()` 取公开
+  CSRF token，`project_search_post()` 是搜索的只读 POST 形态，token 由调用方每次传入，本库不自动获取、
+  不续期、不重放、不落盘；站点条目没有凭据字段，也没有内容写入或指定作品详情方法——固定详情
+  `/projects/{hash}.json` 实测是站点质询页（`403`，HTML），v2 单作品
+  `/api/v2/community/projects/{id}.json` 匿名 `401`，两条都不做自动替代路径。已测 `/openapi.json` 返回
+  Explore HTML，200 状态码不能证明 JSON API 存在；需要登录的账号写操作不在范围内，也未实测。
+  POST侧两个成功样本均为200 JSON；csrf_token请求发JSON，project_search_post请求发form-urlencoded。
+  未测边界（缺token、过期token、其它filters形状、412）
+  都记在 [`docs/verification.md`](docs/verification.md)。
+  成功字段与未实测项记在 [`docs/artstation-contract-notes.md`](docs/artstation-contract-notes.md)。
+
 改动这八个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
 不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十二个家族都有源码依据”。
 
@@ -114,6 +129,9 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   Nhentai 请给出站点自带 [OpenAPI](https://nhentai.net/api/v2/openapi.json) 的条目（JSON Pointer 或
   `operationId`，例如 `#/paths/~1api~1v2~1galleries/get`）以及可复现的匿名响应（请求 URL、状态码与正文关键字段）
   与执行范围——它同样没有本地上游服务端源码，也没有别的契约来源；`.to` 一类克隆站的行为不算 `.net` 的契约。
+  ArtStation 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围——本轮未取得官方
+  API 文档页、OpenAPI 与服务端源码，本类覆盖公开作品集资源、只读搜索与 RSS，没有内容写入方法，
+  也没有指定作品详情方法；两条 POST 的 token 由调用方传入，不要把它当凭据配置项。
   **不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
@@ -146,10 +164,15 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
    .venv/Scripts/python.exe examples/cosine/browse_resources.py
    .venv/Scripts/python.exe examples/nhentai/list_galleries.py
    .venv/Scripts/python.exe examples/nhentai/browse_resources.py
+   python examples/artstation/list_projects.py
+   python examples/artstation/browse_resources.py
    ```
 
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
    代理等请求设置来自 `request`，凭据来自 `sites`，示例查询值来自 `examples`。
+   ArtStation 的 `examples.artstation` 另有两个键（`csrf_request` 与 `post_search_query`），只给文档里的
+   两步只读 POST（先取公开 CSRF token，再用同一个客户端发搜索 POST）备用；现有示例与冒烟**不会**自动执行
+   它们，token 由调用方传入，不写进配置、不落盘。
    示例按需真跑：运行过的记录命令、URL、状态与返回；没有运行的照实标“未实测”，不要求为补齐数量逐一请求。
 6. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
    “未执行、未实测”，并写清依据的源码位置与请求体形状；不要为了凑验证去发写请求。
@@ -173,7 +196,7 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   也不为旧行为保留别名或垫片。
   新增方法要给出依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应，Gelbooru 为官方
   wiki/帮助页或页面脚本出处 + 实测响应，Gelbooru02 为 TBIB 帮助页条目与真实响应，
-  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria 与 Anime-Pictures 为可复现的匿名响应与执行范围，
+  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria、Anime-Pictures 与 ArtStation 为可复现的匿名响应与执行范围，
   Nhentai 为站点自带 OpenAPI 的路径/schema（JSON Pointer 或 `operationId`）+ 实测响应），
   并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 

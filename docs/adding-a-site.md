@@ -35,6 +35,10 @@
 - Cosine 与它们同档：自研 Next.js + Prisma + Meilisearch API，站点前端仓库公开但本轮只按需只读个别文件
   （不 clone、不写行号），候选输入是待验证资料而不是契约；结论按匿名响应核实，未实测项与输入矛盾分别
   集中记录，见 [cosine-contract-notes.md](cosine-contract-notes.md)。
+- ArtStation 使用站点自己的根级 JSON、`/api/v2` 与 RSS，不套 booru 模型；本轮未取得官方 API 规范或
+  服务端源码，只凭匿名响应核对。`/openapi.json` 返回 200 HTML Explore 页，并不是规范；个别详情路径
+  403 挑战或 401 不能外推成全站不可用，也不能据此发明认证方式。证据与输入资料的差异见
+  [artstation-contract-notes.md](artstation-contract-notes.md)。
 - 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
 ## 1. 摸契约（只读、匿名、串行）

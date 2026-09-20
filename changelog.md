@@ -11,6 +11,49 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### ArtStation 第十二家族
+
+- 新增 `ArtStation`、`anybooru/artstation.py` 与 `anybooru/api_artstation.py`。站点是公开作品集站点，**不是**
+  booru 引擎：本类覆盖公开作品集 JSON 路由（`projects.json`、随机作品、用户与用户作品/关注、
+  `api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、作品评论、探索最新）、
+  只读搜索与一个 RSS 订阅源（`artwork.rss`），不套用其它家族的路由、参数名与字段。
+- 原生 API 固定 **17 个方法（15 个 `GET` + 2 个 `POST`）**：16 个返回 JSON、`feed()` 用 `response_format='xml'`
+  返回 `artwork.rss` 的 RSS 原文（不解析、不看 `Content-Type` 嗅探格式，其它取值直接抛 `KeyError`）。
+  原有 `project_search(**params)` 保持 `GET` 与既有行为不变，只读搜索 POST 是并列新增的
+  `project_search_post(public_csrf_token, **params)`。
+  **两个 POST 都不是内容写入**：`csrf_token(**attributes)` 把属性原样作为 JSON 正文 POST 到
+  `api/v2/csrf_protection/token.json`，返回体里的 `public_csrf_token` 由调用方保存、站点会话 Cookie 由会话
+  自然保存；`project_search_post(public_csrf_token, **params)` 用共享编码器编出的 Rails 表单 POST 到
+  `api/v2/search/projects.json`，token 只放本次调用的 `PUBLIC-CSRF-TOKEN` 头。token 必须由调用方传入并配对
+  同一个 `ArtStation` 实例的会话，本库不自动获取、不续期、不重放，也不把它存成配置项或对象属性。
+  `request()` 新增 `form=` 关键字（`data` 仍是 JSON 正文），由调用方显式选择，不做本地校验或兜底。
+  构造器**没有凭据字段**，站点条目只有 `url`：没有登录或鉴权绕行、没有重试、钳位、回退或字段改名。
+- 作品列表外壳 `{"data":…,"total_count":…}` 原样返回，不剥 `data` 层。**全站列表与用户作品列表的条目字段
+  不同**（`user_projects` 的条目没有 `user` / `views_count`），不能跨路由照抄字段清单；媒体地址按服务端原值
+  返回，不构造、不改写、不下载。`project_search_post` 的 `additional_fields=['assets','description']` 只是让
+  这次查询的结果多带这两个字段（专辑作品与随机作品本来就带 `assets`），不是按 id 取任意作品的入口。
+- 明确排除两条详情路由：固定作品详情 `/projects/{hash}.json` 实测是站点的质询页（`403`，HTML），
+  v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），因此本类**没有封装**
+  `project_show`；确需时用通用 `request()` 显式调用。`project_search` 缺 `per_page` 是 `400`
+  （`{"data":"per_page should be given"}`），客户端不钳位、不补默认分页。
+- 配置新增 `sites.artstation`（只有 `url`）、`examples.artstation`（新增的 `csrf_request` 与
+  `post_search_query` 两个键只给那两条两步调用备用）、`smoke.artstation`；新增两个匿名示例
+  （`examples/artstation/list_projects.py`、`examples/artstation/browse_resources.py`，仍是各四次 GET，
+  不自动执行 POST）、10 次以内的 `test/artstation.py`（仍是 10 次 GET）、四份家族文档，以及 README、
+  `docs/index.md`、`docs/installation.md`、`docs/migration.md`、CONTRIBUTING 与 `setup.cfg` 的导航与家族
+  表述同步。
+- 本轮**未取得 ArtStation 官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应：此前记录的 GET
+  成功字段、缺参 `400`、两条详情路径的 `403` / `401` 与两条未知路径返回 Explore HTML 的边界都按实测写；
+  两条只读 POST 方法的跟进记录与这批 GET 结果分开标注（POST 侧的实际尝试次数与结果以
+  [验证记录](docs/verification.md) 为准），不复用也不改写前面的数字。已跟到的样本：`csrf_token()` 是 `200`
+  加 `application/json`、正文顶层只有 `public_csrf_token`（字符串），响应里的会话 Cookie
+  （`PRIVATE-CSRF-TOKEN`）由会话自然保存、值不落盘；`project_search_post()` 是 `200`，请求为
+  `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳仍是 `{"total_count":…,"data":[…]}`，
+  本次 3 条结果的条目都带 `assets` 与 `description`。缺 token、过期 token、其它 `filters` 形状与 `412`
+  一类 POST 边界仍未实测。排序只测过 `relevance`、订阅源只测过 `latest`、POST 表单里 `filters` 的嵌套形状
+  仍是候选，样本之外的取值不构成返回值承诺；需要登录的账号写操作不在本类范围内，也未实测。逐条记录见
+  [验证记录](docs/verification.md)，依据与排除项见[契约附注](docs/artstation-contract-notes.md)。
+
 ### Nhentai 第十二家族
 
 - 新增 `Nhentai`、`anybooru/nhentai.py` 与 `anybooru/api_nhentai.py`。站点 `nhentai.net` 自带一套第三方

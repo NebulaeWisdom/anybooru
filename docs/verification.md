@@ -1769,3 +1769,184 @@ python -X utf8 examples/cosine/browse_resources.py --config my-anybooru.json
 - 评论与编辑历史的选定样本为空；非空公告、其它错误/权限分支不能写成已测。
 - 本轮合计 **79 GET：55×200、6×400、7×401、1×403、10×404**；没有模糊状态的请求。
   未运行formatter、lint、项目测试套件、构建、发布或额外离线检查。
+
+## ArtStation：匿名只读实测（2026-09-20）
+
+本节区分直接 HTTP 观察与 Python 客户端真跑，不把候选资料的记录当作本轮证据。
+先完成15个GET的核验，后补显式CSRF与POST搜索：当前17方法=15GET+2POST，共享传输未修改；参数见
+[方法参考](artstation-api.md)，输入校正见[契约附注](artstation-contract-notes.md)。
+
+### 直接路由观察
+
+37次定点匿名GET，状态分布 **200×25、400×9、401/403/404各1**。
+UTC为 **2026-09-20 10:56:01.620835–10:57:26.978488**（首批31次）与
+**10:57:53.701284–10:58:08.100623**（补充6次）。串行，每次请求前暂停1.3秒，
+不重试、不跟随重定向、不登录、不发非GET、不访问媒体。下面数字是当次读数，不是常量。
+
+| # | 真实 URL | HTTP | Content-Type | 首层结构与关键字段 |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | `https://www.artstation.com/projects.json?page=1&per_page=1` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=1 项；ids=[22900098]；total_count=14522955；条目 id/hash_id/title/permalink/cover/user/views_count |
+| 2 | `https://www.artstation.com/projects.json?page=1&per_page=50` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=50 项；ids=[22900098, 22899727, 22899929]；total_count=14522955；条目 id/hash_id/title/permalink/cover/user/views_count |
+| 3 | `https://www.artstation.com/projects.json?page=1&per_page=51` | 400 | `text/plain; charset=utf-8` | 空正文 |
+| 4 | `https://www.artstation.com/projects.json?page=999999&per_page=1` | 400 | `text/plain; charset=utf-8` | 空正文 |
+| 5 | `https://www.artstation.com/users/timwarnock.json` | 200 | `application/json; charset=utf-8` | 用户对象 70 键；id=1 username=timwarnock；albums_with_community_projects 含 id=95733 |
+| 6 | `https://www.artstation.com/users/timwarnock/quick.json` | 200 | `application/json; charset=utf-8` | 用户对象 59 键；id=1 username=timwarnock；albums_with_community_projects 含 id=95733 |
+| 7 | `https://www.artstation.com/users/timwarnock/projects.json?page=1&per_page=2` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=2 项；ids=[17792515, 13201269]；total_count=40；条目 id/hash_id/title/cover，无 user/views_count |
+| 8 | `https://www.artstation.com/users/timwarnock/projects.json?page=2&per_page=2` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=2 项；ids=[13207332, 13201229]；total_count=40；条目 id/hash_id/title/cover，无 user/views_count |
+| 9 | `https://www.artstation.com/users/timwarnock/projects.json?page=9999&per_page=2` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=0 项；ids=[]；total_count=40；条目 id/hash_id/title/cover，无 user/views_count |
+| 10 | `https://www.artstation.com/users/zzzz_no_such_user_99.json` | 404 | `text/plain; charset=utf-8` | 空正文 |
+| 11 | `https://www.artstation.com/users/timwarnock/following.json?page=1&per_page=2` | 200 | `application/json; charset=utf-8` | {data,total_count}；data=2 项；ids=[3669, 20302]；total_count=409 |
+| 12 | `https://www.artstation.com/random_project.json` | 200 | `application/json; charset=utf-8` | 单个作品对象；id=3260777 hash_id=OnxxK；assets=2，tags=[]；categories/mediums/software_items/user |
+| 13 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=3&sorting=relevance` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=3 项；ids=[10122141, 17985153, 3049628]；total_count=118784；条目 id/hash_id/url/title/user，无 assets/description |
+| 14 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=75` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=75 项；ids=[10122141, 17985153, 5448004]；total_count=118784；条目 id/hash_id/url/title/user，无 assets/description |
+| 15 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=76` | 400 | `application/json; charset=utf-8` | {"message": "per_page should be <= 75", "code": "per_page"} |
+| 16 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=2` | 400 | `application/json; charset=utf-8` | {"message": "per_page should be >= 3", "code": "per_page"} |
+| 17 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&per_page=3` | 400 | `application/json; charset=utf-8` | {"data": "page should be given"} |
+| 18 | `https://www.artstation.com/api/v2/search/projects.json?query=&page=1&per_page=3&sorting=relevance&filters=%5B%7B%22field%22%3A%22title%22%2C%22method%22%3A%22contain%22%2C%22value%22%3A%22dragon%22%7D%5D` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=3 项；ids=[3823430, 13723199, 712739]；total_count=111156；条目 id/hash_id/url/title/user，无 assets/description |
+| 19 | `https://www.artstation.com/api/v2/search/projects/filter_fields.json` | 200 | `application/json; charset=utf-8` | 裸数组 12 项；name/type，部分 select_options；title/text、category_ids/select_multiple 等 |
+| 20 | `https://www.artstation.com/api/v2/community/projects/by_album.json?album_id=104104&page=1&per_page=4` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=4 项；ids=[21341650, 319055, 621145]；total_count=49；条目 album_id/album_title/position/assets/description |
+| 21 | `https://www.artstation.com/api/v2/community/channels/channels.json` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=64 项；ids=[70, 69, 71]；total_count=64；条目 id/name/uri/type，70=Abstract |
+| 22 | `https://www.artstation.com/api/v2/community/channels/projects.json?channel_id=70&page=1&per_page=5` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=5 项；ids=[22900098, 22899727, 22899929]；total_count=10000；条目 id/hash_id/url/is_highlighted/small_square_cover_url |
+| 23 | `https://www.artstation.com/api/v2/community/explore/projects/latest.json?page=1&per_page=10` | 200 | `application/json; charset=utf-8` | {data}；data=10 项；ids=[22900842, 22900841, 22900840]；条目 id/hash_id/url/is_highlighted/small_square_cover_url |
+| 24 | `https://www.artstation.com/api/v2/community/projects/22897630/comments.json` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=0 项；ids=[]；total_count=0 |
+| 25 | `https://www.artstation.com/api/v2/community/projects/22897630.json` | 401 | `application/json; charset=utf-8` | {"data": null} |
+| 26 | `https://www.artstation.com/projects/G1ew2N.json` | 403 | `text/html; charset=UTF-8` | HTML；Cf-Mitigated: challenge |
+| 27 | `https://www.artstation.com/artwork.rss?sorting=latest` | 200 | `application/rss+xml; charset=utf-8` | XML；RSS 2.0，50 item；channel/title=ArtStation - Latest Artwork |
+| 28 | `https://www.artstation.com/openapi.json` | 200 | `text/html; charset=utf-8` | HTML；title=ArtStation - Explore，不是 JSON |
+| 29 | `https://www.artstation.com/no-such-route-xyz-123` | 200 | `text/html; charset=utf-8` | HTML；title=ArtStation - Explore，不是 JSON |
+| 30 | `https://www.artstation.com/tos` | 200 | `text/html; charset=utf-8` | HTML；§24(d)/(j)/(n) 内容使用与访问控制限制，§46(a) NoAI 默认标记 |
+| 31 | `https://www.artstation.com/robots.txt` | 200 | `text/plain; charset=utf-8` | 文本；10 项 Disallow、9 个 Sitemap 地址 |
+| 32 | `https://www.artstation.com/api/v2/user_profiles/timwarnock.json` | 200 | `application/json; charset=utf-8` | 用户对象 63 键；id=1 username=timwarnock；albums_with_community_projects 含 id=95733 |
+| 33 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=0&per_page=3` | 400 | `application/json; charset=utf-8` | {"data": "page should be a positive integer"} |
+| 34 | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=3&additional_fields%5B%5D=assets&additional_fields%5B%5D=description` | 200 | `application/json; charset=utf-8` | {total_count,data}；data=3 项；ids=[10122141, 17985153, 3049628]；total_count=118784；条目 id/hash_id/url/title/user，无 assets/description |
+| 35 | `https://www.artstation.com/api/v2/search/projects.json?query=&page=1&per_page=3&filters%5B%5D%5Bfield%5D=title&filters%5B%5D%5Bmethod%5D=contain&filters%5B%5D%5Bvalue%5D=dragon` | 400 | `application/json; charset=utf-8` | {"data": "filters should be a string"} |
+| 36 | `https://www.artstation.com/api/v2/community/projects/by_album.json?album_id=104104&page=1&per_page=3` | 400 | `application/json; charset=utf-8` | {"message": "per_page should be >= 4", "code": "per_page"} |
+| 37 | `https://www.artstation.com/api/v2/community/explore/projects/latest.json?page=1&per_page=9` | 400 | `application/json; charset=utf-8` | {"message": "per_page should be >= 10", "code": "per_page"} |
+
+另有接入前期三条匿名连通性样本，只读取正文开头，不能据此列出完整字段集；没有把它们计入上表37次。
+其中缺per_page的400已有证据，后续不为重复确认这个错误而再请求。
+
+| 真实 URL | HTTP | Content-Type | 已取得的正文开头 |
+| :--- | :--- | :--- | :--- |
+| `https://www.artstation.com/projects.json?page=1&per_page=2` | 200 | `application/json; charset=utf-8` | data数组，首项id=22900098、slug=field-journal；未读取末尾 |
+| `https://www.artstation.com/api/v2/search/projects.json?query=test&page=1` | 400 | `application/json; charset=utf-8` | `{"data":"per_page should be given"}` |
+| `https://www.artstation.com/api/v2/user_profiles/timwarnock.json` | 200 | `application/json; charset=utf-8` | 用户对象开头id=1、username=timwarnock |
+
+关键结论：搜索缺page/per_page是400，不是默认1/50；全站与用户作品条目字段不同；
+GET filters必须为JSON字符串；专辑项已有assets；Explore只有data没有total_count；
+指定详情403挑战与v2详情401不能外推到评论子路由。未知.json路径可以200返回HTML，不能当作API存在的证据。
+
+### 实际脚本与命令
+
+三个脚本由同一项目Python环境执行，下面使用中性配置文件名展示可复制命令；配置保留包内的
+sites/examples/smoke段，仅按使用者环境填写请求设置：
+
+```bash
+python -X utf8 test/artstation.py --config my-anybooru.json
+python -X utf8 examples/artstation/list_projects.py --config my-anybooru.json
+python -X utf8 examples/artstation/browse_resources.py --config my-anybooru.json
+```
+
+| 脚本 | 请求数 | HTTP | 退出码 | UTC（2026-09-20） |
+| :--- | :--- | :--- | :--- | :--- |
+| `test/artstation.py` | 10 | 200×8、预期404×1、预期400×1 | 0 | 11:08:21.055408–11:08:43.241187 |
+| `examples/artstation/list_projects.py` | 4 | 200×4 | 0 | 11:08:44.542995–11:08:53.394958 |
+| `examples/artstation/browse_resources.py` | 4 | 200×4 | 0 | 11:08:54.695974–11:09:03.371176 |
+
+三者标准错误为空，一次执行即通过，没有失败复跑。冒烟已真实执行
+`from anybooru import ArtStation`、配置读取与客户端构造，输出：
+
+```text
+PASS setup | https://www.artstation.com | no HTTP | import/config/client OK; anonymous, no credentials
+SUMMARY artstation | requests=10 | passed=10 failed=0
+```
+
+冒烟消费了完整列表/详情/数组/RSS形状、两页用户作品与两个预期HTTP错误；不锁定站点计数或
+活跃列表页间无重复。404保留空body与data=None，400保留message/code对象，last_call保留URL/状态。
+所有脚本每次请求前（包括首个请求）按配置暂停1.3秒，进程启动之间也留有间隔；没有自动翻页或媒体请求。
+
+| 调用 | 真实 URL | HTTP 与 Content-Type | 关键结果 |
+| :--- | :--- | :--- | :--- |
+| 冒烟 project_list configured page | `https://www.artstation.com/projects.json?page=1&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；per_page<=2 count=2 total_count=14522955 ids=[22900098, 22899727] first: id=22900098 hash_id=1LxzVq title='Field Journal' assets_count=8 tag_list=NoneType user=gabe-11 views_count=234 |
+| 冒烟 user_projects page 1 | `https://www.artstation.com/users/timwarnock/projects.json?page=1&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；user=timwarnock per_page<=2 count=2 total_count=40 ids=[17792515, 13201269] first: id=17792515 hash_id=eln233 title='Expanse' assets_count=10 tag_list=NoneType cover_keys=4 item_keys=19 |
+| 冒烟 user_projects page 2 | `https://www.artstation.com/users/timwarnock/projects.json?page=2&per_page=2` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；user=timwarnock per_page<=2 count=2 total_count=40 ids=[13207332, 13201229] first: id=13207332 hash_id=EamVr0 title='Legends Of Runeterra - Nakotak Caves' assets_count=5 tag_list=NoneType cover_keys=4 item_keys=19 |
+| 冒烟 project_random | `https://www.artstation.com/random_project.json` | HTTP 200 application/json; charset=utf-8 | id:int,hash_id:str,title:str,permalink:str,tags:list,assets:list,user:dict,cover:dict；id=5517859 hash_id=e0qKRY title='Swing Shift cover-Book 1' permalink=https://www.artstation.com/artwork/e0qKRY tags=[] assets=1 first_asset=id=19904392 asset_type=image width=1000 height=1500 user=aikaterini cover_id=19904392 |
+| 冒烟 project_search configured query | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=3&sorting=relevance` | HTTP 200 application/json; charset=utf-8 | total_count:int,data:list；per_page<=3 count=3 total_count=118784 ids=[10122141, 17985153, 3049628] first: id=10122141 hash_id=aY5nBq title='Cat Cat Cat' url=https://www.artstation.com/artwork/aY5nBq is_adult_content=False hide_as_adult=False user=dajeong_park |
+| 冒烟 search_filter_fields | `https://www.artstation.com/api/v2/search/projects/filter_fields.json` | HTTP 200 application/json; charset=utf-8 | items=12 names=['title', 'category_ids', 'asset_types', 'medium_ids', 'software_ids', 'comments_count', 'following', 'editor_pick', 'artist_name', 'medium_id', 'artist_followers_count', 'tags'] |
+| 冒烟 album_projects configured album | `https://www.artstation.com/api/v2/community/projects/by_album.json?page=1&per_page=4&album_id=104104` | HTTP 200 application/json; charset=utf-8 | data:list,total_count:int；album_id=104104 per_page<=4 count=4 total_count=49 ids=[21341650, 319055, 621145, 412659] first: id=21341650 hash_id=XJLVv0 title='North African Witch' album_title='All projects' assets=5 |
+| 冒烟 feed configured sorting | `https://www.artstation.com/artwork.rss?sorting=latest` | HTTP 200 application/rss+xml; charset=utf-8 | chars=110894 items=50 content_type='application/rss+xml; charset=utf-8' |
+| 冒烟 user_show missing username | `https://www.artstation.com/users/zzzz_no_such_user_99.json` | HTTP 404 AnybooruHTTPError (expected) | user=zzzz_no_such_user_99 data=NoneType body_chars=0 content_type='text/plain; charset=utf-8' last_call=HTTP 404 https://www.artstation.com/users/zzzz_no_such_user_99.json |
+| 冒烟 project_search per_page below minimum | `https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=2` | HTTP 400 AnybooruHTTPError (expected) | message:str,code:str；code='per_page' message_chars=23 body_chars=60 content_type='application/json; charset=utf-8' |
+| list_projects.py project_list | `https://www.artstation.com/projects.json?page=1&per_page=2` | 200 application/json; charset=utf-8 | {"page": 1, "total_count": 14522955, "count": 2, "ids": [22900098, 22899727], "first_project": {"id": 22900098, "hash_id": "1LxzVq", "title": "Field Journal", "permalink": "https://www.artstation.com/artwork/1LxzVq", "assets_count": 8, "tag_list": null, "views_count": 234, "user": "gabe-11", "cover_small_square_url": "https://cdnb.artstation.com/p/assets/covers/images/102/562/779/small_square/gabriel-yeganyan-gabriel-yeganyan-cover.jpg?1789886110"}} |
+| list_projects.py project_list | `https://www.artstation.com/projects.json?page=2&per_page=2` | 200 application/json; charset=utf-8 | {"page": 2, "total_count": 14522955, "count": 2, "ids": [22899929, 22900319], "first_project": {"id": 22899929, "hash_id": "2L9EbA", "title": "潮生异变：拾海一家", "permalink": "https://www.artstation.com/artwork/2L9EbA", "assets_count": 4, "tag_list": null, "views_count": 168, "user": "sevens-d", "cover_small_square_url": "https://cdna.artstation.com/p/assets/images/images/102/561/824/20260920001521/small_square/sevens-d-2-2.jpg?1789881321"}} |
+| list_projects.py project_search | `https://www.artstation.com/api/v2/search/projects.json?page=1&query=&per_page=3&sorting=relevance&filters=%5B%7B%22field%22%3A%22title%22%2C%22method%22%3A%22contain%22%2C%22value%22%3A%22dragon%22%7D%5D` | 200 application/json; charset=utf-8 | {"page": 1, "query": "", "total_count": 111156, "count": 3, "ids": [3823430, 13723199, 712739], "hash_ids": ["GXOBA1", "8wNbL6", "g9qwQ"], "titles": ["Dragon and mouse", "Omakase! Dragonslayer :: 屠龍", "Dragon's Breath"]} |
+| list_projects.py project_search | `https://www.artstation.com/api/v2/search/projects.json?page=2&query=&per_page=3&sorting=relevance&filters=%5B%7B%22field%22%3A%22title%22%2C%22method%22%3A%22contain%22%2C%22value%22%3A%22dragon%22%7D%5D` | 200 application/json; charset=utf-8 | {"page": 2, "query": "", "total_count": 111156, "count": 3, "ids": [4221553, 12429036, 5421695], "hash_ids": ["lVG44a", "036RN4", "nQOGb1"], "titles": ["Dragon Ball fan arts #1", "Mother of Dragons-Nyx", "Dragon Ball fan arts #2"]} |
+| browse_resources.py user_show | `https://www.artstation.com/users/timwarnock.json` | 200 application/json; charset=utf-8 | {"username": "timwarnock", "user_id": 1, "full_name": "Tim Warnock", "headline": "Concept Artist &amp; Partner at North Front Studio", "projects_count": 40, "followers_count": 4744, "key_count": 70, "album_count": 1, "first_album": "All"} |
+| browse_resources.py album_projects | `https://www.artstation.com/api/v2/community/projects/by_album.json?page=1&per_page=4&album_id=104104` | 200 application/json; charset=utf-8 | {"album_id": 104104, "page": 1, "per_page": 4, "total_count": 49, "count": 4, "ids": [21341650, 319055, 621145, 412659], "first_project": {"id": 21341650, "hash_id": "XJLVv0", "title": "North African Witch", "album_id": 104104, "album_title": "All projects", "position": -56, "permalink": "https://www.artstation.com/artwork/XJLVv0", "assets": 5}} |
+| browse_resources.py project_random | `https://www.artstation.com/random_project.json` | 200 application/json; charset=utf-8 | {"id": 1126843, "hash_id": "YgReK", "title": "Fun with abstract shapes", "tags": [], "assets": 2, "user": "yuukimorita", "cover_id": 3327975, "first_asset": {"id": 3327975, "asset_type": "image", "width": 2048, "height": 2024}} |
+| browse_resources.py project_comments | `https://www.artstation.com/api/v2/community/projects/22897630/comments.json` | 200 application/json; charset=utf-8 | {"project_id": 22897630, "total_count": 0, "count": 0} |
+
+### 执行范围与未实测
+
+- 实际执行9个原生方法：project_list、user_projects、project_random、project_search、search_filter_fields、
+  album_projects、feed、user_show（成功与缺失用户）、project_comments。
+- user_quick、user_profile、user_following、channel_list、channel_projects、explore_latest 六个原生方法
+  仅有对应路径的直接HTTP观察；不说它们的Python包装方法已真跑。
+- GET阶段尚未运行CSRF与POST，后续两步证据另列下节。任意headers、显式html与未封装详情的客户端调用未另跑；
+  内容写入、PUT/PATCH/DELETE、登录与账号认证成功始终未测，401/403不证明认证方案。
+- 37次完整路由观察加18次脚本调用共 **55GET：200×41、400×10、404×2、401×1、403×1**；
+  若连同前期三条正文截段样本，累计 **58GET：200×43、400×11、404×2、401×1、403×1**。
+  两种统计口径不混用；包含两条政策读取，全部不含媒体下载。
+- 排序/过滤全集、默认分页、精确最大页码、其它资源的每页上限、非空评论和tags元素类型、随机分布、
+  CDN尺寸/缓存/Referer/Range、其它主机与模块、CORS/限流/挑战机制未验证，详细清单集中于契约附注。
+- 未运行formatter、lint、构建、安装归档、CI或项目测试套件；本节证据只来自上述HTTP响应与三次脚本真跑。
+
+### 匿名 CSRF 与 POST 搜索跟进
+
+原生方法新增 `csrf_token(**attributes)` 与 `project_search_post(public_csrf_token, **params)`，
+各只发送一个POST：第一步JSON取匿名CSRF，第二步form只读查询，不发布/修改作品或关系。
+同一客户端会话保留服务端设置的Cookie，调用者显式传公开token；不自动取得、持久化、刷新或重放。
+原 `project_search` 仍GET，原冒烟和两个示例未加请求、未复跑。
+
+下面是实际执行的等价公开调用（取值对应包内新增的csrf_request/post_search_query）：
+
+```python
+from functools import partial
+from time import sleep
+from anybooru import ArtStation
+
+with ArtStation('artstation', config_file='my-anybooru.json') as client:
+    client.client.request = partial(client.client.request, allow_redirects=False)
+    sleep(1.3)
+    csrf = client.csrf_token(create_csrf_token_request='true')
+    sleep(1.3)
+    projects = client.project_search_post(
+        csrf['public_csrf_token'], query='cat', page=1, per_page=3,
+        sorting='relevance', additional_fields=['assets', 'description'])
+    print([(project['id'], len(project['assets'])) for project in projects['data']])
+```
+
+| 实际请求 | 请求正文格式与参数 | HTTP / 响应Content-Type | 响应摘要 | UTC（2026-09-20） |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST https://www.artstation.com/api/v2/csrf_protection/token.json` | application/json；`{"create_csrf_token_request":"true"}` | 200 / application/json; charset=utf-8 | 首层仅public_csrf_token，字符串88位；响应Cookie名PRIVATE-CSRF-TOKEN与__cf_bm，值不记录 | 11:36:28.601055–11:36:29.864615 |
+| `POST https://www.artstation.com/api/v2/search/projects.json` | application/x-www-form-urlencoded；`query=cat&page=1&per_page=3&sorting=relevance&additional_fields%5B%5D=assets&additional_fields%5B%5D=description` | 200 / application/json; charset=utf-8 | `{total_count:118783,data:[…]}`；3项目，均有assets数组与description字符串 | 11:36:31.166129–11:36:31.836189 |
+
+项目10122141、17985153、3049628分别返回6、11、17个资产。项目样本有
+`id/hash_id/url/smaller_square_cover_url/hide_as_adult/is_adult_content/title/description/assets/icons/user`。
+首项图片资产有 `id/title/asset_type/width/height/position/viewport_constraint_type/small_image_url/large_image_url/has_image/has_embedded_player`；
+不同资产类型字段可以不同，客户端保留全部原文。没有请求任何返回的媒体地址。
+两个新原生方法的完整两步运行退出0，输出 `SUMMARY artstation-post | requests=2 | token_keys=public_csrf_token | projects=3`。
+
+初次token请求在响应记录钩子中成功解出JSON及public_csrf_token，但记录请求正文bytes时触发
+`TypeError: Object of type bytes is not JSON serializable`，该运行退出1，搜索未发送。
+那一次的HTTP状态与UTC没有保存，不能补写200。修正的是证据序列化，不是客户端请求行为；
+只重跑受影响两步，没有网络失败后的自动重试。公开token和Cookie值不落盘。
+
+**补充阶段3次POST尝试：两个200，另一次HTTP状态未记录。** 累计负责人58次请求=55GET+3POST，
+57次状态明确：200×43、400×10、404×2、401×1、403×1；加前期3条GET后合计61次，
+60次状态明确：200×45、400×11、404×2、401×1、403×1，另一次状态未知。
+实际真跑原生方法由9增为11，另外6个GET方法仍只有直接路径观察。
+
+缺/坏/过期token、跨会话、412、POST filters/JSON搜索/其它additional_fields组合、POST分页默认值与边界
+仍未实测；GET的3..75范围不冒称POST也已验证。所有内容写入与账号认证分支仍未执行。
+专辑和随机本来就能返回资产，新增POST仅证明为搜索结果补充assets/description，不证明任意ID详情或全站唯一入口。

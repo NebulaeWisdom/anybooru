@@ -409,6 +409,86 @@ with Nhentai('nhentai', api_key='') as client:
 “Email hidden for API key auth”）。方法签名、返回字段与排除项见[方法参考](nhentai-api.md)与
 [nhentai 契约审计附注](nhentai-contract-notes.md)。
 
+## ArtStation 没有凭据入口
+
+`ArtStation` 只做公开读取：站点条目**只有 `url` 一个字段**，构造签名里没有 `username` / `api_key` /
+`password` / `access_token` / `authorization` / `cookie` 一类的凭据参数，构造时把共享传输的 `username` 置空。
+本类不自动生成认证头，也没有账号登录、注册或刷新会话的方法；唯一的 token 入口是 `csrf_token()`
+（取的是**匿名** CSRF token，见下）。共享会话仍会正常保存站点响应 Cookie，
+不会在 `401` / `403` 后退回匿名或另换一条路径。
+
+```json
+{
+  "sites": {
+    "artstation": { "url": "https://www.artstation.com" }
+  }
+}
+```
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:        # 包内条目只有 url，没有凭据可填
+    # GET https://www.artstation.com/projects.json?page=1&per_page=2
+    print(client.project_list(page=1, per_page=2)['total_count'])   # 匿名读公开作品列表
+```
+
+### 匿名 CSRF 与表单式 POST 搜索
+
+17 个原生方法里有 2 个 POST，**都不是内容写入**，只用匿名会话：
+
+* `csrf_token(**attributes)` —— POST `api/v2/csrf_protection/token.json`，JSON 请求体就是 `attributes` 本身
+  （配置里的 `csrf_request` 是 `{"create_csrf_token_request": "true"}`，对应
+  `csrf_token(create_csrf_token_request='true')`）。返回体原样给你，里面有 `public_csrf_token`；
+  客户端**不把它存成属性**，配对的 Cookie 由现有的 `requests.Session` 照常保存；库不自动续期、不替你重放。
+* `project_search_post(public_csrf_token, **params)` —— POST `api/v2/search/projects.json`，请求体走共享的
+  Rails 表单编码（`additional_fields=['assets', 'description']` 编码成重复的 `additional_fields[]`），
+  并把 token 的**实参原值**放进 `PUBLIC-CSRF-TOKEN` 请求头。token 是**必填的调用方实参**：
+  库不会自动取 token、不会伪造 Cookie、不会重试，也不做响应改写。
+
+两步要用**同一个客户端**：Cookie 在会话里，token 在调用方手里。
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:            # 包内条目只有 url，没有账号凭据
+    csrf = client.csrf_token(create_csrf_token_request='true')
+    # POST https://www.artstation.com/api/v2/csrf_protection/token.json
+    # JSON 体：{"create_csrf_token_request": "true"}；返回体里有 public_csrf_token
+    results = client.project_search_post(csrf['public_csrf_token'],
+                                        query='cat', page=1, per_page=3, sorting='relevance',
+                                        additional_fields=['assets', 'description'])
+    # POST https://www.artstation.com/api/v2/search/projects.json
+    # 表单体：query=cat&page=1&per_page=3&sorting=relevance&additional_fields[]=assets&additional_fields[]=description
+    # 请求头：PUBLIC-CSRF-TOKEN: <上面拿到的 token>
+    print(results['total_count'], len(results['data']))
+```
+
+这不是账号登录：CSRF token 是站点发给匿名会话的请求凭据，与 Danbooru 的 `username` / `api_key`、
+Sakuria 的 `access_token` 都不是一回事。库不收账号密码、不做登录态刷新，失败也不退回别的身份。
+
+本轮实测里，token 请求（JSON 体 `{"create_csrf_token_request": "true"}`，`Content-Type: application/json`）
+回 `200 application/json`，正文是 `{"public_csrf_token": "<88 字符的字符串>"}`，响应里出现的 Cookie 名是
+`PRIVATE-CSRF-TOKEN` 与 `__cf_bm`（值未记录）；随后同一个客户端的表单式搜索也回 `200`，
+正文是 `{"total_count": …, "data": […]}`。
+缺 token、token 失效（候选输入提到 `412`）等拒绝分支没有任何样本，也从未在带账号凭据的情形下试过。
+
+本轮没有任何**账号凭据**的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；
+`request(headers=...)` 虽可显式传请求头，也不保证认证成功：
+
+| 请求 | 实测 | 能读出什么 |
+| :--- | :--- | :--- |
+| `GET /projects/G1ew2N.json`（固定作品详情） | `403`，正文是 Cloudflare 质询 HTML，响应头带 `Cf-Mitigated: challenge` | 这是**反脚本挑战页**，不是登录要求：既不证明这条路由要账号，也不说明该用哪种凭据 |
+| `GET /api/v2/community/projects/22897630.json`（v2 单作品详情） | `401 application/json`，正文 `{"data":null}` | 拒绝匿名；正文没有 code/message，响应头没有 WWW-Authenticate，无法据此判断凭据方案；带凭据未测 |
+
+这两条路由都没有对应的原生方法，本库也不替它们找替代路径。想试就自己用通用入口显式请求，例如
+`client.request('GET', 'api/v2/community/projects/22897630.json')`，成败由站点决定，见
+[ArtStation 契约附注](artstation-contract-notes.md)。
+
+本轮 [robots.txt](https://www.artstation.com/robots.txt) 为200文本，包含 `/*/likes`、`/*/following`、
+`/*/followers`、`/*/collections` 等模式；不能把这些模式说成只涉及 HTML、不涉及同前缀的 JSON。
+能匿名读到不等于获得许可，另见 [服务条款](https://www.artstation.com/tos)；本库不会因此改走备用路径。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -440,6 +520,12 @@ nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名�
 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流
 （`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与
 [nhentai 契约审计附注](nhentai-contract-notes.md)。
+ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST
+（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。
+`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 403 挑战与 v2 详情的 401 `{"data":null}`
+也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。
+逐条见[验证记录](verification.md)与
+[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
 
