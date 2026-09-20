@@ -245,7 +245,8 @@ JSON 路由拿到 2xx 却不是 JSON 时，仍按共享规则抛 `AnybooruAPIErr
 
 ### ArtStation
 
-本轮两批匿名探测共 37 次请求里的非 2xx 样本（12 个）。
+本轮两批匿名探测共 37 次请求里的非 2xx 样本（12 个），下面这张表是 **`GET` 侧**；
+`POST` 搜索与 CSRF 的跟进样本单独列在本节末。
 ArtStation 的错误正文**有两种 JSON 形状，还有空正文**，别假定错误里一定有字段：
 
 | 状态码 | 本轮观察（样本，不是全集） |
@@ -261,6 +262,16 @@ ArtStation 的错误正文**有两种 JSON 形状，还有空正文**，别假�
 [分页](pagination.md#artstation-的分页)），非数字 / 负数等取值未测。上表不是全集。
 这些失败都原样抛出（`400` / `401` / `404`，以及 `403` 那张质询页），客户端**不重试、不换路径、不把越界参数
 夹回合法范围**，也不把空数组换成异常。
+
+**`POST` 跟进（独立于上表的一段）**：匿名 CSRF token 与表单式搜索都成功——
+`POST api/v2/csrf_protection/token.json`（请求体 `{"create_csrf_token_request": "true"}`、
+`Content-Type: application/json`）回 `200` `application/json`，正文是
+`{"public_csrf_token": "<88 字符的字符串>"}`，响应里出现的 Cookie 名是 `PRIVATE-CSRF-TOKEN` 与 `__cf_bm`；
+随后同一客户端的 `POST api/v2/search/projects.json`（`application/x-www-form-urlencoded`）也回 `200`，
+正文是 `{"total_count": …, "data": […]}`（本轮 `per_page=3`，返回 3 条）。
+
+这两条是**成功**样本，不能拿来推断失败形态：`POST` 的 `filters` 等嵌套表单取值、缺 token、token 失效
+（候选输入提到 `412`）都没有样本，`GET` 侧的 `400` / `401` / `404` 边界也不能直接搬到 `POST`，只能算候选。
 
 ```python
 from anybooru import ArtStation, AnybooruHTTPError
@@ -285,7 +296,7 @@ with ArtStation('artstation') as client:
 想拿到这层 HTML 必须显式要求文本出口（`request('GET', 'no-such-route-xyz-123', response_format='html')`），
 客户端不做格式嗅探。反过来，`feed(sorting='latest')` 内部固定 XML 格式，返回 RSS 原文（`200`、
 `Content-Type: application/rss+xml`），客户端直接给 `.text`，不会因为正文不是 JSON 而抛异常。
-本轮只试过这两条未知路径，**不能推广成「所有未知路径都回 `200`」**，也没有取得任何带凭据的样本。
+本轮只试过这两条未知路径，不能推广成所有未知路径都回200；账号认证样本仍未取得，匿名CSRF两步另列。
 
 ## 不重试
 
@@ -311,9 +322,11 @@ Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探�
 `401` / `403` / `429` 都没有样本，未知参数是否被忽略也没有证据。逐条见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
 ArtStation 的错误路径同样只跑了有界样本：两批匿名探测共 37 次请求，其中非 2xx 12 个（`400` 九个、
-`401` / `403` / `404` 各一）、其余 25 个是 `200`；`429`、`5xx` 与带凭据的路径都没有样本，
-`per_page` 只试过四条路由的几个取值，未知路径回 `200` + HTML 也只试过两条路径，不能推广成全站行为。
-逐条见[验证记录](verification.md)与[ArtStation 契约审计附注](artstation-contract-notes.md)。
+`401` / `403` / `404` 各一）、其余 25 个是 `200`；另有一段独立的 `POST` 跟进（匿名 CSRF token 与表单式搜索
+各取到一次 `200`，失败分支没有样本）。`429`、`5xx` 与带账号凭据的路径都没有样本，
+`per_page` 只试过四条 GET 路由的几个取值，`POST` 侧只试过 `per_page=3`，未知路径回 `200` + HTML 也只试过
+两条路径，不能推广成全站行为。逐条见[验证记录](verification.md)与
+[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
 
