@@ -65,12 +65,18 @@
   [`docs/cosine-contract-notes.md`](docs/cosine-contract-notes.md)。
 
 * `artstation.com`（ArtStation，公开作品集站点）本轮**未取得官方 API 文档页、OpenAPI 或服务端源码**，
-  依据只有**匿名只读响应实测**。本站点不是 booru：本类只覆盖公开作品集资源（`projects.json`、随机作品、
+  依据只有**匿名只读响应实测**。本站点不是 booru：本类覆盖公开作品集资源（`projects.json`、随机作品、
   用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、
-  作品评论、探索最新）与一个 RSS 订阅源（`artwork.rss`），共 15 个原生 `GET`（14 个 JSON + `feed()` 的
-  RSS 原文）；没有凭据字段、没有写方法、也没有作品详情方法——固定详情 `/projects/{hash}.json` 实测是
-  站点质询页（`403`，HTML），v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`，
-  两条都不做自动替代路径。已测 `/openapi.json` 返回 Explore HTML，200 状态码不能证明 JSON API 存在；
+  作品评论、探索最新）、只读搜索与一个 RSS 订阅源（`artwork.rss`），共 17 个原生方法（15 个 `GET` +
+  2 个只读 `POST`，16 个 JSON + `feed()` 的 RSS 原文）。两个 POST 都不是内容写入：`csrf_token()` 取公开
+  CSRF token，`project_search_post()` 是搜索的只读 POST 形态，token 由调用方每次传入，本库不自动获取、
+  不续期、不重放、不落盘；站点条目没有凭据字段，也没有内容写入或指定作品详情方法——固定详情
+  `/projects/{hash}.json` 实测是站点质询页（`403`，HTML），v2 单作品
+  `/api/v2/community/projects/{id}.json` 匿名 `401`，两条都不做自动替代路径。已测 `/openapi.json` 返回
+  Explore HTML，200 状态码不能证明 JSON API 存在；需要登录的账号写操作不在范围内，也未实测。
+  POST侧两个成功样本均为200 JSON；csrf_token请求发JSON，project_search_post请求发form-urlencoded。
+  未测边界（缺token、过期token、其它filters形状、412）
+  都记在 [`docs/verification.md`](docs/verification.md)。
   成功字段与未实测项记在 [`docs/artstation-contract-notes.md`](docs/artstation-contract-notes.md)。
 
 改动这八个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
@@ -111,7 +117,8 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   Cosine 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围，并注明结论有没有公开前端文件
   支撑（只写文件、不编行号）——它没有本地上游服务端源码、OpenAPI，也没有可读到的官方手册页；
   ArtStation 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围——本轮未取得官方
-  API 文档页、OpenAPI 与服务端源码，本类只覆盖公开作品集资源与 RSS，没有指定作品详情方法。
+  API 文档页、OpenAPI 与服务端源码，本类覆盖公开作品集资源、只读搜索与 RSS，没有内容写入方法，
+  也没有指定作品详情方法；两条 POST 的 token 由调用方传入，不要把它当凭据配置项。
   **不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
@@ -148,6 +155,9 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
 
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
    代理等请求设置来自 `request`，凭据来自 `sites`，示例查询值来自 `examples`。
+   ArtStation 的 `examples.artstation` 另有两个键（`csrf_request` 与 `post_search_query`），只给文档里的
+   两步只读 POST（先取公开 CSRF token，再用同一个客户端发搜索 POST）备用；现有示例与冒烟**不会**自动执行
+   它们，token 由调用方传入，不写进配置、不落盘。
    示例按需真跑：运行过的记录命令、URL、状态与返回；没有运行的照实标“未实测”，不要求为补齐数量逐一请求。
 6. 需要凭据或会产生写入的路径（例如 `examples/danbooru/comment_create.py`）在提交说明里明确标注
    “未执行、未实测”，并写清依据的源码位置与请求体形状；不要为了凑验证去发写请求。
