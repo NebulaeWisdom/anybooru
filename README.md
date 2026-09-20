@@ -1,17 +1,18 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine / Nhentai 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问十一类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问十二类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
 、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
 Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）
-与 Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）。
+、Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）
+与 Nhentai（`nhentai.net`，站点自带的 `.net` API v2）。
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
-同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十一个例子里：
+同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十二个例子里：
 
 | 调用 | 真实请求 | 你拿到什么 |
 | :--- | :--- | :--- |
@@ -26,8 +27,9 @@ Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自
 | Sakuria：`client.illust_search(q='blue', page=1, size=2)` | `GET https://sakuria-api.syarolia.com/search/illust?q=blue&page=1&size=2` | 完整字典中的 `items` 是插画数组；每项含 `id/title/urls/author/tags`，图片尺寸在 `urls.w/urls.h`，不是顶层 |
 | Anime-Pictures：`client.posts_list(search_tag='hatsune miku', posts_per_page=2, page=0)` | `GET https://api.anime-pictures.net/api/v3/posts?search_tag=hatsune+miku&posts_per_page=2&page=0` | 完整信封：`posts` 是帖子数组，另有 `page_number` / `posts_per_page` / `response_posts_count` / `posts_count` / `max_pages`；每帖含 `id`、`md5`、`ext`（如 `.png`，**带点**）与 `score_number`（评分看它；`score` 原样保留，样本里既有 `0.0` 也有非零值）。列表**不给**预览地址 |
 | Cosine：`client.image_list(page=1, pageSize=2)` | `GET https://pic.cosine.ren/api/list?page=1&pageSize=2` | 站内作品列表；方法原样返回 `{"images": [...], "total": N}`，不剥层。每项 `id` 是站内自增编号，上游编号在 `pid`；`rawurl` / `thumburl` 是地址。列表样本里 `size` 是 `null`、`guest` 是 `false`（只代表这批样本，不推广成恒值） |
+| Nhentai：`client.gallery_list(per_page=2)` | `GET https://nhentai.net/api/v2/galleries?per_page=2` | 完整信封：`result` 是作品数组，另有 `num_pages` / `per_page` / `total`；每项有 `id`、`media_id`、`num_pages`、`num_favorites`、`thumbnail` 与 `thumbnail_width` / `thumbnail_height`、`tag_ids`（标签编号数组）、`blacklisted`。`gallery_show(id, include='related')` 是另一套详情对象（`cover` / `thumbnail` 带宽高、`pages`、`tags`、`scanlator`、`upload_date`）；方法不拆层 |
 
-十一个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
+十二个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
 认证头不代表同一套契约；Serika 是独立的 Next.js 应用，官方版本化 `/api/v1` 与站内未版本化 `/api/*`
 两面分开标注；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，契约依据是官方 API 页面快照
 加真实请求实测——见
@@ -55,12 +57,19 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
 `{"success":true,"data":…}` 与裸数组），本库一个都不拆。站点前端源码在公开仓库里，本轮只按需只读了个别
 文件当线索（不 clone、不写行号），没有 OpenAPI 与服务端源码快照，公开结论以匿名只读响应为准，
 未实测项单独标明，见[契约附注](docs/cosine-contract-notes.md)。
+Nhentai（`nhentai.net`）是另一类独立契约：站点自带的 `.net` API v2（根路径 `https://nhentai.net/api/v2`）
+把作品、搜索、标签与编辑建议分成 `/api/v2/galleries`、`/api/v2/search`、`/api/v2/tags/...`、
+`/api/v2/taxonomy/...` 等路径，列表用 `page` + `per_page` 分页（作品每页上限 100、缺省 25），详情用
+`include=comments,related,favorite,suggestions` 追加附加块，认证是 `Authorization: Key <key>`（大部分只读路由匿名可用）。
+站点自带 OpenAPI（`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）是路径、参数与响应
+schema 的第一依据，公开结论由匿名只读响应核对。`nhentai.to` 的作品编号与 HTML 数据结构不同，
+不在本家族覆盖范围内；不做基址替换、ID 转换或回退，见[契约附注](docs/nhentai-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan
-  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures 与 Cosine 九个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
+  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine 与 Nhentai 十个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
   重新起算。除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；
   原项目的 MIT 许可与版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
 
@@ -88,7 +97,7 @@ python -m venv .venv
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 15 个条目，下面列出部分站点）：
+包内文件的开头长这样（`sites` 段一共 16 个条目，下面列出部分站点）：
 
 ```json
 {
@@ -106,13 +115,14 @@ python -m venv .venv
     "shuushuu": { "url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": "" },
     "sakuria": { "url": "https://sakuria-api.syarolia.com", "access_token": "" },
     "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" },
-    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" }
+    "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" },
+    "nhentai": { "url": "https://nhentai.net", "api_key": "" }
   }
 }
 ```
 
 - 用命名站点：`site_name` 是 `sites` 段的键，例如 `Danbooru('danbooru')`、`Moebooru('yandere')`、
-  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`、`AnimePictures('anime_pictures')`、`Cosine('cosine')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
+  `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、`Sakuria('sakuria')`、`AnimePictures('anime_pictures')`、`Cosine('cosine')`、`Nhentai('nhentai')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，
   显式构造参数优先。
 - 用清单外的站点：直接给 `site_url=`，例如
   `Moebooru(site_url='https://example.org', api_version='1.13.0+update.3')`、`E621(site_url='https://e926.net')`。
@@ -146,8 +156,15 @@ python -m venv .venv
   `revalidate_secret=''` 表示本次固定发空密钥、**不读**配置里的值，`None`（或不传）才读配置。
   不用这个接口时，任何请求都不会带上它，也不会带别的认证头；该接口本轮从未调用，成功与拒绝形态都未实测。
   `POST /api/search/admin` 会重建或删除站点搜索索引，本轮**绝不会执行**，见[客户端用法](docs/cosine.md)。
+- Nhentai 默认匿名：作品列表与详情、搜索、随机、标签与标签分类、编辑建议、CDN 与站点配置都不需要凭据。
+  `api_key` 是唯一凭据字段，包内留空；构造时显式传 `api_key=''` 表示本次固定匿名、**不读**配置里的值，
+  `None`（或不传）才读配置。非空时随每个请求发 `Authorization: Key <key>`，本类没有用户名/密码或用户令牌入口。
+  `favorite_list`、`favorite_random`、`blacklist_list`、`blacklist_update`、`blacklist_ids`、`gallery_favorite`、
+  `favorite_add`、`favorite_remove`、`gallery_download` 与 `user_me` 需要账号（API key 或该站用户令牌）：
+  6 个只读方法的匿名请求各自得到 `401`，没有带凭据调用；站点第一方账号与用户令牌写操作（评论写入、
+  标签分类写入、作品编辑、审核）不在覆盖范围内，见[客户端用法](docs/nhentai.md)。
 
-## 十一个家族的第一次调用
+## 十二个家族的第一次调用
 
 每段代码都可以直接复制执行（匿名只读），默认站点都来自包内配置。
 
@@ -483,17 +500,67 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 非数字路径段与 `page=0` 一类 `500`）与状态码含义见[错误处理](docs/errors.md#cosine)，凭据语义见
 [认证](docs/authentication.md)，可调用能力见[能力入口](docs/cosine-capabilities.md)。
 
+### Nhentai（nhentai.net）
+
+```python
+from anybooru import Nhentai
+
+with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 api_key 留空即匿名
+    # GET https://nhentai.net/api/v2/galleries?per_page=2
+    # 方法原样返回整个信封：result 是作品数组，另有 num_pages / per_page / total。
+    # 每项有 id（作品编号，详情路由与收藏都用它）、media_id（拼图片地址的字符串）、num_pages、
+    # num_favorites、thumbnail 与 thumbnail_width / thumbnail_height、tag_ids（标签编号数组）、blacklisted
+    page = client.gallery_list(per_page=2)
+    for gallery in page['result']:
+        print(gallery['id'], gallery['media_id'], gallery['num_pages'], gallery['num_favorites'])
+    print(page['num_pages'], page['per_page'], page['total'])
+
+    # GET https://nhentai.net/api/v2/galleries/658856?include=related
+    # 详情是另一套对象：cover / thumbnail 各含地址与宽高，pages 是每页对象数组（页码与地址），
+    # tags 是标签对象数组（id / type / name / slug / url / count），另有 num_pages、num_favorites、
+    # upload_date、scanlator；include= 用逗号串追加 comments / related / favorite / suggestions 附加块，
+    # 不传就不请求（这几个附加字段会是 null）
+    detail = client.gallery_show(658856, include='related')
+    print(detail['id'], detail['num_pages'], detail['num_favorites'], len(detail['pages']), len(detail['tags']))
+```
+
+Nhentai 面固定 **36 个原生方法（31 个 GET、4 个 POST、1 个 DELETE）**，返回的 JSON **完整原样**给你、不剥层。
+作品列表、搜索结果与作品评论列表都是 `{"result": [...], "num_pages": …, "per_page": …, "total": …}`
+（`total` 可以是 `null`）；`gallery_related(gallery_id)` 是只有 `result` 的对象；标签列表在 `sort=name` 时才多一个
+`alphabet`（默认排序没有）；`gallery_popular()` 返回**裸作品数组**，`tag_show(tag_type, slug)` 返回裸标签对象，
+`tag_ids(ids)` 返回裸标签数组，`blacklist_ids()` 返回整数数组，`gallery_random()` 返回 `{"id": …}` 那样的
+随机作品对象，`user_me()` 返回用户对象——形状各不相同，方法都照原样返回，不猜、不拆。
+
+分页不是统一规则：`gallery_list` 使用 `page` 与 `per_page`，而 `search` 只声明
+`query`、`sort` 与 `page`，不声明 `per_page`。标签列表和已解决的 taxonomy 列表可能不采纳
+请求条数；计数与总页数也可能不一致。请按[分页说明](docs/pagination.md#nhentai-的分页)
+选择明确的页码，不用总数除法或短页作为通用终止条件。
+
+`favorite_list`、`favorite_random`、`blacklist_list`、`blacklist_update`、`blacklist_ids`、`gallery_favorite`、
+`favorite_add`、`favorite_remove`、`gallery_download` 与 `user_me` 这 10 个方法需要账号（API key 或该站
+用户令牌）：其中 6 个只读方法的匿名请求各自得到 `401` 加 `{"error": "Authentication required"}`，
+4 个写与下载地址分配动作没有执行。`gallery_download(gallery_id)` 返回的是下载地址与过期时间一类的对象，
+库只给这个对象、**不下载媒体**。`tag_search(**attributes)` 是 POST 但**不需要认证**（按前缀查标签，正文是 JSON），
+本轮也没有发过 POST。本类唯一的凭据字段是 `api_key`，非空时发送 `Authorization: Key <key>`，
+不提供用户名/密码或用户令牌入口；第一方账号与用户令牌写操作、PoW/captcha 与广告位都不封装。
+
+逐方法参数见[方法参考](docs/nhentai-api.md)，按目的查找见[能力入口](docs/nhentai-capabilities.md)，
+依据与排除项（含 `.to` 克隆站）见[契约附注](docs/nhentai-contract-notes.md)，逐条请求记录见[验证记录](docs/verification.md)。
+冒烟脚本与两个示例已经匿名真跑：`test/nhentai.py` 的 10 次请求 10 项检查全部通过、
+`examples/nhentai/list_galleries.py` 三次 `200`、`examples/nhentai/browse_resources.py` 五次 `200`，
+三个脚本退出码都是 `0`；经 Python 实际执行到的原生方法共 9 个，另外 22 个只到路由级直接请求。
+
 ## 文档
 
 文档全部是 `docs/` 下的中文 Markdown，每份只回答一类问题：
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十一个家族怎么选 |
+| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十二个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
-| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空 |
-| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page` 与 Cosine 的 `page`/`pageSize`、`limit`/`offset` 两套 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空，Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>` |
+| [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page`、Cosine 的 `page`/`pageSize`、`limit`/`offset` 两套与 Nhentai 的 `page`/`per_page` |
 | [docs/errors.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/errors.md) | `AnybooruHTTPError` / `AnybooruAPIError`、状态码与错误正文 |
 | [docs/danbooru.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru.md) | Danbooru 客户端：构造、`request()`、参数编码、返回值、坑 |
 | [docs/danbooru-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru-api.md) | Danbooru 227 个方法：参数、路由、返回形态 |
@@ -539,12 +606,16 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 | [docs/cosine-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-api.md) | 13 个原生方法：参数、路由与返回字段 |
 | [docs/cosine-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-capabilities.md) | Cosine：按目的选方法、匿名可读范围与两个 POST 入口 |
 | [docs/cosine-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-contract-notes.md) | 匿名响应依据、上游前端文件、排除项与未实测项 |
+| [docs/nhentai.md](docs/nhentai.md) | Nhentai 客户端：站点根与 `api/v2` 路径、`Key` 认证、`request()`、分页与坑 |
+| [docs/nhentai-api.md](docs/nhentai-api.md) | 36 个原生方法（31 GET + 4 POST + 1 DELETE）：参数、路由与返回字段 |
+| [docs/nhentai-capabilities.md](docs/nhentai-capabilities.md) | Nhentai：按目的选方法、匿名可读范围与需账号的方法 |
+| [docs/nhentai-contract-notes.md](docs/nhentai-contract-notes.md) | OpenAPI 条目依据（JSON Pointer / operationId）、权限分支、排除项与未实测项 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移到 0.1.x 的逐项对照 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 哪些端点真的跑过（含状态码与返回摘要）、哪些没有 |
 
 ## 可运行示例
 
-`examples/` 下 31 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
+`examples/` 下 33 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
 站点名与参数（标签、页码、条数、间隔）取自 `examples.<家族>` 段——例如上面 Zerochan 那段的
 `entry_list(p=1, l=2, s='id')` 对应 `examples.zerochan.entry_query`，`entry_show(3793685)` 对应
 `examples.zerochan.entry_id`。示例里不硬编码站点、代理与分页。
@@ -563,6 +634,7 @@ Cosine 面固定 **13 个原生方法（11 个 GET + 2 个 POST）**，返回四
 | `examples/sakuria/` | `search_illusts.py`（两页搜索与 ID 去重）、`browse_resources.py`（插画详情、评论与作者）——两个匿名脚本，分别最多两次与三次 GET |
 | `examples/anime_pictures/` | `list_posts.py`（配置的两页帖子列表，打印真实 URL、状态、`page_number`、`posts_count`、`max_pages` 与每帖 `id` / `score_number`）、`browse_resources.py`（帖子详情、该帖评论、详情里 `user.id` 的用户资料、非空评论首条的评论详情）——两个匿名只读脚本，分别两次与四次 GET，不访问媒体 |
 | `examples/cosine/` | `list_images.py`（配置的两页 `image_list` 与两个 `offset` 的搜索）、`browse_resources.py`（作品详情、标签筛图、画师作品与 `infoOnly=True` 的画师资料）——两个匿名只读脚本，各四次 GET，调用之间按 `pause_seconds` 暂停，不下载媒体 |
+| `examples/nhentai/` | `list_galleries.py`（配置的两页 `gallery_list` 与一次 `search`，共三次 GET）、`browse_resources.py`（作品详情、标签详情、多标签编号查询、作品评论与站点配置，共五次 GET）——两个匿名只读脚本，先打印真实 URL、状态码与 `Content-Type` 再取字段，调用之间按 `pause_seconds` 暂停，不下载媒体 |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -578,6 +650,8 @@ python examples/sakuria/search_illusts.py
 .venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
 .venv/Scripts/python.exe examples/cosine/list_images.py
 .venv/Scripts/python.exe examples/cosine/browse_resources.py
+.venv/Scripts/python.exe examples/nhentai/list_galleries.py
+.venv/Scripts/python.exe examples/nhentai/browse_resources.py
 ```
 
 哪些脚本真的跑过、每条命令的状态码与返回摘要，见
@@ -588,7 +662,7 @@ python examples/sakuria/search_illusts.py
 安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
 列表条数、分页、详情编号和预期错误。文件名对应 `sites`：`serika`、`danbooru`、`safebooru`、
 `konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`、`tbib`、
-`sakuria`、`anime_pictures`、`cosine`。
+`sakuria`、`anime_pictures`、`cosine`、`nhentai`。
 
 ```bash
 python test/danbooru.py
@@ -598,18 +672,21 @@ python test/tbib.py --config <你的配置文件>
 python test/sakuria.py --config <你的配置文件>
 python test/anime_pictures.py --config <你的配置文件>
 python test/cosine.py --config <你的配置文件>
+python test/nhentai.py --config <你的配置文件>
 ```
 
 全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
-不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria、Cosine 与 Anime-Pictures 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
+不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria、Cosine、Anime-Pictures 与 Nhentai 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，
 其余各最多 4 次；前置列表失败时跳过依赖的详情/翻页，不补发请求。两次请求之间按配置暂停：
 通用 `smoke.pause_seconds=1.2`，Shuushuu 用 `smoke.shuushuu.pause_seconds=2.1`，Sakuria 用 `smoke.sakuria.pause_seconds=1.2`，
-Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`，Cosine 用 `smoke.cosine.pause_seconds=1.3`。不依赖测试框架，不在 CI 自动运行。
+Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`，Cosine 用 `smoke.cosine.pause_seconds=1.3`；
+Nhentai 没有自己的 `pause_seconds`，用通用的 `smoke.pause_seconds=1.2`。不依赖测试框架，不在 CI 自动运行。
 
 每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段/条数，最后汇总实际尝试次数；
 退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是
 **预期拒绝**，不是失败；Anime-Pictures 的缺失帖子 `410` 与非法路径段 `400`（正文是 `text/plain`、
-`AnybooruHTTPError.data` 为 `None`）、Cosine 查缺失作品的 `404` 同样是**预期拒绝**；网络失败也不会伪装成站点变化。
+`AnybooruHTTPError.data` 为 `None`）、Cosine 查缺失作品的 `404`、Nhentai 查缺失作品的 `404` 与非法 `page`
+（例如 `page=0`）的 `400` 同样是**预期拒绝**；网络失败也不会伪装成站点变化。
 这里不是全 API 覆盖或长期可用性保证。
 
 省略 `--config` 时读包内默认配置（不含代理）；若所在网络需要代理，必须用 `--config` 指向自己的
