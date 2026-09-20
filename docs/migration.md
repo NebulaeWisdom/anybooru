@@ -3,7 +3,7 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures 与 Cosine 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine 与 ArtStation 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
 迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
 44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
@@ -17,6 +17,13 @@ Cosine（Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + M
 标签、画师、只读索引进度、`feed.xml` 与两个写入口；四种返回外壳一个都不拆，参数用站点自己的
 `page` / `pageSize` / `limit` / `offset` / `start`。`artwork_revalidate` 与 `search_index_admin` 本轮都未执行，
 公开结论以匿名只读响应为准，依据与矛盾见 [Cosine 契约审计附注](cosine-contract-notes.md)。
+ArtStation（公开作品集站点 `artstation.com`，配置条目只有 `url`）本轮未取得官方 API 文档页、
+OpenAPI 或服务端源码：接入 15 个原生方法，全部是 `GET`（14 个返回 JSON + `feed()` 返回 `artwork.rss`
+原文），覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索与可搜索字段、专辑、频道与其作品、
+作品评论、探索最新与订阅源。本类没有凭据字段、原生写方法或指定作品详情方法——固定详情
+`/projects/{hash}.json` 实测被站点质询挡下（`403`）、v2 单作品 `/api/v2/community/projects/{id}.json`
+匿名 `401`；依据只有匿名只读响应，样本之外的取值仍是候选，见
+[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 一、破坏性变更总览
 
@@ -330,3 +337,9 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
   本轮真实执行过的是匿名只读探测；10 次上限的冒烟与两个示例的结果同样列在
   [验证记录](verification.md#cosine匿名只读实测2026-09-20)；两个 POST（`artwork_revalidate`、`search_index_admin`）
   从未调用，成功与拒绝形态都未实测。样本之外的参数取值仍是候选，不构成返回值承诺。
+* ArtStation 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 15 个原生方法（全部是 GET，14 个 JSON +
+  1 个 RSS 原文）接入，本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例。固定作品详情
+  `/projects/{hash}.json` 实测 `403`（站点质询，HTML）、v2 单作品 `/api/v2/community/projects/{id}.json`
+  匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，也没有自动回退到随机或搜索；排序只实测过
+  `relevance`、订阅源只实测过 `latest`，其余排序取值与频道/专辑/探索的分页边界仍是候选，不构成返回值承诺。
+  逐条见 [ArtStation 契约审计附注](artstation-contract-notes.md) 与[验证记录](verification.md)。
