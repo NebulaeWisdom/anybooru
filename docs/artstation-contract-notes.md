@@ -12,6 +12,7 @@
 | L：匿名响应 | `https://www.artstation.com` 的根级 JSON、`/api/v2`、RSS 及少量边界路径 | 37 次定点 GET，25×200、9×400、401/403/404 各一次；每次保存完整响应，逐项摘要见验证记录 |
 | P：站点公开政策 | [服务条款](https://www.artstation.com/tos)、[robots.txt](https://www.artstation.com/robots.txt) | 都为 200；属于上述 37 次，不另外重复计数 |
 | T：候选输入 | 接入时收到的《artstation.com（ArtStation）接口文档（综合版）》 | 提供待核验的路径与字段，不作为本轮已经请求的证据；其中引用的前端 bundle 与第三方项目本轮没有独立读取 |
+| L-POST：匿名两步跟进 | POST csrf_protection/token.json 与 POST search/projects.json | 两个原生方法在同一会话完整执行200；初次记录器失败的一条token请求另计，状态未记录，详见验证记录 |
 
 本轮没有取得官方 API 手册、OpenAPI 或服务端源码快照，不编造路由控制器与行号。
 `GET /openapi.json` 返回的是 `200 text/html; charset=utf-8`、标题为 `ArtStation - Explore`
@@ -22,9 +23,9 @@
 只有 JSON 或 Rails 风格参数相同，不足以复用 Danbooru/Moebooru 类。
 客户端统一命名 `ArtStation`，站点键 `artstation`，不制造跨站统一作品模型。
 
-## 2. 原生范围：15 个 GET
+## 2. 原生范围：17 个方法
 
-原生方法覆盖公开作品流、搜索、用户与作品集资源，以及 RSS：**14 个 JSON GET + 1 个 RSS GET**。
+原生方法为 **15 GET + 2 POST，16个JSON响应 + 1个RSS响应**。新增POST是匿名CSRF准备与form搜索，不修改内容。
 下表是直接 HTTP 路由证据，不代表全部 Python 包装方法都运行过；方法真跑范围在验证记录单列。
 
 | 方法 | 路由（主机均为 `www.artstation.com`） | L 的返回与关键区别 |
@@ -44,6 +45,8 @@
 | `project_comments(project_id, **params)` | `/api/v2/community/projects/{数字id}/comments.json` | 本轮 `22897630` 为 `{total_count:0,data:[]}`；非空评论字段没有证据 |
 | `explore_latest(**params)` | `/api/v2/community/explore/projects/latest.json` | **仅 `{data}`，没有 `total_count`**；条目与本轮频道作品相近 |
 | `feed(**params)` | `/artwork.rss` | `application/rss+xml; charset=utf-8`；RSS 2.0、样本 50 个 item，完整字符串返回，不解析或下载其中媒体 |
+| `csrf_token(**attributes)` | **POST** `/api/v2/csrf_protection/token.json` | JSON请求；200单键public_csrf_token对象，配对Cookie由会话保存 |
+| `project_search_post(public_csrf_token, **params)` | **POST** `/api/v2/search/projects.json` | form请求；200完整搜索对象，三个命中追加assets/description；见第7节 |
 
 资产也不能统一成同一种字段集：专辑资产样本有
 `id/asset_type/width/height/title/has_embedded_player/small_image_url/large_image_url`；
@@ -68,8 +71,8 @@
   用 `filters[][field]` 等嵌套查询键则为 400 `{"data":"filters should be a string"}`。
   客户端没有特殊转换：共享编码器会将 Python 列表编码成 Rails 数组，因此调用者应明确传字符串。
 - GET 附带 `additional_fields[]=assets&additional_fields[]=description` 仍为 200，但本轮
-  三个搜索命中都没有 `assets/description`。这支持“这个 GET 样本没有追加字段”，
-  **不等于本轮已经验证 POST 成功**。
+  三个搜索命中都没有 assets/description。随后同会话POST搜索成功追加两字段，
+  两者按HTTP动词区分，不让GET方法暗中切换POST。
 - 专辑每页 4 条成功、3 条为 400，错误说明 `>= 4`；Explore 每页 10 条成功、9 条为 400，
   错误说明 `>= 10`。它们的上限、其余列表上限与缺省行为未测。
 - 不存在的 `/users/zzzz_no_such_user_99.json` 为 **404 text/plain; charset=utf-8，空正文**。
@@ -91,14 +94,14 @@ XML/HTML 使用显式返回格式并走 `response.text`，不根据 Content-Type
 | `/api/v2/community/projects/22897630.json` | 401 JSON，`{"data":null}` | 不猜 API key、Bearer 或 Cookie 契约，不承诺带凭据即可成功 |
 | `/api/v2/community/projects/22897630/comments.json` | 200 JSON、空评论列表 | 评论子路由仍纳入；父路由 401 不能外推到子路由 |
 
-原生方法不需要凭据，配置只含站点 URL，构造不联网。不索要账号，不实现登录、刷新或 CSRF 获取。
+原生方法不读取账号凭据，配置只含站点URL，构造不联网。匿名CSRF需要调用者显式取用，不是账号登录。
 共享 HTTP 会话的正常连接行为不是挑战绕过；本轮没有登录、没有 Cookie 伪造、没有 UA 伪装或
 任何挑战求解。少量路径的不同响应只能说明这些样本有访问差异，不能反推出完整 WAF 规则或因果。
 
 **不纳入原生封装：**
 
-- 搜索 POST、CSRF token POST 和所有上传、点赞、收藏、评论写入、关注、购买、消息、账号操作。
-  T 描述了 token/cookie 配对与 form 正文，但没有本轮实测，也没有独立规范支持，故不照搬成 API。
+- 所有上传、点赞、收藏、评论写入、关注、购买、消息与账号操作。HTTP POST本身不等同内容写入；
+  仅匿名CSRF准备与查询型POST纳入，且绝不自动执行。
 - HTML 页面解析、Angular 内嵌 JSON 提取、开发者入口枚举、移动端和用户子域。
 - sitemap 遍历、印品目录、商城、学习、招聘、博客、组织、字典、公告、收藏集及只出现于 bundle
   清单的其它路径；它们超出本次公开作品集读取范围，不声称不存在。
@@ -138,10 +141,10 @@ XML/HTML 使用显式返回格式并走 `response.text`，不根据 Content-Type
 
 ## 6. 边界与未实测
 
-- 全部 POST/PUT/PATCH/DELETE、登录、CSRF、任何凭据成功与权限等级；无凭据 401 不证明具体认证方案。
+- 所有内容写入、PUT/PATCH/DELETE、登录与账号权限；CSRF缺失/失效/跨会话、POST错误分支未测，401不证明认证方案。
 - 被挑战详情的成功结构、按数字或短码读取其它固定详情路径、匿名受限内容与非空评论。
 - 搜索 `likes/date/rank` 的排序语义、非法 sorting、`pro_first`、非 title 的 filters、隐藏过滤字段、
-  query 匹配范围/权重、POST additional_fields、全部分页/计数边界。
+  query匹配范围/权重、POST filters/其它additional_fields组合、POST分页边界。
 - 全站/用户/关注列表缺省条数与最大页码，用户/关注/专辑/频道/Explore 的完整每页上限，
   `album_id=all` 或其它专辑选择、频道 sorting/dimension、评论 page/per_page 与 RSS 其它排序。
 - 随机分布、随机 username 参数效果、非空 tags 元素形态，以及资源所有可能缺失字段。
@@ -150,3 +153,36 @@ XML/HTML 使用显式返回格式并走 `response.text`，不根据 Content-Type
 
 以上未实测项不影响已封装调用原样发送，但不能写成已验证能力。所有页面数字仅为当次快照，
 不是客户端常量；本轮的 Python 方法执行范围与原始路由观察范围分开记账。
+
+## 7. POST 搜索与 CSRF 的纳入决定（2026-09-20 跟进）
+
+初版把没有实测的POST两步整体排除，混淆了“未验证”与“不应提供方法”。复核后纳入
+`csrf_token(**attributes)` 与 `project_search_post(public_csrf_token, **params)`，
+符合本库显式包装、逐项标注证据的口径：调用者主动发起，库不获取账号、不自动取token或续期、不重放请求。
+候选输入只用作选点；以下成功结论由本次新样本支撑。
+
+1. `csrf_token(create_csrf_token_request='true')` 发JSON到
+   `POST /api/v2/csrf_protection/token.json`，200 application/json；返回单键对象
+   `public_csrf_token`（样本88字符），响应Cookie名为PRIVATE-CSRF-TOKEN与__cf_bm。
+   requests会话自然保存Cookie，公开token仅保留在调用者本次变量，不新增持久凭据字段。
+2. 同一个client把公开token写入PUBLIC-CSRF-TOKEN头，发
+   `query=cat&page=1&per_page=3&sorting=relevance&additional_fields[]=assets&additional_fields[]=description`
+   的form-urlencoded到 `POST /api/v2/search/projects.json`，200 application/json，
+   返回 `{total_count:118783,data:[…]}`。三个命中id为10122141/17985153/3049628，
+   均有description字符串和assets数组，资产条数6/11/17。
+
+`request()` 新增显式 `form` 参数，沿共享Rails编码器发送表单；原 `data` 仍然是完整JSON，
+GET project_search不变。两个POST方法各只发一次请求，不自动读取或拆除返回信封。
+搜索资产的宽高、位置、small/large_image_url按站点返回；没有访问任何媒体URL。
+
+**POST的实际增量是给搜索结果补充assets/description，不是“唯一资产入口”。**
+既有album_projects与project_random已经可返回资产；新方法也不是任意id/hash的详情查询，
+不自动绕过固定详情路径的403或401。
+
+本次补充共3次POST尝试：初次token响应进入记录钩子后，临时记录器把请求正文bytes写JSON失败、
+退出1；状态和UTC未保存，不补称200，搜索也未发送。修正记录器后只重跑受影响的两步，两个200、退出0。
+不是HTTP失败重试或token自动续期；原GET冒烟与两个示例未再跑，仍分别10/4/4次GET。
+公开token与Cookie值不落盘或写入公开材料。
+
+缺/坏/过期token、412错误、POST JSON搜索、POST filters与其它排序/边界/媒体类型覆盖仍未实测；
+输入关于这些分支的说法只作候选。不能把GET的分页错误与限制未经核验直接推广到POST。
