@@ -2,13 +2,15 @@
 
 六个原生方法都发 GET：五个官方 dapi 读取方法，加一个站内 JSON 补全方法。通用 `request(page, *, params=None)` 的完整参数见[客户端用法](gelbooru.md#通用-request按-page-选择-json-入口)。
 
-这里用 **W（官方 wiki）**、**H（官方旧 help）**、**J（站点 JavaScript）**、**T（外部综合资料）**、**L（本轮真实响应）**、**[推断]（没有响应或序列化源码证明的候选字段）** 区分依据；出处见[契约附注](gelbooru-contract-notes.md#资料来源与等级)。
+依据标记：**W（官方 wiki）**、**H（官方旧 help）**、**J（站点 JavaScript）**、**T（外部综合资料）**、**L（本轮真实响应）**、**[推断]（没有响应或序列化源码证明的候选字段）**。出处见[契约附注](gelbooru-contract-notes.md#资料来源与等级)。
 
 dapi 例子假定 `my-anybooru.json` 已从包内模板复制，并填入账号自己的 `api_key` / `user_id`。所有 dapi URL 只展示路由和查询，实际有凭据时末尾追加 `&api_key=<你的API_KEY>&user_id=<你的数字账号ID>`。它们不是成功响应示例；逐方法状态见各返回说明及文末[边界与未实测](#边界与未实测)。
 
 ## autocomplete：把输入片段变成可搜索的名字
 
-签名：`autocomplete(term, **params)`。给前缀 `blue`，返回建议数组；`label` 用于展示，`value` 可作为搜索标签，`post_count` 是站点给出的**字符串**计数，`category` 可区分普通标签与版权名等。
+签名：`autocomplete(term, **params)`。
+
+给前缀 `blue`，返回建议数组。`label` 用于展示，`value` 可作为搜索标签，`post_count` 是站点给出的**字符串**计数，`category` 可区分普通标签与版权名等。
 
 | 参数 | 取值与含义 | 不传时怎样 | 字面示例 |
 | :--- | :--- | :--- | :--- |
@@ -16,11 +18,7 @@ dapi 例子假定 `my-anybooru.json` 已从包内模板复制，并填入账号�
 | `type` | 字符串；J 中有 `tag`、`tag_query`、`artist`、`pool`、`user`、`wiki_page`、`favorite_group`、`saved_search_label`、`mention` | T 记为 `tag`，J 没规定服务器默认值；客户端不补 | `client.autocomplete('blue', type='tag', limit=3)` |
 | `limit` | 整数，请求希望返回的条数；J 固定传 10，没有给范围 | T 记为 10，J 只证明前端发 10；客户端不补 | `client.autocomplete('blue', type='tag', limit=3)` |
 
-扩展实测把上面九个 `type` 各请求一次，**所有非空结果的 `type` 都是 `'tag'`**。例如
-`client.autocomplete('lozertuser', type='user', limit=3)` 返回的是 `category='character'` 的标签，
-不是带 `name/level` 的用户对象；`type='artist', term='fuzichoco'` 返回三项，包含 artist、character 和普通 tag 分类。
-`pool/favorite_group/saved_search_label` 配 `touhou` 得到标签建议；`wiki_page` 配 `howto` 也不是 wiki 条目。
-所以 `type` 表列的是脚本传参名，**不承诺服务端按它筛选资源种类**。每项 URL、数量和首项见[扩展实测 G4](verification.md#g4补全种类与空值边界)。
+扩展实测把上面九个 `type` 各请求一次，**所有非空结果的 `type` 都是 `'tag'`**。例如 `client.autocomplete('lozertuser', type='user', limit=3)` 返回的是 `category='character'` 的标签，不是带 `name/level` 的用户对象；`type='artist', term='fuzichoco'` 返回三项，包含 artist、character 和普通 tag 分类。`pool/favorite_group/saved_search_label` 配 `touhou` 得到标签建议；`wiki_page` 配 `howto` 也不是 wiki 条目。所以 `type` 表列的是脚本传参名，**不承诺服务端按它筛选资源种类**。每项 URL、数量和首项见[扩展实测 G4](verification.md#g4补全种类与空值边界)。
 
 ```python
 from anybooru import Gelbooru
