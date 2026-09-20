@@ -207,6 +207,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
       "pages": [1, 2],
       "list_query": {"per_page": 2},
       "search_query": {"query": "", "per_page": 3, "sorting": "relevance", "filters": "[{\"field\":\"title\",\"method\":\"contain\",\"value\":\"dragon\"}]"},
+      "csrf_request": {"create_csrf_token_request": "true"},
+      "post_search_query": {"query": "cat", "page": 1, "per_page": 3, "sorting": "relevance", "additional_fields": ["assets", "description"]},
       "username": "timwarnock",
       "album_id": 104104,
       "album_query": {"page": 1, "per_page": 4},
@@ -260,8 +262,11 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
   `filters` 必须是**一个 JSON 字符串**（`"[{\"field\":\"title\",\"method\":\"contain\",\"value\":\"dragon\"}]"`），
   传数组会回 `400` `{"data":"filters should be a string"}`。`username` 供 `user_show('timwarnock')`、
   `album_id` 供 `album_projects(104104, **album_query)`、`project_id` 供 `project_comments(22897630)`；
-  示例的取值全部来自配置，只打印状态码、关键字段与计数，不下载媒体地址。两个匿名示例的命令见
-  [artstation.md](artstation.md)。
+  `csrf_request` / `post_search_query` 不是示例脚本的入口，而是给**可选的两步调用**备好的参数：
+  `client.csrf_token(**csrf_request)` 拿 `public_csrf_token`，再把它显式传给
+  `client.project_search_post(<该 token>, **post_search_query)`（同一个客户端，Cookie 随之带上）。
+  两个随包示例各自仍然只发 4 个 GET，不自动跑这两步；取值全部来自配置，示例只打印状态码、关键字段与计数，
+  不下载媒体地址。两个匿名示例的命令见 [artstation.md](artstation.md)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入，两者互不替代（见下节）。
 
@@ -324,8 +329,9 @@ Anime-Pictures 同样没有任何**可读到的**正式来源：官方 API 手�
 Cosine 也没有本地上游服务端源码：站点前端代码在公开仓库里，本轮只按需只读了个别文件当线索（不 clone、
 不写行号），公开结论以匿名只读响应为准，未实测项见 [Cosine 契约附注](cosine-contract-notes.md)。
 ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码
-（`/openapi.json` 实测回的是站点自己的 HTML 页面），依据只有匿名只读响应实测——15 个原生方法全部是 `GET`，
-14 个返回 JSON、`feed()` 返回 RSS 原文；样本之外的参数取值与状态码仍是候选，两条被挡下的详情路由与未实测项见
+（`/openapi.json` 实测回的是站点自己的 HTML 页面），依据只有匿名响应实测——17 个原生方法是 15 个 `GET` 加
+2 个只读 `POST`（16 个返回 JSON + `feed()` 的 RSS 原文）；两个 POST 是匿名 CSRF 准备与表单式搜索，
+不是内容写入，样本之外的参数取值与状态码仍是候选，两条被挡下的详情路由与未实测项见
 [ArtStation 契约附注](artstation-contract-notes.md)。
 
 Danbooru 系站点（Danbooru 引擎）：
@@ -511,9 +517,10 @@ ArtStation 站点（公开作品集 JSON 路由与 artwork.rss，本轮依据为
 
 **只有 `url` 一个字段**：`ArtStation` 构造时把共享传输的 `username` 置空，站点条目里没有 `username` /
 `api_key` / `password` / `access_token` / `authorization` / `cookie`，构造签名里也没有这些参数。
-它只做匿名公开读取：15 个原生方法全是 `GET`（14 个 JSON + `feed()` 的 RSS 原文），没有取凭据、登录或写数据的
-方法；某个路由需要登录时不会自动换一条路径、也不会换成别的身份，`401` / `403` 原样抛出。匿名命中与被拒的
-真实记录见 [errors.md](errors.md#artstation) 与
+它只做匿名公开读取：17 个原生方法是 15 个 `GET` 加 2 个只读 `POST`（16 个 JSON + `feed()` 的 RSS 原文）——
+`csrf_token()` 取匿名 CSRF token、`project_search_post()` 用表单体搜索，都不是内容写入；没有取账号凭据、
+登录或写数据的方法，某个路由被拒时不会自动换一条路径、也不会换成别的身份，`401` / `403` 原样抛出。
+匿名命中与被拒的真实记录见 [errors.md](errors.md#artstation) 与
 [authentication.md](authentication.md#artstation-没有凭据入口)，能力清单见
 [artstation.md](artstation.md) 与 [artstation-api.md](artstation-api.md)。
 
@@ -546,7 +553,7 @@ ArtStation 站点（公开作品集 JSON 路由与 artwork.rss，本轮依据为
 | `sakuria` | Sakuria（Pixiv 第三方镜像站，站点自有 JSON API，**无官方页面 / OpenAPI / 源码**） | 本轮串行 54 次匿名 GET（每个请求只发一次、不重试、不跟随跳转、不下载媒体）：`200`×41、`400`×7、`401`×3、`404`/`426`/`503` 各一；另有 10 次上限的匿名冒烟（`10/10` 通过、退出 `0`）与两个示例（全部 `200`、退出 `0`）。**只证样本、不泛化枚举与上限**（例如 `size` 只证实 1 与 48 被接受、0 与 49 被拒绝，响应条数不等于 `size`）。44 个方法全部接入（27 个匿名只读 + 17 个需登录的 `me*`，后者只请求过 `/me/likes`）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与[契约附注](sakuria-contract-notes.md) |
 | `cosine` | Cosine（Next.js + Prisma + Meilisearch 自研 API，**没有本地上游服务端源码**） | 两批匿名串行探测共 69 次（`200`×57、`500`×7、`404`×3、`400`×2）：第一批 18 次全部 `200`，覆盖列表、正常作品详情、`image_random` 的 1 条与 3 条、搜索与建议、标签筛图与标签列表、画师作品与画师资料、只读索引进度与 `feed.xml`；第二批 51 次补齐页码 / `offset` / 标签 / 画师 / 搜索的边界，含 `400` / `404` / `500` 样本。10 次上限的冒烟与两个示例的执行结果同样列在[验证记录](verification.md#cosine匿名只读实测2026-09-20)。两个 POST 未调用，成功与拒绝形态未实测 |
 | `anime_pictures` | Anime-Pictures（自研 `api/v3` JSON 接口，**无可读到的官方手册页 / OpenAPI / 服务端源码**） | 本轮串行 90 次匿名 GET（`200`×76、`400`×4、`403`×2、`404`×6、`410`×1、`500`×1）：API 主机根、帖子列表两页与分页 / 排序参数、帖子详情、帖评论、标签列表与详情、用户列表与详情、评论列表与详情、标签 `type` 0–7、缺失资源的 `410` / `404`、非法路径段的纯文本 `400` 与缺 `page` 的 JSON `400`、`page=-1` 的 `500`、`get_image` 的 `403` 空正文。`post_create`、带 Cookie 的成功路径与媒体成功返回均未实测。逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与[契约附注](anime-pictures-contract-notes.md) |
-| `artstation` | ArtStation（站点自研 JSON 与 RSS，本轮未取得官方 API 规范或服务端源码） | 15 条原生 GET 路由有匿名响应样本；全站列表与搜索每页限制不同，两个指定详情样本为403挑战/401，因此没有 project_show，也不自动换路。实际命令、状态与未实测项见[验证记录](verification.md#artstation匿名只读实测2026-09-20)与[契约附注](artstation-contract-notes.md) |
+| `artstation` | ArtStation（站点自研 JSON 与 RSS，本轮未取得官方 API 规范或服务端源码） | 15 条原生 GET 路由有匿名响应样本，另有 2 条只读 POST（匿名 CSRF token 与表单式搜索）各取到 `200`；全站列表与搜索每页限制不同，两个指定详情样本为403挑战/401，因此没有 project_show，也不自动换路；POST 的 `filters`、缺 token、token 失效等分支未实测。实际命令、状态与未实测项见[验证记录](verification.md#artstation匿名只读实测2026-09-20)与[契约附注](artstation-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 
@@ -720,6 +727,7 @@ Cloudflare 质询 HTML（响应头带 `Cf-Mitigated: challenge`），`GET /api/v
 | ArtStation | `site` = `"artstation"` | `ArtStation('artstation')`，条目只有 `url`，没有凭据可填 |
 | ArtStation | `list_query` = `{"per_page":2}`、`pages` = `[1,2]` | `client.project_list(page=1, per_page=2)`（GET `https://www.artstation.com/projects.json?page=1&per_page=2`），第二页把 `page` 换成 `2`；返回 `{"data": […], "total_count": …}`，脚本打印 `total_count` 与每项 `id` / `hash_id` / `title` / `permalink` / `assets_count` |
 | ArtStation | `search_query` = `{"query":"","per_page":3,"sorting":"relevance","filters":"[{\"field\":\"title\",\"method\":\"contain\",\"value\":\"dragon\"}]"}`、`pages` = `[1,2]` | `client.project_search(query='', page=1, per_page=3, sorting='relevance', filters='[{"field":"title","method":"contain","value":"dragon"}]')`——`query` 可以是空串，`filters` 整个是一个 **JSON 字符串**（不是数组）；第二页把 `page` 换成 `2`。搜索条目是另一套字段：`id` / `hash_id` / `url` / `smaller_square_cover_url` / `title` / `icons` / `user` |
+| ArtStation | `csrf_request` = `{"create_csrf_token_request":"true"}`、`post_search_query` = `{"query":"cat","page":1,"per_page":3,"sorting":"relevance","additional_fields":["assets","description"]}` | 两步可选调用（随包示例脚本不自动跑）：先 `client.csrf_token(create_csrf_token_request='true')`（POST `https://www.artstation.com/api/v2/csrf_protection/token.json`，JSON 体就是这组属性，返回体里有 `public_csrf_token`），再 `client.project_search_post(csrf['public_csrf_token'], query='cat', page=1, per_page=3, sorting='relevance', additional_fields=['assets', 'description'])`（POST `https://www.artstation.com/api/v2/search/projects.json`，表单体、`additional_fields[]` 重复键，请求头 `PUBLIC-CSRF-TOKEN` 为该 token 原值） |
 | ArtStation | `username` = `"timwarnock"`、`album_id` = `104104`、`album_query` = `{"page":1,"per_page":4}` | `client.user_show('timwarnock')`（GET `https://www.artstation.com/users/timwarnock.json`）与 `client.album_projects(104104, page=1, per_page=4)`（GET `https://www.artstation.com/api/v2/community/projects/by_album.json?album_id=104104&page=1&per_page=4`，返回 `{"total_count": …, "data": […]}`，条目带 `album_id` / `album_title` / `position` 与 `assets`） |
 | ArtStation | `project_id` = `22897630` | `client.project_comments(22897630)`（GET `https://www.artstation.com/api/v2/community/projects/22897630/comments.json`）；实测该作品没有评论，返回 `{"total_count": 0, "data": []}`，空数组是成功而不是错误 |
 | ArtStation | `pause_seconds` = `1.3` | `time.sleep(1.3)`，示例在请求之间等，不代表服务端限流阈值 |
@@ -832,7 +840,7 @@ with Danbooru('danbooru') as client:
 | `sakuria` | `pause_seconds=1.2`、`illust_query={q:'blue',size:2,sort:'new'}`、`pages=[1,2]`、`novel_query={q:'blue',page:1}`、`spotlight_query={page:1,lang:'zh-cn'}`、`comment_illust_id=70937229`、`comment_query={page:1,size:2}`、`missing_id=0`、`invalid_size=49`；**最多 10 次**匿名请求：站点统计、插画搜索两页、首批首条的详情、小说搜索、`spotlight` 列表、指定插画评论、详情作者、缺失 id 与越界 `size` 两个预期错误；不发 `me*` 请求 |
 | `cosine` | `pause_seconds=1.3`、`list_query={pageSize:2}`、`pages=[1,2]`、`artwork_id=1`、`random_counts=[1,3]`、`search_query={q:'初音',limit:2}`、`tag='GenshinImpact'`、`tag_query={start:0,limit:2}`、`missing_id=999999999`；**最多 10 次**匿名 GET：`image_list` 两页、`artwork_show(1)`、`image_random(count=1)` 与 `image_random(count=3)`、`search`、`tag_images`、`tag_list`、`feed`、缺失作品（预期 `404`）；构造 `revalidate_secret=''`、不跟随跳转、不重试、不发 `POST`、不调用 `search_index_admin`、不下载媒体 |
 | `anime_pictures` | `pause_seconds=1.3`、`post_query={posts_per_page:2}`、`pages=[0,1]`、`comment_post_id=382872`、`tag_query={tag:'hatsune miku'}`、`tag_id=407`、`user_query={limit:2,offset:0}`、`comment_query={limit:2,offset:0}`、`missing_id=999999999`、`invalid_post_id='top'`；**最多 10 次**匿名 GET：帖子两页、从首批取首条的详情（列表失败就跳过，不补发）、指定帖评论、精确标签查询与标签详情、用户列表、评论列表、缺失帖子（预期 `410`）与非法路径段（预期 `400` 纯文本，`error.data is None`、正文留在 `.body`、`last_call` 记下状态与 URL）；显式清空双凭据、禁跳转、不发 `POST`、不访问媒体 |
-| `artstation` | `site='artstation'`、`project_query={page:1,per_page:2}`、`username='timwarnock'`、`pages=[1,2]`、`user_project_query={per_page:2}`、`search_query={query:'cat',page:1,per_page:3,sorting:'relevance'}`、`album_id=104104`、`album_query={page:1,per_page:4}`、`feed_query={sorting:'latest'}`、`missing_username='zzzz_no_such_user_99'`、`invalid_search_query={query:'cat',page:1,per_page:2}`、`pause_seconds=1.3`；**正好 10 次**匿名 GET：`project_list`、`user_projects` 两页、`project_random`、`project_search`、`search_filter_fields`、`album_projects`、`feed`、缺失用户（预期 `404` 空正文、`text/plain`）与 `per_page=2` 的搜索（预期 `400` `{"message":"per_page should be >= 3","code":"per_page"}`）；条目只有 `url`，不重试、不跟随跳转、不下载媒体 |
+| `artstation` | `site='artstation'`、`project_query={page:1,per_page:2}`、`username='timwarnock'`、`pages=[1,2]`、`user_project_query={per_page:2}`、`search_query={query:'cat',page:1,per_page:3,sorting:'relevance'}`、`album_id=104104`、`album_query={page:1,per_page:4}`、`feed_query={sorting:'latest'}`、`missing_username='zzzz_no_such_user_99'`、`invalid_search_query={query:'cat',page:1,per_page:2}`、`pause_seconds=1.3`；**正好 10 次**匿名 GET：`project_list`、`user_projects` 两页、`project_random`、`project_search`、`search_filter_fields`、`album_projects`、`feed`、缺失用户（预期 `404` 空正文、`text/plain`）与 `per_page=2` 的搜索（预期 `400` `{"message":"per_page should be >= 3","code":"per_page"}`）；条目只有 `url`，不重试、不跟随跳转、不下载媒体，也不发 POST（`csrf_request` / `post_search_query` 只服务文档化的可选两步调用，不并入冒烟） |
 
 这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见
 [README](../README.md#轻量匿名冒烟检查)；真实结果只记在 [verification.md](verification.md)。
