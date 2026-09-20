@@ -8,7 +8,7 @@ Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e9
 、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
 Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）、
 Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）
-与 ArtStation（`artstation.com`，公开作品集与 RSS 订阅源）。
+与 ArtStation（`artstation.com`，公开作品集、只读搜索与 RSS 订阅源）。
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
@@ -57,12 +57,15 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
 `{"success":true,"data":…}` 与裸数组），本库一个都不拆。站点前端源码在公开仓库里，本轮只按需只读了个别
 文件当线索（不 clone、不写行号），没有 OpenAPI 与服务端源码快照，公开结论以匿名只读响应为准，
 未实测项单独标明，见[契约附注](docs/cosine-contract-notes.md)。
-ArtStation（`artstation.com`）是公开作品集站点，本类只覆盖它的公开作品集 JSON 路由与一个 RSS 订阅源
-（`artwork.rss`）：15 个原生方法全部是 `GET`，14 个返回 JSON、`feed()` 返回 RSS 原文。本轮**未取得
-官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应实测，所以成功字段、状态码与排除项都按
-实测边界写；固定作品详情与 v2 单作品详情两条路由被站点挡下（`403` 质询与 `401`），因此**没有** `project_show`，
-也不提供到随机或搜索的自动替代路径。本类没有凭据字段或原生写方法，不下载媒体、不重写媒体地址，
-见[契约附注](docs/artstation-contract-notes.md)。
+ArtStation（`artstation.com`）是公开作品集站点，本类覆盖它的公开作品集 JSON 路由、只读搜索与一个 RSS 订阅源
+（`artwork.rss`）：17 个原生方法 = 15 个 `GET` + 2 个 `POST`，其中 16 个返回 JSON、`feed()` 返回 RSS 原文。
+两个 POST 都**不是**内容写入：`csrf_token()` 只是按调用方给的属性取公开 CSRF token，返回体里的
+`public_csrf_token` 与站点会话 Cookie（由会话自然保存）配对；`project_search_post()` 是同一个搜索的只读 POST
+形态，token由调用方每次传入，本库不自动获取、不续期、不重放、不重试、不落盘。本轮未取得官方API规范
+或服务端源码，依据只有匿名响应，所以成功字段、状态码与排除项按实测边界写；固定作品详情
+`/projects/{hash}.json` 实测被站点质询挡下（`403`），v2 单作品 `/api/v2/community/projects/{id}.json` 匿名
+`401`，因此本类**没有封装** `project_show`。构造器与站点条目都没有凭据字段，不写数据、不下载媒体、
+不重写媒体地址，见[契约附注](docs/artstation-contract-notes.md)。
 
 - 版本：**0.1.0.dev1**（开发版，尚未发布到 PyPI）
 - 许可：**MIT License**
@@ -155,8 +158,10 @@ python -m venv .venv
   `revalidate_secret=''` 表示本次固定发空密钥、**不读**配置里的值，`None`（或不传）才读配置。
   不用这个接口时，任何请求都不会带上它，也不会带别的认证头；该接口本轮从未调用，成功与拒绝形态都未实测。
   `POST /api/search/admin` 会重建或删除站点搜索索引，本轮**绝不会执行**，见[客户端用法](docs/cosine.md)。
-- ArtStation 的条目**只有 `url`**：公开作品集路由与 `artwork.rss` 订阅源都匿名可读，本类因此没有凭据字段，
-  不自动生成认证头。通用 `request()` 可显式带头调用未封装路由，但本库不代管登录，也不保证认证成功。
+- ArtStation 的条目**只有 `url`**：公开作品集路由、`artwork.rss` 订阅源与只读搜索 POST 都匿名可达，站点
+  条目里没有凭据槽位，本类不自动生成认证头。只读搜索 POST 要的公开 CSRF token 由 `csrf_token()` 取回后
+  由调用方每次传入，**不写进配置、不落盘、不自动获取或续期**。通用 `request()` 可显式带头调用未封装路由，
+  但本库不代管登录，也不保证认证成功。
 
 ## 十二个家族的第一次调用
 
@@ -524,21 +529,48 @@ with ArtStation('artstation') as client:
     # response_format='xml' 走 .text，返回订阅源原文（不解析、不转 JSON、不看 Content-Type 猜格式）
     feed_xml = client.feed(sorting='latest')
     print(len(feed_xml), feed_xml[:60])
+
+    # 只读 POST 形态（不是内容写入），两步由调用方自己串：同一个 client 才有配对的会话 Cookie
+    # POST https://www.artstation.com/api/v2/csrf_protection/token.json（JSON 正文是原样的属性）
+    public_token = client.csrf_token(create_csrf_token_request='true')['public_csrf_token']
+    # POST https://www.artstation.com/api/v2/search/projects.json
+    # token 由调用方每次传入，只放本次调用的 PUBLIC-CSRF-TOKEN 头；表单编码走共享编码器。
+    # additional_fields 只是让这次搜索的结果多带 assets / description，不是按 id 取某个作品的入口。
+    posted = client.project_search_post(
+        public_token, query='cat', page=1, per_page=3, sorting='relevance',
+        additional_fields=['assets', 'description'],
+    )
+    print(posted['total_count'], [item['hash_id'] for item in posted['data']])
 ```
 
-ArtStation 面固定 **15 个原生方法，全部是 `GET`**：14 个返回 JSON、`feed()` 返回 `artwork.rss` 的 RSS 原文。
-范围是**公开作品集资源与订阅源**：作品列表与随机作品，用户资料三面（`user_show` / `user_quick` /
-`user_profile`）、用户作品与关注，搜索与可搜索字段（`project_search` / `search_filter_fields`），
-专辑作品（`album_projects`），频道列表与频道作品（`channel_list` / `channel_projects`），
-作品评论（`project_comments`）、探索最新（`explore_latest`）与 `feed()`。
-本类**没有凭据字段**，不做登录、不写数据、不下载媒体、不拼接或改写媒体地址；固定作品详情
+ArtStation 面固定 **17 个原生方法（15 个 `GET` + 2 个 `POST`）**：16 个返回 JSON、`feed()` 返回
+`artwork.rss` 的 RSS 原文；原有的 `project_search()` 仍是 `GET`，本次没有改动。范围是**公开作品集资源、
+只读搜索与订阅源**：作品列表与随机作品，用户资料三面
+（`user_show` / `user_quick` / `user_profile`）、用户作品与关注，搜索（`project_search` 与只读的
+`project_search_post`）与可搜索字段（`search_filter_fields`），专辑作品（`album_projects`），频道列表与
+频道作品（`channel_list` / `channel_projects`），作品评论（`project_comments`）、探索最新（`explore_latest`）、
+`feed()`，以及取公开 CSRF token 的 `csrf_token()`。
+**两个 POST 都不是内容写入**：`csrf_token(**attributes)` 把属性原样作为 JSON 正文 POST 到
+`api/v2/csrf_protection/token.json`，返回体里的 `public_csrf_token` 由调用方保存，站点会话 Cookie 由会话
+自然保存；`project_search_post(public_csrf_token, **params)` 用同一个 `ArtStation` 实例发出表单编码的只读
+搜索 POST，token 只放本次调用的 `PUBLIC-CSRF-TOKEN` 头。token **必须由调用方传入**，本库不自动获取、不续期、
+不重放、不重试，也不把它存成配置项或对象属性。`request()` 除 `data`（JSON 正文）外新增 `form=`（共享编码器编出的
+Rails 表单），选哪个由调用方决定，不做本地校验、不补默认值、不回退。
+构造器与站点条目**都没有凭据字段**：不做登录、不写数据、不下载媒体、不拼接或改写媒体地址；固定作品详情
 `/projects/{hash}.json` 实测被站点质询挡下（`403`，HTML），v2 的单作品 `/api/v2/community/projects/{id}.json`
-匿名返回 `401`，所以这里**没有** `project_show`，也没有指向随机或搜索的替代路径——确需那两条路由时用通用
-`request()` 显式调用。参数按站点原样转发，客户端不钳位、不补默认值：`project_search` 缺 `per_page` 时服务端回
-`400`（正文是 `{"data":"per_page should be given"}`），异常原样抛出，不会被改写成默认分页。
+匿名返回 `401`，所以本类**没有封装** `project_show`——确需那两条路由时用通用 `request()` 显式调用。
+`project_search` 缺 `per_page` 时服务端回 `400`（正文是 `{"data":"per_page should be given"}`），异常原样
+抛出。`project_search_post()` 的 `additional_fields=['assets','description']` 只是要求服务端在**这次查询的结果**
+里多带这两个字段；专辑作品与随机作品本来就带 `assets`，它**不是**按作品 id 取任意作品的入口。
+已跟到的 POST 样本：`csrf_token()` 是 `200` 加 `application/json`，正文顶层只有 `public_csrf_token`
+（字符串），响应里出现的 Cookie（`PRIVATE-CSRF-TOKEN`）由会话自然保存、值不落盘；`project_search_post()` 是
+200、响应application/json；请求正文为application/x-www-form-urlencoded（additional_fields[]为重复键），外壳是
+`{"total_count":…,"data":[…]}`，本次 3 条结果的条目都带 `assets` 与 `description`（`assets` 里有图片与
+video 条目，字段含 `asset_type`、`width`、`height`、`small_image_url`、`large_image_url`）。
+缺 token、过期 token、其它 `filters` 形状与 `412` 一类 POST 边界**仍未实测**。
 本轮**未取得 ArtStation 官方 API 文档页、OpenAPI 或服务端源码**，公开结论以匿名只读响应为准；
-`sorting` 只实测过 `relevance`，订阅源只实测过 `latest`，样本之外的取值仍是候选。
-逐方法参数见[方法参考](docs/artstation-api.md)，按任务查[能力入口](docs/artstation-capabilities.md)，
+`sorting` 只实测过 `relevance`，订阅源只实测过 `latest`，样本之外的取值、以及 POST 表单里 `filters` 的嵌套
+形状都按候选处理。逐方法参数见[方法参考](docs/artstation-api.md)，按任务查[能力入口](docs/artstation-capabilities.md)，
 依据与排除项见[契约附注](docs/artstation-contract-notes.md)。
 
 ## 文档
@@ -550,7 +582,7 @@ ArtStation 面固定 **15 个原生方法，全部是 `GET`**：14 个返回 JSO
 | [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十二个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
-| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空，ArtStation 无凭据字段 |
+| [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空，ArtStation 站点条目无凭据字段且公开 CSRF token 按次传入 |
 | [docs/pagination.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/pagination.md) | 各引擎的页码、`limit` 与游标写法，含 Anime-Pictures 的 0 起步 `page`、Cosine 的 `page`/`pageSize`、`limit`/`offset` 两套，以及 ArtStation 的 `page`/`per_page` |
 | [docs/errors.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/errors.md) | `AnybooruHTTPError` / `AnybooruAPIError`、状态码与错误正文 |
 | [docs/danbooru.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/danbooru.md) | Danbooru 客户端：构造、`request()`、参数编码、返回值、坑 |
@@ -597,9 +629,9 @@ ArtStation 面固定 **15 个原生方法，全部是 `GET`**：14 个返回 JSO
 | [docs/cosine-api.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-api.md) | 13 个原生方法：参数、路由与返回字段 |
 | [docs/cosine-capabilities.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-capabilities.md) | Cosine：按目的选方法、匿名可读范围与两个 POST 入口 |
 | [docs/cosine-contract-notes.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/cosine-contract-notes.md) | 匿名响应依据、上游前端文件、排除项与未实测项 |
-| [docs/artstation.md](docs/artstation.md) | ArtStation 客户端：站点根路径拼接、`request()`、RSS 原文与无凭据边界 |
-| [docs/artstation-api.md](docs/artstation-api.md) | 15 个原生 GET（14 JSON + 1 RSS）：参数、路径与返回字段 |
-| [docs/artstation-capabilities.md](docs/artstation-capabilities.md) | ArtStation：按目的选方法、公开作品集与订阅源范围 |
+| [docs/artstation.md](docs/artstation.md) | ArtStation 客户端：路径拼接、`request()` 的 `data` / `form`、RSS 原文与按次传入的 CSRF token |
+| [docs/artstation-api.md](docs/artstation-api.md) | 17 个原生方法（15 GET + 2 POST）：参数、路径、请求头与返回字段 |
+| [docs/artstation-capabilities.md](docs/artstation-capabilities.md) | ArtStation：按目的选方法、公开作品集、只读搜索与订阅源范围 |
 | [docs/artstation-contract-notes.md](docs/artstation-contract-notes.md) | 匿名响应依据、工作范围、排除路由与未实测项 |
 | [docs/migration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/migration.md) | 从上游 4.x 迁移到 0.1.x 的逐项对照 |
 | [docs/verification.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/verification.md) | 哪些端点真的跑过（含状态码与返回摘要）、哪些没有 |
