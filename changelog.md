@@ -11,6 +11,32 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### ArtStation 第十二家族
+
+- 新增 `ArtStation`、`anybooru/artstation.py` 与 `anybooru/api_artstation.py`。站点是公开作品集站点，**不是**
+  booru 引擎：本类只覆盖公开作品集 JSON 路由（`projects.json`、随机作品、用户与用户作品/关注、
+  `api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、作品评论、探索最新）
+  加一个 RSS 订阅源（`artwork.rss`），不套用其它家族的路由、参数名与字段。
+- 原生 API 固定 **15 个方法，全部是 `GET`**：14 个返回 JSON、`feed()` 用 `response_format='xml'` 返回
+  `artwork.rss` 的 RSS 原文（不解析、不看 `Content-Type` 嗅探格式，其它取值直接抛 `KeyError`）。
+  构造器**没有凭据字段**，站点条目只有 `url`：只有公开匿名操作，没有写方法、没有登录或鉴权绕行、
+  没有重试、钳位、回退或字段改名。
+- 作品列表外壳 `{"data":…,"total_count":…}` 原样返回，不剥 `data` 层。**全站列表与用户作品列表的条目字段
+  不同**（`user_projects` 的条目没有 `user` / `views_count`），不能跨路由照抄字段清单；媒体地址按服务端原值
+  返回，不构造、不改写、不下载。
+- 明确排除两条详情路由：固定作品详情 `/projects/{hash}.json` 实测是站点的质询页（`403`，HTML），
+  v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），因此**没有**
+  `project_show`，也没有指向随机或搜索的替代路径；确需时用通用 `request()` 显式调用。`project_search`
+  缺 `per_page` 是 `400`（`{"data":"per_page should be given"}`），客户端不钳位、不补默认分页。
+- 配置新增 `sites.artstation`（只有 `url`）、`examples.artstation`、`smoke.artstation`；新增两个匿名示例
+  （`examples/artstation/list_projects.py`、`examples/artstation/browse_resources.py`，各四次 GET）、
+  10 次以内的 `test/artstation.py`、四份家族文档，以及 README、`docs/index.md`、`docs/installation.md`、
+  `docs/migration.md`、CONTRIBUTING 与 `setup.cfg` 的导航与家族表述同步。
+- 本轮**未取得 ArtStation 官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应实测：成功字段、
+  缺参 `400`、两条详情路径的 `403` / `401` 与两条未知路径返回 Explore HTML 的边界都按实测写。
+  排序只测过 `relevance`、订阅源只测过 `latest`，样本之外的取值仍是候选，不构成返回值承诺；逐条记录见
+  [验证记录](docs/verification.md)，依据与排除项见[契约附注](docs/artstation-contract-notes.md)。
+
 ### Cosine 第十一家族
 
 - 新增 `Cosine`、`anybooru/cosine.py` 与 `anybooru/api_cosine.py`。站点是 Telegram 频道 `@CosineGallery`
