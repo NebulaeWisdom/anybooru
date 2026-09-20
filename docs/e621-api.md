@@ -1,34 +1,17 @@
 # e621ng 方法参考
 
-`E621` 有 **18 个原生方法**，全部发 `GET`、全部只读，一个方法对应一条 `/xxx.json` 路由。
-下面每个 Python 代码块都能单独复制运行：自带 import 与 `with E621('e621') as client:`，
-参数是字面值，注释里给出真实请求地址与真实返回到的字段（条目编号会随站点更新变化，注释中的编号来自
-记录在[验证记录](verification.md#anybooru-改名后的复跑2026-09-18)的真实响应）。
+`E621` 有 **18 个原生方法**，全部发 `GET`、全部只读，一个方法对应一条 `/xxx.json` 路由。每个 Python 代码块都能单独复制运行：自带 import 与 `with E621('e621') as client:`，参数是字面值。注释里给出真实请求地址与真实返回字段；条目编号会随站点更新变化，注释中的编号来自[验证记录](verification.md#anybooru-改名后的复跑2026-09-18)的真实响应。
 
-客户端怎么构造、认证怎么配、`request()` 与 `last_call` 见[客户端用法](e621.md)；
-“我要做某事 → 用哪个方法”见[能力入口](e621-capabilities.md)；上游文件与行号依据见
-[契约审计附注](e621-contract-notes.md)。
+客户端构造、认证配置、`request()` 与 `last_call` 见[客户端用法](e621.md)；“我要做某事 → 用哪个方法”见[能力入口](e621-capabilities.md)；上游文件与行号依据见[契约审计附注](e621-contract-notes.md)。
 
 ## 全页通用规则
 
-* **认证**：`username` 或 `api_key` 任一非空就带 HTTP Basic；两项都空是匿名。权限由服务端判定，
-  客户端不预判。`related_tag` 与 `related_tag_bulk` 要成员身份，匿名得到 `403`。
-* **搜索条件的位置**：列表方法的过滤条件放 `search` 字典，客户端整包编码成 `search[键]=值`；
-  帖子三个查询方法（`post_list` / `post_count` / `post_random`）没有 `search`，过滤条件写在顶层 `tags`。
-* **搜索键的写法**（上游 `attribute_matches`）：数值与时间收 `5`、`>5`、`5..10`、`5,6,7`；
-  布尔收 `true` / `false` / `1` / `0` / `yes` / `no`；文本含 `*` 时按 `LIKE` 通配，否则按 Postgres 全文匹配；
-  用户类字段成对出现（`creator_id` / `creator_name`、`linked_user_id` / `linked_user_name`），
-  `*_id` 收逗号分隔的多个值。**不在该资源支持范围内的键被服务端静默忽略**，表现为“返回全集”，
-  客户端不拦截也不报错。
-* **分页**：`page=2` 是页号；`page='b6715096'` 取 id 小于 6715096 的记录，`page='a6715096'` 取 id 大于它的记录，
-  两种游标都按 id 从新到旧返回。`limit` 收 `0..320`，不传时每页 75 条（帖子用账号的每页设置）；
-  页码越界或 `limit` 非法回 `410`。见 [pagination.md](pagination.md)。
+* **认证**：`username` 或 `api_key` 任一非空就带 HTTP Basic；两项都空是匿名。权限由服务端判定，客户端不预判。`related_tag` 与 `related_tag_bulk` 要成员身份，匿名得到 `403`。
+* **搜索条件的位置**：列表方法的过滤条件放 `search` 字典，客户端整包编码成 `search[键]=值`；帖子三个查询方法（`post_list` / `post_count` / `post_random`）没有 `search`，过滤条件写在顶层 `tags`。
+* **搜索键的写法**（上游 `attribute_matches`）：数值与时间收 `5`、`>5`、`5..10`、`5,6,7`；布尔收 `true` / `false` / `1` / `0` / `yes` / `no`；文本含 `*` 时按 `LIKE` 通配，否则按 Postgres 全文匹配；用户类字段成对出现（`creator_id` / `creator_name`、`linked_user_id` / `linked_user_name`），`*_id` 收逗号分隔的多个值。**不在该资源支持范围内的键被服务端静默忽略**，表现为“返回全集”，客户端不拦截也不报错。
+* **分页**：`page=2` 是页号；`page='b6715096'` 取 id 小于 6715096 的记录，`page='a6715096'` 取 id 大于它的记录，两种游标都按 id 从新到旧返回。`limit` 收 `0..320`，不传时每页 75 条（帖子用账号的每页设置）；页码越界或 `limit` 非法回 `410`。见 [pagination.md](pagination.md)。
 * **评级**：`rating:` 只认首字母 `s` / `q` / `e`（`rating:safe` 等全称也生效）；首字母不在词表里的值被丢弃。
-* **失败**：非 2xx 抛 `AnybooruHTTPError`，`http_code` / `url` / `body` / `data` / `response` 都在异常上。
-  `404` 正文是 `{"success": false, "reason": "not found"}`；权限不足 `403` 是
-  `{"success": false, "reason": "Access Denied"}`；其它预期错误是
-  `{"success": false, "message": ..., "code": ...}`。状态码与源码位置见
-  [附注](e621-contract-notes.md#sec-errors) 与 [errors.md](errors.md)。
+* **失败**：非 2xx 抛 `AnybooruHTTPError`，`http_code` / `url` / `body` / `data` / `response` 都在异常上。`404` 正文是 `{"success": false, "reason": "not found"}`；权限不足 `403` 是 `{"success": false, "reason": "Access Denied"}`；其它预期错误是 `{"success": false, "message": ..., "code": ...}`。状态码与源码位置见[附注](e621-contract-notes.md#sec-errors) 与 [errors.md](errors.md)。
 
 ## 帖子（4 个方法）
 
@@ -44,23 +27,9 @@
 | `v2=True, mode='thumbnail'` | 同上，换成缩略图用的扁平字段 | 数组/对象本体 |
 | `v2=True, mode='basic'`（或其它值） | 同上，`tags` 是标签名字符串数组 | 数组/对象本体 |
 
-默认（旧结构）每条帖子的 25 个键：`id`、`created_at`、`updated_at`、`file`、`preview`、`sample`、
-`score`、`tags`、`locked_tags`、`change_seq`、`flags`、`rating`、`fav_count`、`sources`、`pools`、
-`relationships`、`approver_id`、`uploader_id`、`uploader_name`、`description`、`comment_count`、
-`is_favorited`、`vote`、`has_notes`、`duration`。其中 `file` 是
-`{width, height, ext, size, md5, url}`；`preview` 是 `{width, height, url, alt}`；
-`sample` 是 `{has, width, height, url, alt, alternates}`；`score` 是 `{up, down, total}`；
-`tags` 是九个类别（`general`、`artist`、`contributor`、`copyright`、`character`、`species`、`invalid`、
-`meta`、`lore`）到标签名列表的字典；`flags` 是
-`{pending, flagged, note_locked, status_locked, rating_locked, deleted}`；`sources` 是链接列表；
-`pools` 是合集编号列表；`relationships` 是 `{parent_id, has_children, has_active_children, children}`。
+默认（旧结构）每条帖子的 25 个键：`id`、`created_at`、`updated_at`、`file`、`preview`、`sample`、`score`、`tags`、`locked_tags`、`change_seq`、`flags`、`rating`、`fav_count`、`sources`、`pools`、`relationships`、`approver_id`、`uploader_id`、`uploader_name`、`description`、`comment_count`、`is_favorited`、`vote`、`has_notes`、`duration`。其中 `file` 是 `{width, height, ext, size, md5, url}`；`preview` 是 `{width, height, url, alt}`；`sample` 是 `{has, width, height, url, alt, alternates}`；`score` 是 `{up, down, total}`；`tags` 是九个类别（`general`、`artist`、`contributor`、`copyright`、`character`、`species`、`invalid`、`meta`、`lore`）到标签名列表的字典；`flags` 是 `{pending, flagged, note_locked, status_locked, rating_locked, deleted}`；`sources` 是链接列表；`pools` 是合集编号列表；`relationships` 是 `{parent_id, has_children, has_active_children, children}`。
 
-`v2=True` 的 18 个键：`id`、`created_at`、`updated_at`、`change_seq`、`files`、`uploader_id`、
-`uploader_name`、`approver_id`、`stats`、`flags`、`has`、`relationships`、`pools`、`rating`、
-`locked_tags`、`sources`、`description`、`tags`。其中 `files` 是
-`{meta, original, preview, sample[, video]}`；`stats` 是
-`{score: {up, down, total}, fav_count, is_favorited, vote, comment_count, hotness}`；
-`has` 是 `{parent, children, active_children, notes, sample}`。
+`v2=True` 的 18 个键：`id`、`created_at`、`updated_at`、`change_seq`、`files`、`uploader_id`、`uploader_name`、`approver_id`、`stats`、`flags`、`has`、`relationships`、`pools`、`rating`、`locked_tags`、`sources`、`description`、`tags`。其中 `files` 是 `{meta, original, preview, sample[, video]}`；`stats` 是 `{score: {up, down, total}, fav_count, is_favorited, vote, comment_count, hotness}`；`has` 是 `{parent, children, active_children, notes, sample}`。
 
 ### post_list
 
@@ -191,8 +160,7 @@ with E621('e621') as client:
 | `tags` | `str` | 同 `post_list` 的查询 | 客户端不发；统计全部可见帖子 | `tags='rating:s'` |
 | `post` | `dict` | 嵌套 `post[tags]`，顶层 `tags` 缺席时才读 | 客户端不发 | `post={'tags': 'rating:s'}` |
 
-返回 `{'count': ..., 'capped': ...}`：`count` 是命中数，`capped=True` 表示查询撞上了服务端的分页上限，
-这时 `count` 只是下限，不是精确总数。
+返回 `{'count': ..., 'capped': ...}`：`count` 是命中数，`capped=True` 表示查询撞上了服务端的分页上限，这时 `count` 只是下限，不是精确总数。
 
 ```python
 from anybooru import E621
@@ -209,8 +177,8 @@ with E621('e621') as client:
 ### tag_list
 
 签名：`tag_list(search=None, **params)`。路由：`GET /tags.json`。
-返回标签对象列表，每项键为 `id`、`name`、`post_count`、`category`、`related_tags`、
-`related_tags_updated_at`、`created_at`、`updated_at`、`is_locked`。
+
+返回标签对象列表，每项键为 `id`、`name`、`post_count`、`category`、`related_tags`、`related_tags_updated_at`、`created_at`、`updated_at`、`is_locked`。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -248,6 +216,7 @@ with E621('e621') as client:
 ### tag_show
 
 签名：`tag_show(tag_id, **params)`。路由：`GET /tags/<tag_id>.json`。
+
 返回单个标签对象，字段与 `tag_list` 的列表元素相同。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
@@ -271,9 +240,8 @@ with E621('e621') as client:
 ### artist_list
 
 签名：`artist_list(search=None, **params)`。路由：`GET /artists.json`。
-返回画师对象列表；每项键为 `id`、`name`、`creator_id`、`is_active`、`group_name`、`created_at`、
-`updated_at`、`other_names`、`linked_user_id`、`is_locked`、`notes`，并且总是带 `urls` 数组
-（元素是画师主页记录，含 `url`）。
+
+返回画师对象列表；每项键为 `id`、`name`、`creator_id`、`is_active`、`group_name`、`created_at`、`updated_at`、`other_names`、`linked_user_id`、`is_locked`、`notes`，并且总是带 `urls` 数组（元素是画师主页记录，含 `url`）。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -341,9 +309,8 @@ JSON 请求下未知名称回 `404`；同一个未知名称用浏览器访问时
 ### comment_list
 
 签名：`comment_list(search=None, **params)`。路由：`GET /comments.json`。
-默认返回评论对象列表，每项键为 `id`、`created_at`、`updated_at`、`post_id`、`creator_id`、`body`、
-`score`、`updater_id`、`do_not_bump_post`、`is_hidden`、`is_sticky`、`warning_type`、`warning_user_id`、
-`creator_name`、`updater_name`、`vote`。
+
+默认返回评论对象列表，每项键为 `id`、`created_at`、`updated_at`、`post_id`、`creator_id`、`body`、`score`、`updater_id`、`do_not_bump_post`、`is_hidden`、`is_sticky`、`warning_type`、`warning_user_id`、`creator_name`、`updater_name`、`vote`。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -364,8 +331,7 @@ JSON 请求下未知名称回 `404`；同一个未知名称用浏览器访问时
 | `tags` | `str` | `group_by='post'` 时的帖子标签查询 | 客户端不发 | `group_by='post', tags='rating:s'` |
 | `limit` / `page` | `int` | 每页条数 / 页号；帖子视图固定每页 5 帖 | 客户端不发 | `limit=2` |
 
-可见性：匿名看不到 `is_hidden` 评论与“评论被关闭”帖子的评论；没有 `search={'id': ...}` 时会再套
-“置顶或评分不低于账号阈值”的过滤，所以这里拿到的不是全站最新评论，而是达到阈值的可见评论。
+可见性：匿名看不到 `is_hidden` 评论及“评论被关闭”帖子的评论；没有 `search={'id': ...}` 时会再套“置顶或评分不低于账号阈值”的过滤，所以这里拿到的不是全站最新评论，而是达到阈值的可见评论。
 
 ```python
 from anybooru import E621
@@ -424,8 +390,8 @@ with E621('e621') as client:
 ### pool_list
 
 签名：`pool_list(search=None, **params)`。路由：`GET /pools.json`。
-返回合集对象列表，每项键为 `id`、`name`、`creator_id`、`description`、`is_active`、`post_ids`（帖子编号列表，
-顺序就是合集顺序）、`created_at`、`updated_at`、`category`，外加 `creator_name` 与 `post_count`。
+
+返回合集对象列表，每项键为 `id`、`name`、`creator_id`、`description`、`is_active`、`post_ids`（帖子编号列表，顺序就是合集顺序）、`created_at`、`updated_at`、`category`，外加 `creator_name` 与 `post_count`。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -482,8 +448,8 @@ with E621('e621') as client:
 ### note_list
 
 签名：`note_list(search=None, **params)`。路由：`GET /notes.json`。
-返回笔记对象列表，每项键为 `id`、`creator_id`、`post_id`、`x`、`y`、`width`、`height`、`is_active`、
-`body`、`created_at`、`updated_at`、`version`，外加 `creator_name`。
+
+返回笔记对象列表，每项键为 `id`、`creator_id`、`post_id`、`x`、`y`、`width`、`height`、`is_active`、`body`、`created_at`、`updated_at`、`version`，外加 `creator_name`。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -531,9 +497,8 @@ with E621('e621') as client:
 ### wiki_page_list
 
 签名：`wiki_page_list(search=None, **params)`。路由：`GET /wiki_pages.json`。
-返回页面对象列表，每项键为 `id`、`creator_id`、`title`、`body`、`is_locked`、`created_at`、`updated_at`、
-`updater_id`、`other_names`、`is_deleted`、`parent`、`featured_posts`，外加 `creator_name` 与
-`category_id`（页面标题对应不到标签时为 `null`）。
+
+返回页面对象列表，每项键为 `id`、`creator_id`、`title`、`body`、`is_locked`、`created_at`、`updated_at`、`updater_id`、`other_names`、`is_deleted`、`parent`、`featured_posts`，外加 `creator_name` 与 `category_id`（页面标题对应不到标签时为 `null`）。
 
 | 参数 | 类型与取值 | 含义 | 不传时怎样 | 字面例子 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -568,8 +533,7 @@ with E621('e621') as client:
 | :--- | :--- | :--- | :--- | :--- |
 | `title_or_id` | `int` 页面编号，或 `str` 标题 | 全数字按编号查；否则按标题查（小写化、空格转下划线） | 必填 | `wiki_page_show('help:api')`、`wiki_page_show(11224)` |
 
-标题里的冒号等字符由客户端转义，所以 `'help:api'` 直接传即可，发出的地址是
-`/wiki_pages/help%3Aapi.json`；未命中回 `404`。
+标题里的冒号等字符由客户端转义，所以 `'help:api'` 直接传即可，发出的地址是 `/wiki_pages/help%3Aapi.json`；未命中回 `404`。
 
 ```python
 from anybooru import E621
@@ -582,14 +546,11 @@ with E621('e621') as client:
     print(page['id'], page['title'], page['is_locked'], page['category_id'])
 ```
 
-站点上的 `/help/api` 是另一个资源（`help_pages` 路由下的 HelpPage，字段是 `name`、`wiki_page`、
-`title`、`related`），本库没有为它封方法；需要时用 `request('GET', 'help/api')` 自己取。
+站点上的 `/help/api` 是另一个资源（`help_pages` 路由下的 HelpPage，字段是 `name`、`wiki_page`、`title`、`related`），本库没有为它封方法；需要时用 `request('GET', 'help/api')` 自己取。
 
 ## 相关标签（2 个方法，需要成员身份）
 
-两个方法在上游控制器级就要求成员身份，匿名请求回 `403`（实测正文
-`{"success": false, "reason": "Access Denied"}`）。成员身份需要凭据，本轮**没有成功响应记录**，
-下面的返回结构来自上游查询对象源码。
+两个方法在上游控制器级就要求成员身份，匿名请求回 `403`（实测正文 `{"success": false, "reason": "Access Denied"}`）。成员身份需要凭据，本轮**没有成功响应记录**，下面的返回结构来自上游查询对象源码。
 
 ### related_tag
 
@@ -601,8 +562,7 @@ with E621('e621') as client:
 | `search['category_id']` | `int` 或 `str` | 把计算限制到某个标签分类（`0` general、`1` artist、`3` copyright、`4` character、`5` species） | 不传时按全部标签计算 | `search={'query': 'wolf', 'category_id': 0}` |
 | `limit` | `int` | 路由接受该参数，但控制器总是返回自己的结果集 | 客户端不发 | `limit=10` |
 
-返回 `[{"name": ..., "category_id": ...}]`；通配查询走另一分支，按 post_count 取前 50 个匹配标签，
-输出再按名称排序。
+返回 `[{"name": ..., "category_id": ...}]`；通配查询走另一分支，按 post_count 取前 50 个匹配标签，输出再按名称排序。
 
 ```python
 from anybooru import E621
@@ -639,17 +599,10 @@ with E621('e621') as client:
 
 ## 边界与未实测
 
-* 已记录的调用覆盖：`post_list`（默认列表、`md5`、`only`、`v2`）、`post_show`、`post_random`、
-  `post_count`、`tag_list`、`tag_show`、`artist_list`、`artist_show`、`comment_list`、`comment_show`、
-  `pool_list`、`pool_show`、`note_list`、`note_show`、`wiki_page_list`、`wiki_page_show`（以上匿名 `200`），
-  以及 `related_tag` 的匿名 `403`。逐条命令、URL 与状态码见
-  [验证记录](verification.md#anybooru-改名后的复跑2026-09-18)。
-* 本轮按字面执行了所有匿名代码块，包括第二页、标签/画师过滤、评论按帖子分组、合集过滤和不存在图片的 404；
-  两个相关标签方法仍需成员权限，**未执行成员成功示例**。
-* **未实测**：`related_tag_bulk`、两种成员成功响应、v2 的 extended/thumbnail、按名称查标签/画师、
-  `safe_mode`、旧式单数路径与本页未演示的参数组合。没有写请求，也没有申请或使用凭据登录。
+* 已记录的调用覆盖：`post_list`（默认列表、`md5`、`only`、`v2`）、`post_show`、`post_random`、`post_count`、`tag_list`、`tag_show`、`artist_list`、`artist_show`、`comment_list`、`comment_show`、`pool_list`、`pool_show`、`note_list`、`note_show`、`wiki_page_list`、`wiki_page_show`（以上匿名 `200`），以及 `related_tag` 的匿名 `403`。逐条命令、URL 与状态码见[验证记录](verification.md#anybooru-改名后的复跑2026-09-18)。
+* 本轮按字面执行了所有匿名代码块，包括第二页、标签/画师过滤、评论按帖子分组、合集过滤和不存在图片的 `404`；两个相关标签方法仍需成员权限，**未执行成员成功示例**。
+* **未实测**：`related_tag_bulk`、两种成员成功响应、v2 的 extended/thumbnail、按名称查标签/画师、`safe_mode`、旧式单数路径与本页未演示的参数组合。没有写请求，也没有申请或使用凭据登录。
 * 表格与索引里的其它单行调用没有全部执行；只有验证记录中点名的调用属于已实测。
 * `limit` 的 `0..320`、编号页 `750` 上限与游标边界只有源码与 `410` 分支依据，没有逐值探测。
 
-继续阅读：[客户端用法](e621.md) · [能力入口](e621-capabilities.md) ·
-[契约审计附注](e621-contract-notes.md) · [错误处理](errors.md) · [分页](pagination.md)。
+继续阅读：[客户端用法](e621.md) · [能力入口](e621-capabilities.md) · [契约审计附注](e621-contract-notes.md) · [错误处理](errors.md) · [分页](pagination.md)。
