@@ -1616,7 +1616,7 @@ python -X utf8 examples/cosine/browse_resources.py --config my-anybooru.json
 ## ArtStation：匿名只读实测（2026-09-20）
 
 本节区分直接 HTTP 观察与 Python 客户端真跑，不把候选资料的记录当作本轮证据。
-新家族原生面为15个GET（14 JSON + RSS），共享传输未修改；参数与未实测边界见
+先完成15个GET的核验，后补显式CSRF与POST搜索：当前17方法=15GET+2POST，共享传输未修改；参数见
 [方法参考](artstation-api.md)，输入校正见[契约附注](artstation-contract-notes.md)。
 
 ### 直接路由观察
@@ -1735,11 +1735,61 @@ SUMMARY artstation | requests=10 | passed=10 failed=0
   album_projects、feed、user_show（成功与缺失用户）、project_comments。
 - user_quick、user_profile、user_following、channel_list、channel_projects、explore_latest 六个原生方法
   仅有对应路径的直接HTTP观察；不说它们的Python包装方法已真跑。
-- 显式html格式、通用JSON正文、任意headers与未封装详情路径的客户端调用只按实现说明，没有另外真跑。
-  全部POST/PUT/PATCH/DELETE、CSRF、登录与带凭据成功分支均零请求，401/403不证明认证方案。
+- GET阶段尚未运行CSRF与POST，后续两步证据另列下节。任意headers、显式html与未封装详情的客户端调用未另跑；
+  内容写入、PUT/PATCH/DELETE、登录与账号认证成功始终未测，401/403不证明认证方案。
 - 37次完整路由观察加18次脚本调用共 **55GET：200×41、400×10、404×2、401×1、403×1**；
   若连同前期三条正文截段样本，累计 **58GET：200×43、400×11、404×2、401×1、403×1**。
   两种统计口径不混用；包含两条政策读取，全部不含媒体下载。
 - 排序/过滤全集、默认分页、精确最大页码、其它资源的每页上限、非空评论和tags元素类型、随机分布、
   CDN尺寸/缓存/Referer/Range、其它主机与模块、CORS/限流/挑战机制未验证，详细清单集中于契约附注。
 - 未运行formatter、lint、构建、安装归档、CI或项目测试套件；本节证据只来自上述HTTP响应与三次脚本真跑。
+
+### 匿名 CSRF 与 POST 搜索跟进
+
+原生方法新增 `csrf_token(**attributes)` 与 `project_search_post(public_csrf_token, **params)`，
+各只发送一个POST：第一步JSON取匿名CSRF，第二步form只读查询，不发布/修改作品或关系。
+同一客户端会话保留服务端设置的Cookie，调用者显式传公开token；不自动取得、持久化、刷新或重放。
+原 `project_search` 仍GET，原冒烟和两个示例未加请求、未复跑。
+
+下面是实际执行的等价公开调用（取值对应包内新增的csrf_request/post_search_query）：
+
+```python
+from functools import partial
+from time import sleep
+from anybooru import ArtStation
+
+with ArtStation('artstation', config_file='my-anybooru.json') as client:
+    client.client.request = partial(client.client.request, allow_redirects=False)
+    sleep(1.3)
+    csrf = client.csrf_token(create_csrf_token_request='true')
+    sleep(1.3)
+    projects = client.project_search_post(
+        csrf['public_csrf_token'], query='cat', page=1, per_page=3,
+        sorting='relevance', additional_fields=['assets', 'description'])
+    print([(project['id'], len(project['assets'])) for project in projects['data']])
+```
+
+| 实际请求 | 请求正文格式与参数 | HTTP / 响应Content-Type | 响应摘要 | UTC（2026-09-20） |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST https://www.artstation.com/api/v2/csrf_protection/token.json` | application/json；`{"create_csrf_token_request":"true"}` | 200 / application/json; charset=utf-8 | 首层仅public_csrf_token，字符串88位；响应Cookie名PRIVATE-CSRF-TOKEN与__cf_bm，值不记录 | 11:36:28.601055–11:36:29.864615 |
+| `POST https://www.artstation.com/api/v2/search/projects.json` | application/x-www-form-urlencoded；`query=cat&page=1&per_page=3&sorting=relevance&additional_fields%5B%5D=assets&additional_fields%5B%5D=description` | 200 / application/json; charset=utf-8 | `{total_count:118783,data:[…]}`；3项目，均有assets数组与description字符串 | 11:36:31.166129–11:36:31.836189 |
+
+项目10122141、17985153、3049628分别返回6、11、17个资产。项目样本有
+`id/hash_id/url/smaller_square_cover_url/hide_as_adult/is_adult_content/title/description/assets/icons/user`。
+首项图片资产有 `id/title/asset_type/width/height/position/viewport_constraint_type/small_image_url/large_image_url/has_image/has_embedded_player`；
+不同资产类型字段可以不同，客户端保留全部原文。没有请求任何返回的媒体地址。
+两个新原生方法的完整两步运行退出0，输出 `SUMMARY artstation-post | requests=2 | token_keys=public_csrf_token | projects=3`。
+
+初次token请求在响应记录钩子中成功解出JSON及public_csrf_token，但记录请求正文bytes时触发
+`TypeError: Object of type bytes is not JSON serializable`，该运行退出1，搜索未发送。
+那一次的HTTP状态与UTC没有保存，不能补写200。修正的是证据序列化，不是客户端请求行为；
+只重跑受影响两步，没有网络失败后的自动重试。公开token和Cookie值不落盘。
+
+**补充阶段3次POST尝试：两个200，另一次HTTP状态未记录。** 累计负责人58次请求=55GET+3POST，
+57次状态明确：200×43、400×10、404×2、401×1、403×1；加前期3条GET后合计61次，
+60次状态明确：200×45、400×11、404×2、401×1、403×1，另一次状态未知。
+实际真跑原生方法由9增为11，另外6个GET方法仍只有直接路径观察。
+
+缺/坏/过期token、跨会话、412、POST filters/JSON搜索/其它additional_fields组合、POST分页默认值与边界
+仍未实测；GET的3..75范围不冒称POST也已验证。所有内容写入与账号认证分支仍未执行。
+专辑和随机本来就能返回资产，新增POST仅证明为搜索结果补充assets/description，不证明任意ID详情或全站唯一入口。
