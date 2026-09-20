@@ -1611,3 +1611,161 @@ python -X utf8 examples/cosine/browse_resources.py --config my-anybooru.json
 - 媒体主机、原图备份、Referer要求、RSS别名、页面路由、其它部署、完整参数取值与资源上限均未请求或穷举。
   源码里 `lastSyncTime: new Date()` 不是可信同步记录，公开仓库代码也不证明线上部署版本。
 - 未运行 formatter、lint、构建、安装归档、CI 或项目测试套件；保留的测试仅为每次最多十请求的匿名冒烟。
+
+
+## nhentai：匿名只读实测（2026-09-20）
+
+实现范围是 `nhentai.net` API v2；`nhentai.to` 只作契约对照，不加入客户端。
+权威来源是站点自带的 [OpenAPI](https://nhentai.net/api/v2/openapi.json) 与
+[changelog](https://nhentai.net/api/v2/changelog)，不是本地服务端源码。
+规范与候选资料的逐项差异见 [契约附注](nhentai-contract-notes.md)。
+
+### 运行命令与结果
+
+以下使用中性配置文件名；文件内容沿用包内配置，只填使用者自己的网络设置。
+
+```bash
+.venv/Scripts/python.exe -c "import anybooru; from anybooru import Nhentai"
+.venv/Scripts/python.exe -X utf8 test/nhentai.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/nhentai/list_galleries.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/nhentai/browse_resources.py --config my-anybooru.json
+```
+
+| 项目 | UTC 起止（2026-09-20） | HTTP | stdout 摘要 | stderr / 退出码 |
+| --- | --- | --- | --- | --- |
+| 导入 | 10:32:21.712660–10:32:21.899330 | 无请求 | 无输出，Nhentai 可导入 | 空 / 0 |
+| 冒烟 | 10:32:21.909839–10:32:51.241830 | 8×200、预期404、预期400 | `SUMMARY nhentai \| requests=10 \| passed=10 failed=0` | 空 / 0 |
+| 列表/搜索示例 | 10:32:51.244961–10:32:56.309175 | 3×200 | 两页各2项，搜索25项；先打印 HTTP 行，再打印结构摘要 | 空 / 0 |
+| 资源示例 | 10:32:56.313173–10:33:04.796956 | 5×200 | 画廊18页、标签12227、批量标签2项、评论0项、配置主机列表各4项 | 空 / 0 |
+
+脚本均显式传 `api_key=''`、不跟随重定向、不重试、不请求媒体；脚本内部按配置串行暂停。
+本次没有冒烟/示例初版失败。契约抓取的准备阶段曾因把整数超时值当作序列而抛 `TypeError`，
+当时尚未发出 HTTP；改用配置中的整数后完成抓取，不计为站点错误或额外请求。
+
+### 冒烟的十个请求
+
+这十次均是 Python 原生方法调用；所有响应的 Content-Type 都是 `application/json`。
+
+| # | 方法 / 真实 URL | 状态 | 输出观察 |
+| --- | --- | --- | --- |
+| 1 | `gallery_list` → `https://nhentai.net/api/v2/galleries?page=1&per_page=2` | 200 | IDs 682610、682609；per_page=2；total=646010、num_pages=323039 |
+| 2 | `gallery_list` → `https://nhentai.net/api/v2/galleries?page=2&per_page=2` | 200 | IDs 682608、682607；per_page=2 |
+| 3 | `gallery_show` → `https://nhentai.net/api/v2/galleries/658856` | 200 | id=658856、media_id=4006343；18个pages对象、15个标签；title对象3键 |
+| 4 | `search` → `https://nhentai.net/api/v2/search?sort=date&page=1&query=language%3Aenglish` | 200 | result25项、total=147499、num_pages=5900 |
+| 5 | `gallery_popular` → `https://nhentai.net/api/v2/galleries/popular` | 200 | 直接数组5项；不把5设为断言 |
+| 6 | `tag_show` → `https://nhentai.net/api/v2/tags/language/english` | 200 | 单个对象、id=12227；type/slug对应请求 |
+| 7 | `gallery_comment_count` → `https://nhentai.net/api/v2/galleries/658856/comments/count` | 200 | 裸整数0 |
+| 8 | `gallery_comments` → `https://nhentai.net/api/v2/galleries/658856/comments?per_page=2` | 200 | result=[]、num_pages=0、total=0 |
+| 9 | `gallery_show` → `https://nhentai.net/api/v2/galleries/999999999` | 404 | AnybooruHTTPError；data为dict、body29字符、last_call保留状态与URL |
+| 10 | `gallery_list` → `https://nhentai.net/api/v2/galleries?page=0&per_page=2` | 400 | AnybooruHTTPError；data为dict、body100字符、last_call保留状态与URL |
+
+页间不要求 ID 互斥：新作品可能在两次请求之间移动页边界。检查响应结构与资源编号，
+不锁定动态总数、收藏数、热门条数，也不把空评论当成失败。
+
+### 两个示例的八个请求
+
+所有响应均为 **200 application/json**。
+
+| 脚本 | 方法 / 真实 URL | 实际摘要 |
+| --- | --- | --- |
+| list_galleries | `gallery_list` → `https://nhentai.net/api/v2/galleries?page=1&per_page=2` | 2项；682610、682609 |
+| list_galleries | `gallery_list` → `https://nhentai.net/api/v2/galleries?page=2&per_page=2` | 2项；682608、682607 |
+| list_galleries | `search` → `https://nhentai.net/api/v2/search?sort=date&page=1&query=language%3Aenglish` | 25项，打印实际字段名、编号与尺寸，不打印标题 |
+| browse_resources | `gallery_show` → `https://nhentai.net/api/v2/galleries/658856` | cover350×496、18页、15标签；未出现附加块 |
+| browse_resources | `tag_show` → `https://nhentai.net/api/v2/tags/language/english` | id12227；对象含is_community与pending_describe_id键 |
+| browse_resources | `tag_ids` → `https://nhentai.net/api/v2/tags/ids?ids=12227%2C6346` | 2个language类型标签、ID12227和6346 |
+| browse_resources | `gallery_comments` → `https://nhentai.net/api/v2/galleries/658856/comments?page=1&per_page=2` | 评论数组为空；没有非空正文的成功样本 |
+| browse_resources | `site_config` → `https://nhentai.net/api/v2/config` | image_servers4项、thumb_servers4项、announcement=null |
+
+### 规范与候选资料核对：直接 HTTP 观察
+
+以下 **61 个 GET** 的 UTC 为 **10:17:50.836350–10:24:35.156212**：
+**39×200、5×400、7×401、1×403、9×404**。
+每个探测项只请求一次、串行间隔1.3秒，不跟随跳转、不重试；HTTP错误也保留完整正文，
+抓取程序退出0表示记录完成，不表示每个端点都200。
+这是直接 HTTP 请求的证据，不冒称对应的 Python 原生方法都执行过。
+表内的计数是当次样本，不是固定契约；对象一栏列的是正文首层字段。
+
+| # | 真实 URL（GET） | HTTP | Content-Type | 正文首层 |
+| --- | --- | --- | --- | --- |
+| 1 | `https://nhentai.net/api/v2/openapi.json` | 200 | `application/json` | 对象：`openapi, info, paths, components, tags` |
+| 2 | `https://nhentai.net/api/v2/config` | 200 | `application/json` | 对象：`image_servers, thumb_servers, announcement` |
+| 3 | `https://nhentai.net/api/v2/cdn` | 200 | `application/json` | 对象：`image_servers, thumb_servers` |
+| 4 | `https://nhentai.net/api/v2` | 200 | `application/json` | 对象：`version, message` |
+| 5 | `https://nhentai.net/api/v2/changelog` | 200 | `text/html; charset=utf-8` | 文本：10464 UTF-8 字节 |
+| 6 | `https://nhentai.net/api/v2/galleries?page=1&per_page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 2 项 |
+| 7 | `https://nhentai.net/api/v2/galleries?page=2&per_page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 2 项 |
+| 8 | `https://nhentai.net/api/v2/galleries/popular` | 200 | `application/json` | 数组：5 项 |
+| 9 | `https://nhentai.net/api/v2/galleries/random` | 200 | `application/json` | 对象：`id` |
+| 10 | `https://nhentai.net/api/v2/galleries/658856` | 200 | `application/json` | 对象：`id, media_id, title, cover, thumbnail, scanlator, upload_date, tags, num_pages, num_favorites, pages` |
+| 11 | `https://nhentai.net/api/v2/galleries/658856?include=comments%2Crelated%2Cfavorite%2Csuggestions` | 200 | `application/json` | 对象：`id, media_id, title, cover, thumbnail, scanlator, upload_date, tags, num_pages, num_favorites, pages, comments, comment_count, related, suggestions` |
+| 12 | `https://nhentai.net/api/v2/galleries/658856/related` | 200 | `application/json` | 对象：`result`；result 5 项 |
+| 13 | `https://nhentai.net/api/v2/galleries/658856/comments?page=1&per_page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 0 项 |
+| 14 | `https://nhentai.net/api/v2/galleries/658856/comments/count` | 200 | `application/json` | 整数：0 |
+| 15 | `https://nhentai.net/api/v2/galleries/658856/suggestions` | 200 | `application/json` | 对象：`result`；result 0 项 |
+| 16 | `https://nhentai.net/api/v2/galleries/tagged?tag_id=12227&page=1&per_page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 2 项 |
+| 17 | `https://nhentai.net/api/v2/search?query=language%3Aenglish&page=1` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 25 项 |
+| 18 | `https://nhentai.net/api/v2/tags/language/english` | 200 | `application/json` | 对象：`id, type, name, slug, url, count, description, is_community, pending_describe_id` |
+| 19 | `https://nhentai.net/api/v2/tags/ids?ids=12227%2C6346` | 200 | `application/json` | 数组：2 项 |
+| 20 | `https://nhentai.net/api/v2/tags/tag?per_page=1` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 120 项 |
+| 21 | `https://nhentai.net/api/v2/taxonomy?per_page=2` | 200 | `application/json` | 对象：`result, has_more, num_pages, total`；result 2 项 |
+| 22 | `https://nhentai.net/api/v2/taxonomy/resolved?per_page=2` | 200 | `application/json` | 对象：`result, has_more, num_pages, total`；result 50 项 |
+| 23 | `https://nhentai.net/api/v2/taxonomy/stats` | 200 | `application/json` | 对象：`pending, accepted_total, rejected_total, accepted_30d, accepted_7d, created_30d, renamed_30d, merged_30d, described_30d, trending_count, active_count, declined_count, recent_accepted` |
+| 24 | `https://nhentai.net/api/v2/gts/backlog?per_page=2` | 200 | `application/json` | 对象：`result, has_more, num_pages, total`；result 2 项 |
+| 25 | `https://nhentai.net/api/v2/gts/new-tags?limit=2` | 200 | `application/json` | 对象：`result`；result 2 项 |
+| 26 | `https://nhentai.net/api/v2/user` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 27 | `https://nhentai.net/api/v2/favorites` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 28 | `https://nhentai.net/api/v2/favorites/random` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 29 | `https://nhentai.net/api/v2/blacklist` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 30 | `https://nhentai.net/api/v2/blacklist/ids` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 31 | `https://nhentai.net/api/v2/galleries/658856/favorite` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 32 | `https://nhentai.net/api/v2/user/keys` | 401 | `application/json` | 对象：`error`；Authentication required |
+| 33 | `https://nhentai.net/api/gallery/658856` | 403 | `text/plain` | 文本：43 UTF-8 字节 |
+| 34 | `https://nhentai.to/api/gallery/658856` | 404 | `application/json` | 对象：`message` |
+| 35 | `https://nhentai.to/api/v2/galleries/658856` | 404 | `application/json` | 对象：`message` |
+| 36 | `https://nhentai.to/api/definitely-not-a-route-xyz` | 404 | `application/json` | 对象：`message` |
+| 37 | `https://nhentai.to/api/v2/openapi.json` | 404 | `application/json` | 对象：`message` |
+| 38 | `https://nhentai.to/g/658856/` | 200 | `text/html; charset=UTF-8` | 文本：151693 UTF-8 字节 |
+| 39 | `https://nhentai.to/trending-searches` | 200 | `application/json` | 数组：10 项 |
+| 40 | `https://nhentai.net/api/v2/taxonomy/9d1099af-1f2e-4a22-ab73-3f935f4a6b54` | 200 | `application/json` | 对象：`id, action, status, score, voter_count, proposer, proposer_note, created_at, target_tag, new_description, comment_count, recent_comments` |
+| 41 | `https://nhentai.net/api/v2/taxonomy/9d1099af-1f2e-4a22-ab73-3f935f4a6b54/comments?page=1&per_page=2` | 200 | `application/json` | 对象：`result, has_more, num_pages, total`；result 2 项 |
+| 42 | `https://nhentai.net/api/v2/taxonomy/9d1099af-1f2e-4a22-ab73-3f935f4a6b54/edits` | 200 | `application/json` | 对象：`result`；result 0 项 |
+| 43 | `https://nhentai.net/api/v2/users/981330/jegutimantion` | 200 | `application/json` | 对象：`id, username, slug, avatar_url, is_superuser, is_staff, date_joined, about, favorite_tags, recent_favorites, recent_comments` |
+| 44 | `https://nhentai.net/api/v2/galleries/999999999` | 404 | `application/json` | 对象：`error`；Gallery not found |
+| 45 | `https://nhentai.net/api/v2/galleries?page=0&per_page=2` | 400 | `application/json` | 对象：`error, details`；Validation error |
+| 46 | `https://nhentai.net/api/v2/galleries?per_page=100` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 100 项 |
+| 47 | `https://nhentai.net/api/v2/galleries?per_page=101` | 400 | `application/json` | 对象：`error, details`；Validation error |
+| 48 | `https://nhentai.net/api/v2/galleries?page=100000&per_page=25` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 24 项 |
+| 49 | `https://nhentai.net/api/v2/search?query=language%3Aenglish&page=1&per_page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 25 项 |
+| 50 | `https://nhentai.net/api/v2/search?query=zzanybooruunlikelymatchzz&page=2` | 200 | `application/json` | 对象：`result, num_pages, per_page, total`；result 0 项 |
+| 51 | `https://nhentai.net/api/v2/search?query=language%3Aenglish&sort=bogus` | 400 | `application/json` | 对象：`error, details`；Validation error |
+| 52 | `https://nhentai.net/api/v2/search` | 400 | `application/json` | 对象：`error, details`；Validation error |
+| 53 | `https://nhentai.net/api/v2/tags/language?sort=name&per_page=1` | 200 | `application/json` | 对象：`result, num_pages, per_page, total, alphabet`；result 14 项 |
+| 54 | `https://nhentai.net/api/v2/tags/bogus` | 400 | `application/json` | 对象：`error`；Invalid tag type. Must be one of: artist, category, character, group, language, parody, tag |
+| 55 | `https://nhentai.net/api/v2/galleries/tagged?tag_id=999999999` | 404 | `application/json` | 对象：`error`；Tag not found |
+| 56 | `https://nhentai.net/api/v2/galleries/658856?include=favorite` | 200 | `application/json` | 对象：`id, media_id, title, cover, thumbnail, scanlator, upload_date, tags, num_pages, num_favorites, pages` |
+| 57 | `https://nhentai.net/api/v2/taxonomy/resolved?limit=2` | 200 | `application/json` | 对象：`result, has_more, num_pages, total`；result 50 项 |
+| 58 | `https://nhentai.net/api/v2/tags/tag/big-breasts` | 200 | `application/json` | 对象：`id, type, name, slug, url, count, description, is_community, pending_describe_id` |
+| 59 | `https://nhentai.to/api/gallery/1` | 404 | `text/html; charset=UTF-8` | 文本：63404 UTF-8 字节 |
+| 60 | `https://nhentai.to/api/galleries/search?query=test` | 404 | `application/json` | 对象：`message` |
+| 61 | `https://nhentai.to/api/v1/gallery/658856` | 404 | `application/json` | 对象：`message` |
+
+关键结论：规范确为98 paths /114 operations /129 schemas；认证格式是 `Authorization: Key <api_key>`。
+六个纳入的账号读取路径匿名401，其它25个纳入的GET路径取得200。
+热门数组本次5项但规范不保证固定5；单标签是对象、评论数是整数。
+`sort=name` 标签列表实际带 alphabet；`taxonomy/resolved?per_page=2` 实回50项。
+`.to` 七个API样本404不能推出所有方法/路径都不存在，且它的 trending-searches实际返回JSON。
+同一画廊编号跨站的media_id不同；clone标签本地id与nh_id要区分，负nh_id的含义未确认。
+
+### 边界与未实测
+
+- Python实际调用了9个原生方法：gallery_list、gallery_show、search、gallery_popular、tag_show、
+  gallery_comment_count、gallery_comments、tag_ids、site_config。其它22个GET方法只有直接HTTP观察；
+  另外5个非GET方法只对齐规范。
+- **所有4个POST和1个DELETE均零请求**，包括查询型tag_search；Key/User Token成功、写权限、
+  下载地址的真实目标/时效、账号管理/挑战/审核/广告均未验证，也未申请凭据。
+- 媒体CDN和字节零请求，未验证Range、Referer、双后缀地址、旧媒体主机；返回路径原样保留。
+- 没有触发429去验证配额，极端搜索页503、完整参数边界与枚举组合、其它部署、clone阅读页等未验证。
+- 评论与编辑历史的选定样本为空；非空公告、其它错误/权限分支不能写成已测。
+- 本轮合计 **79 GET：55×200、6×400、7×401、1×403、10×404**；没有模糊状态的请求。
+  未运行formatter、lint、项目测试套件、构建、发布或额外离线检查。

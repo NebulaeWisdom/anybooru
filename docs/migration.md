@@ -3,7 +3,7 @@
 Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
 本文列出所有需要改调用方的地方。
 
-Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures 与 Cosine 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine 与 Nhentai 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
 迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
 Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
 44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
@@ -17,6 +17,18 @@ Cosine（Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + M
 标签、画师、只读索引进度、`feed.xml` 与两个写入口；四种返回外壳一个都不拆，参数用站点自己的
 `page` / `pageSize` / `limit` / `offset` / `start`。`artwork_revalidate` 与 `search_index_admin` 本轮都未执行，
 公开结论以匿名只读响应为准，依据与矛盾见 [Cosine 契约审计附注](cosine-contract-notes.md)。
+Nhentai 也是 4.x 里没有的家族，没有方法级对照可谈；但把旧脚本迁过来要看清两件事。
+① 本库只实现 `nhentai.net` 的 `/api/v2`：站点早期的第三方 JSON 面（`/api/gallery/<id>` 这类 v1 路径）
+实测回 `403` 加 `text/plain: Use new API https://nhentai.net/api/v2/docs`，官方 changelog 另写明
+`/api/v2/galleries/{id}/pages` 与 `/api/v2/galleries/{id}/pages/{page_number}` 已删除；v2 的数据形状也不同
+（列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，详情是另一套带 `title` / `cover` /
+`thumbnail` / `pages` / `tags` 的对象）。照抄 v1 的路径或字段名对不上 v2 的返回，本库不做 v1 兼容、
+不改字段名、不补旧形状，要迁就按 v2 的路径与字段改。
+② `nhentai.to` 是另一套克隆站，不是 `nhentai.net` 的替代基址：画廊编号和内嵌 JavaScript
+结构不同，已测 API 路径返回 404。它仍有返回 JSON 的 `/trending-searches`，不能泛称没有 JSON。
+本库不为它留站点条目、不做 ID 转换或回退。
+36 个原生方法的分组、参数与返回字段见 [Nhentai 方法参考](nhentai-api.md)，依据与排除项见
+[Nhentai 契约审计附注](nhentai-contract-notes.md)。
 
 ## 一、破坏性变更总览
 
@@ -330,3 +342,9 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
   本轮真实执行过的是匿名只读探测；10 次上限的冒烟与两个示例的结果同样列在
   [验证记录](verification.md#cosine匿名只读实测2026-09-20)；两个 POST（`artwork_revalidate`、`search_index_admin`）
   从未调用，成功与拒绝形态都未实测。样本之外的参数取值仍是候选，不构成返回值承诺。
+* Nhentai 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 36 个原生方法（31 个 GET + 4 个 POST + 1 个 DELETE）
+  接入 `.net` API v2，本轮真实执行过的是 31 个 GET 路由的逐个直接请求（25 次 `200`、6 次需账号的 `401`），
+  这是路由级证据、不等于对应的 Python 方法都跑过；4 个 POST 与 1 个 DELETE（含不需要认证的 `tag_search`）
+  从未调用，账号成功路径、第一方账号与用户令牌写操作、媒体字节均未实测。参数边界只在本轮列出的取值上
+  验证过（`per_page` 不是每条路由都照办，`total` 与 `num_pages` 是快照），样本之外的取值仍是候选，
+  不构成返回值承诺。逐条见 [Nhentai 契约审计附注](nhentai-contract-notes.md) 与[验证记录](verification.md)。

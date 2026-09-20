@@ -11,6 +11,65 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Nhentai 第十二家族
+
+- 新增 `Nhentai`、`anybooru/nhentai.py` 与 `anybooru/api_nhentai.py`。站点 `nhentai.net` 自带一套第三方
+  `.net` API v2（根路径 `https://nhentai.net/api/v2`），**不是** booru 引擎：作品 `/api/v2/galleries`
+  （含 `/tagged`、`/popular`、`/random`、`/related`、`/comments`、`/comments/count`、`/favorite`、
+  `/suggestions`、`/download`）、搜索 `/api/v2/search`、标签 `/api/v2/tags/ids` 与 `/api/v2/tags/{tag_type}`、
+  标签分类 `/api/v2/taxonomy...`、收藏与黑名单 `/api/v2/favorites`、`/api/v2/blacklist`、用户
+  `/api/v2/users/{user_id}/{slug}` 与 `/api/v2/user`、GTS `/api/v2/gts/...` 各走自己的路径、参数名与返回字段，
+  本库不套用其它家族的路由、参数名与字段。没有本地上游服务端源码；依据是站点自带的 OpenAPI
+  （`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0，98 paths / 114 operations / 129 schemas）
+  加匿名只读响应，引用按 JSON Pointer 与 `operationId`，不编造服务端行号；排除项与未实测项见
+  [契约附注](docs/nhentai-contract-notes.md)。
+- 原生 API 固定 **36 个方法（31 个 GET + 4 个 POST + 1 个 DELETE）**：服务信息与配置 `service_info`
+  （`/api/v2` 本身）/ `cdn_config` / `site_config`；作品 `gallery_list` / `gallery_tagged` / `gallery_popular` /
+  `gallery_random` / `gallery_show` / `gallery_related` / `gallery_suggestions` / `gallery_comments` /
+  `gallery_comment_count`；收藏 `gallery_favorite`（GET）/ `favorite_add`（POST）/ `favorite_remove`（DELETE）/
+  `favorite_list` / `favorite_random`；下载地址 `gallery_download`（POST，返回 `{"url": …, "expires_at": …}`
+  的短时地址，不下载媒体）；黑名单 `blacklist_list` / `blacklist_update`（POST）/ `blacklist_ids`；标签
+  `tag_ids` / `tag_search`（POST，JSON 正文）/ `tag_list` / `tag_show`；标签分类 `taxonomy_list` /
+  `taxonomy_stats` / `taxonomy_resolved` / `taxonomy_show` / `taxonomy_comments` / `taxonomy_edits`；
+  GTS `gts_backlog` / `gts_new_tags`；搜索 `search`；用户 `user_show` / `user_me`。
+  可选参数一律走 `**params`；`tag_search(**attributes)` 与 `blacklist_update(**attributes)` 的正文按调用方给的
+  JSON 原样发送（`tag_search` 的 `query` / `type` 在 OpenAPI 里都声明为可空可选，客户端不强制位置参数；
+  `blacklist_update` 只认 `added` / `removed` 两个整数数组，都省略时服务端按 `[]` 处理，显式空数组照发）。
+  没有本地校验、默认查询、重试、钳位或字段改名。
+- `request(method, path, *, params=None, data=None, headers=None)`：`path` 去掉前导 `/` 后拼在站点根
+  `https://nhentai.net` 上（原生方法写完整的 `api/v2/...`），资源编号与 slug 逐段按 `quote(str(x), safe='')`
+  转义；查询走共享标量编码（`None` 丢弃、布尔发小写，逗号串由调用方自己拼），`data` 按 JSON 原样发送
+  （保留显式空数组）；调用方传的 `headers` 覆盖配置里的认证头。返回完整解析后的 JSON（数组与整数都在），
+  不剥层、不猜形状、不重试、不降级。
+- 凭据只有 `api_key` 一项，包内留空：`None`（或不传）读配置，显式 `api_key=''` 表示本次固定匿名、
+  **不读**配置里的值，非空时随每个请求发 `Authorization: Key <key>`。本类没有用户名/密码与用户令牌入口，
+  也不提供登录、注册或令牌刷新。
+- 分页与返回形状照站点原样：作品列表、搜索结果与评论列表是 `{"result": [...], "num_pages": …, "per_page": …,
+  "total": …}`（`total` 可以是 `null`），标签列表在 `sort=name` 时才多一个 `alphabet`，`gallery_popular` 是
+  **裸作品数组**，`tag_show` 是裸标签对象，`tag_ids` 是裸标签数组，`blacklist_ids` 是整数数组，
+  `gallery_random` 是 `{"id": …}`，`gallery_related` 是只有 `result` 的对象。分页统一 `page`（1 起）+
+  `per_page`，但服务端不是每条路由都照办（作品每页上限 100、缺省 25；标签列表按自己的缺省 120 回；
+  `taxonomy_resolved` 请求 `per_page=2` 回 50 条），客户端不钳位、不重试、不补默认值。
+- 如实保留契约与实现的矛盾：OpenAPI 把非法 `page` 与超过上限的 `per_page` 记作 `422`，实测是 `400` 加
+  `{"error": "Validation error", "details": […]}`；缺失作品是 `404` 加 `{"error": "Gallery not found"}`；
+  深页不保证满页；`total` 与 `num_pages` 是快照，样本里两者不满足 `ceil(total/per_page)`。
+- 只覆盖 `.net` 的 `/api/v2`：`nhentai.to` 一类克隆站被排除（`/api/gallery/<id>`、`/api/v2/openapi.json` 等
+  已测样本为 `404`，但 `/trending-searches` 返回 JSON；标签的 `nh_id` 样本含语义未明的 `-2` / `-289`），
+  本库不为它做基址替换、ID 转换或回退；站点第一方账号与用户令牌写操作（评论写入、标签分类写入、作品编辑、
+  审核）、PoW/captcha 与广告位都不封装。`.net` 上旧的 `/api/gallery/<id>` 路径实测回 `403` 加
+  `text/plain: Use new API https://nhentai.net/api/v2/docs`，官方 changelog 另写明
+  `/api/v2/galleries/{id}/pages` 与 `/api/v2/galleries/{id}/pages/{page_number}` 已删除。
+- 配置新增 `sites.nhentai`（`url` 加空的 `api_key`）、`examples.nhentai`、`smoke.nhentai`；新增两个匿名示例
+  （`examples/nhentai/list_galleries.py` 三次 GET、`examples/nhentai/browse_resources.py` 五次 GET，先打印真实
+  URL、状态码与 `Content-Type`）与 10 次以内的 `test/nhentai.py`、四份家族文档（`docs/nhentai.md` /
+  `docs/nhentai-api.md` / `docs/nhentai-capabilities.md` / `docs/nhentai-contract-notes.md`），并同步 README、
+  `docs/index.md`、`docs/installation.md`、`docs/migration.md`、CONTRIBUTING、`setup.cfg` 的家族表述与计数。
+- 证据范围（不夸大）：31 个 GET 路由逐个直接请求覆盖（25 次 `200`、6 次需账号的 `401`），这是路由级证据；
+  经 Python 实际执行的是其中 9 个原生方法——`test/nhentai.py` 的 10 次请求 10 项检查全部通过、
+  `examples/nhentai/list_galleries.py` 三次 `200` 与 `examples/nhentai/browse_resources.py` 五次 `200`，
+  三个脚本退出码均为 `0`。4 个 POST 与 1 个 DELETE（含不需要认证的 `tag_search`）没有执行，
+  账号成功路径与第一方写操作未实测；逐条见[验证记录](docs/verification.md)。
+
 ### Cosine 第十一家族
 
 - 新增 `Cosine`、`anybooru/cosine.py` 与 `anybooru/api_cosine.py`。站点是 Telegram 频道 `@CosineGallery`

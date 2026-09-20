@@ -97,6 +97,9 @@ Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失�
 见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、
 `AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。
+nhentai 的错误样本也只覆盖本轮试过的路径；它的错误正文都是 JSON（`{"error": …}`），但参数校验失败的
+**真实状态码与正文字段名和 OpenAPI 里那张 `422` schema 对不上**（实测是 `400` 加 `error` / `details`），
+见下节。
 
 ### Danbooru 引擎
 
@@ -241,6 +244,54 @@ JSON 路由拿到 2xx 却不是 JSON 时，仍按共享规则抛 `AnybooruAPIErr
 只能说本轮样本没有这些头，不能当成“站点没有配额”或“浏览器跨域一定可用”的保证。
 客户端不做任何自动重试：`search_index_admin` 这类写入口更没有兜底或回滚，见[不重试](#不重试)。
 
+### nhentai
+
+本轮 61 次匿名 GET（每请求只发一次、不重试、不跟随跳转、不下载媒体）里的错误样本。原生路由的错误正文都是
+JSON，`AnybooruHTTPError.data` 是对象；唯一的纯文本例外是站点**旧一代**路径的 `403`（见下）。
+`last_call` 在抛异常前就已写入，所以出错时也能读到那次请求的 URL 与状态码。
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **查询参数非法**：`GET /api/v2/galleries?page=0&per_page=2` 回 `{"error":"Validation error","details":["query -> page: Input should be greater than or equal to 1"]}`；`per_page=101`（OpenAPI 声明上限 `100`）同为 `400`；搜索不传必填的 `query`、`sort` 取值不认识、标签类型不认识（`/api/v2/tags/<不存在的类型>`）都是 `400` |
+| `401` | **需要凭据**：`/api/v2/user`、`/api/v2/favorites`、`/api/v2/favorites/random`、`/api/v2/blacklist`、`/api/v2/blacklist/ids`、`/api/v2/galleries/{id}/favorite` 六个 GET 路由匿名统一回 `{"error":"Authentication required"}` |
+| `404` | **资源不存在**：`GET /api/v2/galleries/999999999` 回 `{"error":"Gallery not found"}`；`GET /api/v2/galleries/tagged?tag_id=999999999` 也是 `404` |
+| `429` | OpenAPI 给每个端点写明请求预算（例如匿名 `GET /api/v2/galleries` 是 `15/1min per IP`、匿名 `GET /api/v2/search` 是 `10/1min per IP`），文档里超限的响应是 `429 Too many requests` 加 `{"error": …}`；**本轮没有触发过限流**，这一条是文档值而不是观测值 |
+| `503` | OpenAPI 的说明是 `Feature is currently disabled`（端点背后的功能开关没开），本轮没有样本 |
+
+**状态码以站点实际返回为准，不要照 OpenAPI 的 schema 表下判断**：OpenAPI 把约束校验错误写成 `422`
+加 `{"detail": [...]}`，实测的 `page=0` / `per_page=101` 却是 **`400`** 加 `{"error": "Validation error",
+"details": [...]}`。本库不翻译、不归一，`error.http_code` 就是站点给的那个数字。
+
+```python
+from anybooru import Nhentai, AnybooruHTTPError
+
+with Nhentai('nhentai', api_key='') as client:      # 显式空串＝匿名
+    try:
+        client.gallery_show(999999999)              # 不存在的画廊编号
+    except AnybooruHTTPError as error:
+        print(error.http_code)                      # 404
+        print(error.data['error'])                  # Gallery not found
+        print(error.url)                            # https://nhentai.net/api/v2/galleries/999999999
+
+    try:
+        client.gallery_list(page=0, per_page=2)     # 页码低于声明的下限
+    except AnybooruHTTPError as error:
+        print(error.http_code)                      # 400，不是 schema 里写的 422
+        print(error.data['details'])                # ['query -> page: Input should be greater than or equal to 1']
+        print(client.last_call['status_code'])      # 400：最近一次请求的记录同样在
+
+    try:
+        client.favorite_list()                      # 需要凭据的读取：匿名 401
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['error']) # 401 Authentication required
+```
+
+上一代路径不属于本客户端：`GET https://nhentai.net/api/gallery/658856` 实测回 `403` 加**纯文本**
+`Use new API https://nhentai.net/api/v2/docs`（正文不是 JSON，所以那时 `.data` 是 `None`、正文在 `.body` 里）。
+原生方法全部拼在 `/api/v2` 下，不会请求这些旧路径，也不做任何回退或 ID 换算。
+逐条 URL 与正文见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与
+[nhentai 契约审计附注](nhentai-contract-notes.md)。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -248,6 +299,9 @@ JSON 路由拿到 2xx 却不是 JSON 时，仍按共享规则抛 `AnybooruAPIErr
 * `429` 与 `5xx` 由调用者自己决定等待多久、重试几次；
 * Danbooru 在被限流的请求上会返回 `X-Rate-Limit` 响应头（JSON，含 `action`、`rate`、`burst`、`limits`
   等字段），通过 `AnybooruHTTPError.response.headers` 读取。
+* nhentai 把请求预算按端点写进 OpenAPI（例如匿名 `GET /api/v2/galleries` `15/1min per IP`、
+  `GET /api/v2/galleries/popular` `8/1min per IP`），超限按文档是 `429`；库不做客户端限速、不读也不缓存
+  任何配额信息，连续翻页要自己控制节奏。
 
 ## 边界与未实测
 
@@ -264,6 +318,11 @@ Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探�
 `400` / `404` / `500` 样本；两个 POST（`artwork_revalidate`、`search_index_admin`）从未调用，
 `401` / `403` / `429` 都没有样本，未知参数是否被忽略也没有证据。逐条见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
+nhentai 的错误路径同样是有界样本：61 次匿名 GET 里出现的非 2xx 只有 `400` / `401` / `403` / `404` 四类，
+其中 `403` 只出现在站点**旧一代** `/api/...` 路径上（纯文本指向 v2 文档，不是原生方法会走的路径）；
+`429`、`503` 与任何带凭据的失败形态都没有样本，写方法的拒绝形态（收藏、黑名单、下载 URL）与
+PoW / CAPTCHA 分支一律未实测。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与
+[nhentai 契约审计附注](nhentai-contract-notes.md)。
 
 ## 相关文档
 

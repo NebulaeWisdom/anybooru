@@ -349,6 +349,66 @@ with Cosine('cosine', revalidate_secret='') as client:
 
 逐条依据与未实测边界见 [Cosine 契约审计附注](cosine-contract-notes.md)。
 
+## nhentai 站点
+
+`Nhentai` 只实现一种凭据：站点条目的 `api_key`，随每个请求发送 `Authorization: Key <api_key>`。
+
+| 字段 | 值 |
+| :--- | :--- |
+| 请求头 | `Authorization` |
+| 值 | `Key <api_key>`（`Key` 是站点 OpenAPI 里写死的 scheme 字面量） |
+| 配置位置 | `sites.<站点>.api_key` |
+
+```json
+{
+  "sites": {
+    "nhentai": { "url": "https://nhentai.net", "api_key": "" }
+  }
+}
+```
+
+规则：
+
+* `api_key=''`（显式空串）表示本次客户端匿名，**不读**配置里的 key；`None`（或不传）才读配置；
+* 留空即匿名：请求不带 `Authorization` 头。公开的画廊列表 / 搜索 / 详情 / 标签 / 分类法与 GTS 读方法、
+  评论读、`GET /api/v2/config`、`GET /api/v2/cdn` 与 `GET /api/v2` 都取过匿名 `200` 样本；
+* 非空才加头，库不加 `Bearer`、不加 `Basic`、不改写 key；key 在
+  <https://nhentai.net/user/settings#apikeys> 生成，填进自己的配置文件后**不要提交**；
+* 客户端不做本地权限判断、不在 `401` 后退回匿名，也不提供登录、注册、换取或刷新凭据的方法；
+* 权限由服务端判定：OpenAPI 把收藏、黑名单、下载 URL 与 `GET /api/v2/user` 标成
+  `Auth: User Token or API Key`——匿名打这 6 个 GET 路由实测统一回 `401` 加
+  `{"error": "Authentication required"}`（`/api/v2/user`、`/api/v2/favorites`、`/api/v2/favorites/random`、
+  `/api/v2/blacklist`、`/api/v2/blacklist/ids`、`/api/v2/galleries/{id}/favorite`）。带 key 的成功路径
+  **本轮没有执行**：构造只按规范支持 `Key` 头，从未使用过凭据。
+
+**User Token 不实现**：站点另有一套 `Authorization: User <token>` 的凭据（OpenAPI 的
+`components.securitySchemes` 里叫 `User Token`），本类没有对应构造参数，也不替你获取或续期。
+OpenAPI 把 `user` 与 `auth` 两个分组整体标成 **First-party and internal only**（原文：these endpoints
+“should NOT be used by third-party clients … will be enforced”），并写明唯一例外是
+**`GET /api/v2/user`**。36 个原生方法里只收进了这一个用户端点——`user_me()` 就是 `GET /api/v2/user`，
+它接受 User Token 或 API Key；`/api/v2/auth/*`、`/api/v2/user/keys`、`/api/v2/user/avatar` 等首方与内部路由
+一律不接入。需要自己带 `User` 头时走通用入口显式传 `headers`（调用方给的 `headers` 覆盖配置里的认证头）：
+
+```python
+from anybooru import Nhentai
+
+with Nhentai('nhentai', api_key='') as client:
+    # GET https://nhentai.net/api/v2/tags/language/english —— 匿名公开读取
+    print(client.tag_show('language', 'english')['id'])
+
+    # 下面这条需要你自己准备 token，本仓库从未执行，也不保证站点接受第三方这样调用：
+    # client.request('GET', 'api/v2/user', headers={'Authorization': 'User <your-token>'})
+```
+
+**判断公开性要看描述，不要只看 `security` 列表**：`GET /api/v2/galleries` 这类公开读取在 OpenAPI 里也列了
+`User Token` 与 `API Key` 两项，描述写的却是 “Public (optional User Token or API Key for personalization)”；
+反过来 `GET /api/v2/tags/{tag_type}` 的 `security` 是空数组。两类都取到了匿名 `200` 样本，所以分类依据是
+描述与实测，而不是那个列表。
+
+`GET /api/v2/user` 用 API key 认证时返回的 `email` 是 `null`（OpenAPI 的 `UserMeResponse` 描述：
+“Email hidden for API key auth”）。方法签名、返回字段与排除项见[方法参考](nhentai-api.md)与
+[nhentai 契约审计附注](nhentai-contract-notes.md)。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -374,6 +434,12 @@ Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cook
 Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）
 本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
+nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），
+`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，
+后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与
+`POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流
+（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与
+[nhentai 契约审计附注](nhentai-contract-notes.md)。
 
 ## 相关文档
 

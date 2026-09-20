@@ -1,6 +1,6 @@
 # Anybooru 文档
 
-Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures 与 Cosine 十一类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine 与 Nhentai 十二类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），
 再进对应家族的「三行上手」跑通第一个请求。
@@ -31,6 +31,7 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru�
 | Sakuria（Pixiv 第三方镜像，sakuria-api.syarolia.com） | [三行上手](sakuria.md) | [44 个读取方法](sakuria-api.md) | [按任务找方法](sakuria-capabilities.md) | [匿名响应与资料矛盾](sakuria-contract-notes.md) |
 | Anime-Pictures（anime-pictures.net，自研 `api/v3`） | [三行上手](anime-pictures.md) | [13 个原生方法](anime-pictures-api.md) | [按任务找方法](anime-pictures-capabilities.md) | [匿名响应与输入矛盾](anime-pictures-contract-notes.md) |
 | Cosine（pic.cosine.ren，自研 API、非 booru 引擎） | [三行上手](cosine.md) | [13 个原生方法](cosine-api.md) | [按任务找方法](cosine-capabilities.md) | [匿名响应与上游文件](cosine-contract-notes.md) |
+| Nhentai（nhentai.net，站点自带的 `.net` API v2） | [三行上手](nhentai.md) | [36 个原生方法](nhentai-api.md) | [按任务找方法](nhentai-capabilities.md) | [OpenAPI 条目与实测依据](nhentai-contract-notes.md) |
 
 **两家 Gelbooru 不是同一套接口**，选类前先看清是哪一家：
 
@@ -66,18 +67,21 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
 （`pageSize` / `start` / `offset` / `r18`）与返回外壳都属于站点自己，四种外壳本库一个都不拆。
 没有 OpenAPI 与服务端源码快照，站点前端源码在公开仓库里、本轮只按需只读了个别文件当线索，
 公开结论以匿名只读响应为准，见[契约附注](cosine-contract-notes.md)。
+Nhentai（`nhentai.net`）使用独立的 `/api/v2/galleries`、`/search`、`/tags` 契约与
+`Authorization: Key` 认证，应选择 `Nhentai`；同名 `.to` 克隆站不属于这个家族。
+依据是站点自带 OpenAPI 加匿名响应，见[契约附注](nhentai-contract-notes.md)。
 不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，
 但返回的 JSON 结构完全不同。判断方法见
 [配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
-## 十一个家族共用的用法
+## 十二个家族共用的用法
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | Python 与依赖要求、源码安装步骤、装完怎么验证、包内文件都在哪 |
 | [配置](configuration.md) | 默认读哪份 JSON、怎么换一份自己的、`sites` 每个字段什么意思、`examples` 各键对应哪个调用、代理与超时写在哪 |
-| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token、Anime-Pictures 原样转发 `Authorization` / `Cookie`、Cosine 默认匿名且 `revalidate_secret` 留空 |
-| [分页](pagination.md) | 十一个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000 |
+| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token、Anime-Pictures 原样转发 `Authorization` / `Cookie`、Cosine 默认匿名且 `revalidate_secret` 留空、Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>` |
+| [分页](pagination.md) | 十二个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000、Nhentai 的 `page`/`per_page` 与 `total` 是快照 |
 | [错误处理](errors.md) | 三个异常类各自什么时候抛、HTTP 错误带哪些字段、各引擎的状态码含义、为什么不自动重试 |
 | [迁移](migration.md) | 从 Pybooru 4.x 改名/换参数/换返回值的逐方法对照表 |
 
@@ -85,16 +89,17 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
 
 1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；
    不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
-2. **通用入口与原生方法**：十一个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
+2. **通用入口与原生方法**：十二个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
    有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
    有些方法会替你剥掉一层外层对象：Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、
    把 `meta` 放进 `client.last_call['meta']`；e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，
    而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆；Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，
-   详情路径直接是条目对象；Gelbooru、Shuushuu、Sakuria、Anime-Pictures 与 Cosine 一个外层都不拆，服务端给什么就返回什么
+   详情路径直接是条目对象；Gelbooru、Shuushuu、Sakuria、Anime-Pictures、Cosine 与 Nhentai 一个外层都不拆，服务端给什么就返回什么
    （Cosine 的四种外壳原样返回：superjson 的 `{"json":…,"meta":…}`、`{"images":…,"total":…}`、
    `{"success":true,"data":…}` 与裸数组；`image_random` 在 `count=1` 时 superjson 里的 `json` 是**对象**、
-   `count≥2` 时才是数组）；
+   `count≥2` 时才是数组；Nhentai 的作品列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，
+   `gallery_popular` 是裸作品数组、`tag_show` 是裸标签对象、`blacklist_ids` 是整数数组）；
    Gelbooru02 的 XML 方法给你**服务端原文**（含 XML 声明、根元素属性与全部空白，不解析、不转换、不裁剪）。
    返回内容的完整原貌、以及哪些方法不拆，见各家族方法参考。
 4. **参数按各引擎的写法发**：Rails 引擎把嵌套字典编成 `a[b]`、列表编成重复键 `a[]`，布尔发成 `true` / `false`，
@@ -116,6 +121,8 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
    Cosine 的参数走共享编码：`None` 丢弃、布尔发成小写、数组按 Rails 重复键；`path` 去掉前导 `/` 后拼在
    站点根上，`data` 按 JSON 原样发送。它的分页用站点自己的键（`page`/`pageSize`、`limit`/`offset`、
    `start`/`limit`），`response_format='xml'` 时 `feed()` 走 `.text` 返回完整 RSS 原文，不做 JSON 嗅探。
+   Nhentai 的原生路径带完整 `api/v2` 前缀，配置填写站点根；查询与 JSON 正文的写法见
+   [客户端用法](nhentai.md)，不同端点的页码与条数差异见[分页](pagination.md#nhentai-的分页)。
 
 ## 边界与未实测
 
@@ -124,7 +131,9 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
   Cosine 没有本地上游服务端源码，站点前端源码在公开仓库里，本轮只按需只读了个别文件当线索
   （不 clone、不写行号），公开结论以匿名只读响应为准。
   Sakuria 没有上述正式来源，仅有匿名实测；Anime-Pictures 同样没有可读到的官方手册页、OpenAPI 或服务端源码，
-  依据只是匿名响应加候选输入资料。未复核的资料说法集中标明。任何一种依据都不是对下游站点的保证。
+  依据只是匿名响应加候选输入资料。Nhentai 没有本地上游服务端源码，依据是站点自带的 OpenAPI
+  （`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）加匿名只读响应，引用按 JSON Pointer 与
+  `operationId` 而不是行号。未复核的资料说法集中标明。任何一种依据都不是对下游站点的保证。
 - 已经真实执行过的匿名读取：Danbooru 的 12 次成功与 3 次预期错误、Moebooru 的指定匿名读取、Serika 的
   官方公开入口与部分站内读取、e621ng 三个示例在 e621.net 与 e926.net 各跑一遍、Zerochan 的
   `entry_list` 与 `entry_show`、Gelbooru 的 `autocomplete`（`200`，返回建议数组；实测 `limit=3` 仍返回
@@ -132,14 +141,17 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
   共 10 次请求全部 `200`，三个脚本退出 `0`）、Anime-Pictures 的 90 次串行匿名 GET（`200`×76、
   `400`×4、`403`×2、`404`×6、`410`×1、`500`×1：API 主机根、两页帖子、帖子详情、帖评论、标签列表与详情、
   用户列表与详情、评论列表与详情、分页与排序参数、缺失资源的四种状态码、非法路径段的纯文本 `400`、
-  `get_image` 的空正文 `403`）及 Cosine 的匿名读取路径与边界；
+  `get_image` 的空正文 `403`）、Cosine 的匿名读取路径与边界、Nhentai 的 31 个 GET 路由（逐条直接请求：
+  25 次 `200`、6 次需账号的 `401`）；
   各家族示例脚本的实跑情况见[验证记录](verification.md)。
 - 只有源码或站点文档依据、没有成功响应记录的部分：所有需要登录或 API key 的写路径、e621ng 需要成员权限的
   `related_tag` / `related_tag_bulk`、Serika 全部需 key 的 v1 方法、Gelbooru 全部 5 个 dapi 方法
   （账号成功返回未实测，匿名已各取得401空正文）、Gelbooru02 未观察到的部分（评论非空结构、`post_deleted`
   的成功流、`limit` 的真实上限）、Anime-Pictures 的 `post_create`（没发过 POST）、带 Cookie 的
   `post_tags` 与 `image_get`、媒体地址的成功返回、Cosine 的两个 POST（`artwork_revalidate` 需要站点密钥、
-  `search_index_admin` 会改站点索引，本轮都没有调用）、旧版 web 路由与 `PUT` / `PATCH` / `DELETE`。
+  `search_index_admin` 会改站点索引，本轮都没有调用）、Nhentai 的 4 个 POST 与 1 个 DELETE
+  （`favorite_add` / `favorite_remove` / `gallery_download` / `blacklist_update`，以及**不需要认证**的
+  `tag_search`）、旧版 web 路由与 `PUT` / `PATCH` / `DELETE`。
   方法存在不等于成功路径测过。
 - 只读范围并不相同：e621ng 面没有原生写方法，写路由要用通用 `request()` 自己拼方法与路径；
   Zerochan 的 API 本身只读，且只提供 JSON（不实现 `xml`），文档要求的 User-Agent 里含项目名与
@@ -166,6 +178,9 @@ Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`
   示例和冒烟都不调用它。两个 POST 本轮都未执行，成功与拒绝形态都未实测；`feed()` 用 `response_format='xml'`
   返回 RSS 原文。匿名可读范围、状态码样本与未实测项见
   [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[契约附注](cosine-contract-notes.md)。
+- Nhentai 只覆盖 `.net` API v2 的第三方资源面，不封装 `.to`、第一方账号管理、挑战求解与广告。
+  规范与实测差异见[契约附注](nhentai-contract-notes.md)，真实调用和未实测项见
+  [验证记录](verification.md#nhentai匿名只读实测2026-09-20)。
 
 ## 许可
 

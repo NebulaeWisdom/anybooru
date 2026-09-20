@@ -2,7 +2,7 @@
 
 ## 客户端行为
 
-十一个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+十二个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
 tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
@@ -10,12 +10,14 @@ Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `
 Anime-Pictures 的帖子列表用 **0 起步**的 `page` / `posts_per_page`，标签、用户与评论列表用 `limit` / `offset`。
 Cosine 的 `image_list` / `artist_list` 用 `page`（1 起）/ `pageSize`，`search` 用 `limit` / `offset`，
 `tag_images` 用 `start` / `limit`。
+nhentai 的画廊、标签、分类法与 GTS 列表用 `page`（1 起）/ `per_page`，`limit` 只出现在
+`gallery_suggestions` / `gts_new_tags` / `tag_search` 上（取几条，不是页码）。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
 * 失败不自动重试，包括被限流的情况；
-* 返回服务端给的那一页：有的家族直接返回数组，有的把数组包在 `{"posts": [...]}` 或 `{"items": [...]}` 里，
-  见各节。
+* 返回服务端给的那一页：有的家族直接返回数组，有的把数组包在 `{"posts": [...]}` 或 `{"items": [...]}` 里
+  （nhentai 是 `{"result": [...]}`），见各节。
 
 ```python
 from anybooru import Danbooru
@@ -444,6 +446,95 @@ with Cosine('cosine') as client:
 非数字页码与别的取值组合没有完整样本，所以客户端不做钳位、不补默认值、也不替你判末页。
 逐条参数与返回字段见[方法参考](cosine-api.md)，状态码样本见[错误处理](errors.md#cosine)，
 真实请求记录见[验证记录](verification.md#cosine匿名只读实测2026-09-20)。
+
+## nhentai 的分页
+
+nhentai 的列表用 `page`（页码，**1 起**）与 `per_page`（每页条数）；`gallery_suggestions`、`gts_new_tags`
+与 `tag_search` 用 `limit`（取几条，不是页码）。客户端原样转发，不补默认值、不裁剪、不自动翻页，
+也不替你判断末页。
+
+| 方法 | 分页输入（取值与默认值来自站点 OpenAPI） | 翻页信息在回包的哪里 |
+| :--- | :--- | :--- |
+| `gallery_list(**params)` | `page` ≥ `1`，默认 `1`；`per_page` `1..100`，默认 `25` | `{"result": [...], "num_pages": N, "per_page": N, "total": N 或 null}` |
+| `gallery_tagged(tag_id, **params)` | `tag_id` 必填；`sort` 取 `date` / `popular` / `popular-today` / `popular-week` / `popular-month`，默认 `date`；`page` / `per_page` 同上 | 同 `gallery_list` |
+| `gallery_comments(gallery_id, **params)` | `page` `1..2000`，默认 `1`；`per_page` `1..50`，默认 `50` | 同 `gallery_list` |
+| `tag_list(tag_type, **params)` | `sort` 取 `name` / `popular`，默认 `popular`；`page` ≥ `1` 默认 `1`；`per_page` `1..100` 默认 `25` | 同 `gallery_list`，另有 `alphabet`（实测只在 `sort=name` 的样本里出现） |
+| `taxonomy_list(**params)` | `page` ≥ `1` 默认 `1`；`per_page` `1..200` 默认 `50`；另有 `tier` / `q` / `target_tag_id` / `sort_by` / `sort` / `action` / `discussion` / `edited` | `{"result": [...], "has_more": bool, "num_pages": N, "total": N}` |
+| `taxonomy_resolved(**params)` | `page` ≥ `1` 默认 `1`；`per_page` `1..100` 默认 `25`；另有 `status` / `q` / `discussion` / `edited` / `action` / `sort_by` / `sort` | 同 `taxonomy_list` |
+| `taxonomy_comments(suggestion_id, **params)` | `page` ≥ `1` 默认 `1`；`per_page` `1..100` 默认 `50` | 同 `taxonomy_list` |
+| `gts_backlog(**params)` | `page` `1..200` 默认 `1`；`per_page` `1..50` 默认 `20`；另有 `tag_id` / `action` / `sort_by` / `sort` | 同 `taxonomy_list` |
+| `gallery_suggestions(gallery_id, **params)` | `limit` `1..100` 默认 `20`；`tier` 默认 `all` | `{"result": [...]}`；`has_more` / `num_pages` / `total` 在 OpenAPI 里都是可选字段 |
+| `gts_new_tags(**params)` | `limit` `1..50` 默认 `25` | `{"result": [...]}`，没有分页字段 |
+| `tag_search(**attributes)` | 请求体里的 `limit` `1..50` 默认 `10`（`query` / `type` 都可省略） | 方法本身不分页；本轮**未调用**（`POST`） |
+
+`search` 只有 `page`（≥ `1`，默认 `1`），**没有** `per_page`；`favorite_list` 只有 `q` 与 `page`。
+`gallery_popular` / `gallery_random` / `gallery_related` / `gallery_comment_count` / `taxonomy_stats` /
+`taxonomy_edits` / `tag_ids` / `tag_show` / `user_show` / `service_info` / `cdn_config` / `site_config`
+**不接受分页参数**。
+
+### 回包形状与实测样本
+
+列表回包是对象，条目数组在 `result` 里；`result` 一定会出现，`num_pages` / `per_page` / `total` 在画廊与标签
+列表里也会出现，其中 `total` **可能是 `null`**。分类法与 GTS 的列表另有 `has_more` 布尔值。以下都是本轮匿名
+只读样本（每个请求只发一次，数字是快照，不是常量）：
+
+| 请求 | 回包里的分页字段 |
+| :--- | :--- |
+| `GET /api/v2/galleries?page=1&per_page=2` 与 `page=2` | 两页各 `result` 2 条；样本 `total=646010`、`num_pages=323037`（`ceil(646010/2)` 是 `323005`，**两者不相等**） |
+| `GET /api/v2/galleries/tagged?tag_id=12227&per_page=2` | `result` 2 条、`num_pages=73670`、`total` 为 **`null`** |
+| `GET /api/v2/search?query=language:english` | `per_page=25`、`result` 25 条、样本 `total=147497`、`num_pages=5900` |
+| `GET /api/v2/galleries/{id}/comments?page=1&per_page=2` | `result` 空数组、`num_pages=0`、`per_page=2`、`total=0`（该画廊当天没有可见评论） |
+| `GET /api/v2/taxonomy?per_page=2` | `result` 2 条、`has_more=true`、`num_pages=1492`、`total=2984` |
+| `GET /api/v2/taxonomy/{id}/comments?page=1&per_page=2` | `result` 2 条、`has_more=true`、`num_pages=10`、`total=19` |
+| `GET /api/v2/gts/backlog?per_page=2` | `result` 2 条、`has_more=true`、`num_pages=27919`、`total=55838` |
+| `GET /api/v2/gts/new-tags?limit=2` | `result` 2 条，没有分页字段 |
+
+**不要拿 `total` 和 `per_page` 算末页**：`num_pages` 不是 `ceil(total / per_page)`（见上表第一行），
+`total` 还可能是 `null`。要推进就手动把 `page` 加 1，走到哪算哪。
+
+**不要用「这一页不满」或「这一页是空的」当停止条件**：实测 `GET /api/v2/galleries?page=100000&per_page=25`
+回的是 `200` 加 24 条（编号从 25 往前重复列表尾部的条目），`num_pages` 仍是 `25843`——越界页会重复尾巴而不是
+报错或回空数组，所以「短页 / 空页 = 到头」在本家族不成立。搜索无命中是另一回事：实测
+`GET /api/v2/search?query=<不存在的词>&page=2` 回 `200` 加空 `result`、`total=0`、`num_pages=0`。
+
+**`per_page` 不保证被采纳**：声明范围内的 `per_page=100` 实测回 100 条，越界的 `per_page=101` 被拒；
+但在 `tag_list` 上请求 `per_page=1` 实测回 120 条、回包 `per_page` 是 `120`（同一个端点：请求参数的声明默认值是
+`25`，回包 schema 里写的默认值却是 `120`），在 `taxonomy_resolved` 上请求 `per_page=2` 实测回 50 条
+——这两个端点的分页密度由站点决定，客户端不钳位。`search` 上不存在的 `per_page=2` 被忽略（仍回 25 条、
+`per_page` 回显 `25`）；`taxonomy_resolved` 上未被记录的 `limit=2` 同样回 50 条。
+**「没报错」不等于「参数生效」。**
+
+标签列表的 `alphabet` 也不是每个排序都有：`sort=name` 的样本里有它，默认 `sort=popular` 的样本里没有。
+
+```python
+from anybooru import Nhentai
+
+with Nhentai('nhentai', api_key='') as client:            # 显式空串＝匿名，不读配置里的 key
+    # GET https://nhentai.net/api/v2/galleries?page=1&per_page=2
+    first_page = client.gallery_list(page=1, per_page=2)
+    print(first_page['per_page'], first_page['num_pages'], first_page['total'])
+    for gallery in first_page['result']:
+        print(gallery['id'], gallery['media_id'])
+
+    # GET https://nhentai.net/api/v2/galleries?page=2&per_page=2
+    second_page = client.gallery_list(page=2, per_page=2)
+    print([gallery['id'] for gallery in second_page['result']])
+
+    # GET https://nhentai.net/api/v2/galleries/tagged?tag_id=12227&page=1&per_page=2
+    tagged = client.gallery_tagged(12227, page=1, per_page=2)   # tag_id 是标签的编号，取自 tag_show 或 tag_list
+    print(tagged['total'], tagged['num_pages'])                 # total 可能是 None
+
+    # GET https://nhentai.net/api/v2/search?query=language%3Aenglish&sort=date&page=1
+    hits = client.search(query='language:english', sort='date', page=1)
+    print(len(hits['result']), hits['total'], hits['num_pages'])
+
+    # GET https://nhentai.net/api/v2/tags/language?sort=name&page=1&per_page=2
+    tags = client.tag_list('language', sort='name', page=1, per_page=2)
+    print(tags['per_page'], tags['num_pages'], tags['alphabet'] is not None)
+```
+
+参数清单与每个方法的返回字段见[方法参考](nhentai-api.md)，`page=0` / `per_page=101` 这类越界的真实状态码见
+[错误处理](errors.md#nhentai)，逐条请求记录见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)。
 
 ## 相关文档
 
