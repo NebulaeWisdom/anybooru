@@ -4,12 +4,12 @@
 
 ## 资源
 
-* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十一个家族各四份（客户端用法 / 方法参考 /
+* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十二个家族各四份（客户端用法 / 方法参考 /
   能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
 * [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单（判引擎、摸契约、写客户端、
   冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界）。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine 十一个家族共 31 个可运行脚本。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai 十二个家族共 33 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -64,8 +64,18 @@
   需要站点服务端密钥，两者本轮都未执行。来源层级、与输入资料的矛盾与未实测项记在
   [`docs/cosine-contract-notes.md`](docs/cosine-contract-notes.md)。
 
-改动这七个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
-不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十一个家族都有源码依据”。
+* `nhentai.net`（Nhentai，站点自带的 `.net` API v2）**没有本地上游服务端源码**：依据是站点自带的
+  [OpenAPI](https://nhentai.net/api/v2/openapi.json)（OpenAPI 3.1.0，98 paths / 114 operations /
+  129 schemas）加匿名只读响应。引用 OpenAPI 条目时写 JSON Pointer 与 `operationId`（例如
+  `#/paths/~1api~1v2~1galleries/get`、`get_all_galleries_api_v2_galleries_get`），没有服务端行号可写，
+  不要编。它的返回形状与任何现有家族都不同：作品列表是 `{"result": […], "num_pages": …, "per_page": …,
+  "total": …}`、`gallery_popular` 是裸数组、`tag_show` 是裸对象、`gallery_random` 是 `{"id": …}`，
+  分页是 `page` + `per_page`，认证是 `Authorization: Key`。已实测的契约与实现的矛盾：OpenAPI 把非法 `page`
+  与超上限的 `per_page` 记作 `422`，实测是 `400`。`nhentai.to` 一类克隆站被排除，不当作 `.net` 的替代基址。
+  来源层级、排除项与未实测项记在 [`docs/nhentai-contract-notes.md`](docs/nhentai-contract-notes.md)。
+
+改动这八个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
+不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十二个家族都有源码依据”。
 
 ## 我能做什么？
 
@@ -100,7 +110,10 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   Anime-Pictures 请给出可复现的匿名响应（API 主机 `api.anime-pictures.net` 上的请求 URL、状态码与正文关键字段）
   以及执行范围——它同样没有可读到的官方手册页、OpenAPI 与源码，外部客户端源码链接只能当线索，不能当契约；
   Cosine 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围，并注明结论有没有公开前端文件
-  支撑（只写文件、不编行号）——它没有本地上游服务端源码、OpenAPI，也没有可读到的官方手册页。
+  支撑（只写文件、不编行号）——它没有本地上游服务端源码、OpenAPI，也没有可读到的官方手册页；
+  Nhentai 请给出站点自带 [OpenAPI](https://nhentai.net/api/v2/openapi.json) 的条目（JSON Pointer 或
+  `operationId`，例如 `#/paths/~1api~1v2~1galleries/get`）以及可复现的匿名响应（请求 URL、状态码与正文关键字段）
+  与执行范围——它同样没有本地上游服务端源码，也没有别的契约来源；`.to` 一类克隆站的行为不算 `.net` 的契约。
   **不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
@@ -131,6 +144,8 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
    .venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
    .venv/Scripts/python.exe examples/cosine/list_images.py
    .venv/Scripts/python.exe examples/cosine/browse_resources.py
+   .venv/Scripts/python.exe examples/nhentai/list_galleries.py
+   .venv/Scripts/python.exe examples/nhentai/browse_resources.py
    ```
 
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
@@ -156,9 +171,10 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   错误保持原状态码与正文。
 * 一个家族的客户端只包装**该引擎自己**的路由：不把别的引擎的参数名、默认值或返回结构搬过来，
   也不为旧行为保留别名或垫片。
-* 新增方法要给出依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应，Gelbooru 为官方
+  新增方法要给出依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应，Gelbooru 为官方
   wiki/帮助页或页面脚本出处 + 实测响应，Gelbooru02 为 TBIB 帮助页条目与真实响应，
-  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria 与 Anime-Pictures 为可复现的匿名响应与执行范围），
+  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria 与 Anime-Pictures 为可复现的匿名响应与执行范围，
+  Nhentai 为站点自带 OpenAPI 的路径/schema（JSON Pointer 或 `operationId`）+ 实测响应），
   并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 
 ## 文档风格
