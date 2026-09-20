@@ -349,6 +349,45 @@ with Cosine('cosine', revalidate_secret='') as client:
 
 逐条依据与未实测边界见 [Cosine 契约审计附注](cosine-contract-notes.md)。
 
+## ArtStation 没有凭据入口
+
+`ArtStation` 只做公开读取：站点条目**只有 `url` 一个字段**，构造签名里没有 `username` / `api_key` /
+`password` / `access_token` / `authorization` / `cookie` 一类的凭据参数，构造时把共享传输的 `username` 置空。
+本类不自动生成认证头，也没有登录、注册、换 token 的方法；共享会话仍会正常保存站点响应 Cookie，
+不会在 `401` / `403` 后退回匿名或另换一条路径。
+
+```json
+{
+  "sites": {
+    "artstation": { "url": "https://www.artstation.com" }
+  }
+}
+```
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:        # 包内条目只有 url，没有凭据可填
+    # GET https://www.artstation.com/projects.json?page=1&per_page=2
+    print(client.project_list(page=1, per_page=2)['total_count'])   # 匿名读公开作品列表
+```
+
+本轮没有任何带凭据的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；
+`request(headers=...)` 虽可显式传请求头，也不保证认证成功：
+
+| 请求 | 实测 | 能读出什么 |
+| :--- | :--- | :--- |
+| `GET /projects/G1ew2N.json`（固定作品详情） | `403`，正文是 Cloudflare 质询 HTML，响应头带 `Cf-Mitigated: challenge` | 这是**反脚本挑战页**，不是登录要求：既不证明这条路由要账号，也不说明该用哪种凭据 |
+| `GET /api/v2/community/projects/22897630.json`（v2 单作品详情） | `401 application/json`，正文 `{"data":null}` | 拒绝匿名；正文没有 code/message，响应头没有 WWW-Authenticate，无法据此判断凭据方案；带凭据未测 |
+
+这两条路由都没有对应的原生方法，本库也不替它们找替代路径。想试就自己用通用入口显式请求，例如
+`client.request('GET', 'api/v2/community/projects/22897630.json')`，成败由站点决定，见
+[ArtStation 契约附注](artstation-contract-notes.md)。
+
+本轮 [robots.txt](https://www.artstation.com/robots.txt) 为200文本，包含 `/*/likes`、`/*/following`、
+`/*/followers`、`/*/collections` 等模式；不能把这些模式说成只涉及 HTML、不涉及同前缀的 JSON。
+能匿名读到不等于获得许可，另见 [服务条款](https://www.artstation.com/tos)；本库不会因此改走备用路径。
+
 ## 边界与未实测
 
 已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
@@ -374,6 +413,11 @@ Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cook
 Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）
 本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
+ArtStation 本轮没有验证凭据方案：构造没有凭据参数，15 个原生方法都是匿名 GET，没有原生写方法、
+登录或换 token 入口。指定详情的403挑战与v2详情的401 data:null，只是两条路径的匿名访问拒绝；
+它们不能说明站点接受哪种凭据、带凭据会返回什么，
+一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与
+[ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
 
