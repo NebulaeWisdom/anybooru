@@ -2,8 +2,7 @@
 
 Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十三类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
-不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），
-再进对应家族的「三行上手」跑通第一个请求。
+不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），再进对应家族的「三行上手」跑通第一个请求。
 
 ## 先选阅读层
 
@@ -44,48 +43,27 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru�
 | 原生方法 | 6 个：`post_list` / `post_deleted` / `tag_list` / `user_list` / `comment_list` / `autocomplete` | 4 个：`post_list` / `post_deleted` / `tag_list` / `comment_list` |
 | 文档入口 | [gelbooru.md](gelbooru.md) | [gelbooru02.md](gelbooru02.md) |
 
-Danbooru / Moebooru / e621ng 是三个互不相同的 Rails 引擎；Serika 是独立的 Next.js 引擎，提供官方 `/api/v1`
-与前端自用、没有公共兼容保证的 `/api/*`；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，
-只能拿官方 API 页面原文和真实响应当依据，所以它的附注引用的是页面文字与实测响应，而不是源码行号；
-Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autocomplete2` 返回站内补全 JSON；
-`page=tags/post/wiki` 等浏览路由返回 HTML。依据是官方 wiki/帮助页、站点 JavaScript 和真实匿名响应，
-没有当前 PHP 服务端快照可引用，不能由前端字段推出 dapi 字段。
-Gelbooru02 是另一套东西：TBIB（`tbib.org`）自述 `Running Gelbooru 0.2`，同一个 `index.php` 上**帖子可选 JSON**、
-**标签与评论实测返回 XML 文本**（加 `json=1` 也一样）；依据是该站 `index.php?page=help&topic=dapi` 帮助页与
-真实匿名响应，没有服务端源码快照，也不能由帮助页推出未观察到的字段。
-e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`，依据是站点自带 OpenAPI 和真实响应；
-没有本地上游服务端源码，不套用 Danbooru 或 Moebooru 的路由、标签字符串规则。
-Sakuria 是 Pixiv 第三方镜像而非 booru：插画、小说、用户、系列和特辑各有独立路由，完整 JSON 不拆层。
-没有可引用的服务端源码、官方 API 页面或 OpenAPI；依据只有匿名响应与待核实的用户观察，证据等级最弱。
-Anime-Pictures 也是非 booru 的一类：站点自研 `api/v3` JSON 接口，**API 主机** `api.anime-pictures.net`
-与网页主机 `anime-pictures.net` 分开（网页主机被 Cloudflare 质询挡下，`/api/v3/*` 的 302 不依赖），
-根、帖子、标签、用户与评论各走自己的路径与参数名。官方 API 手册页同样读不到，也没有 OpenAPI 与服务端源码；
-依据只是匿名响应实测与候选输入资料（其中的外部客户端源码链接本轮没有独立读过），未实测项单独标明，
-见[契约附注](anime-pictures-contract-notes.md)。
-Cosine（`pic.cosine.ren`）也不是 booru 引擎：它是 Telegram 频道 `@CosineGallery` 的配套图站，Next.js +
-Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`、`api/search`、`api/tag` 与
-`api/tags`、`api/artist` 与 `api/artists`、`api/search/admin` 以及 `feed.xml` 各走自己的路由，参数名
-（`pageSize` / `start` / `offset` / `r18`）与返回外壳都属于站点自己，四种外壳本库一个都不拆。
-没有 OpenAPI 与服务端源码快照，站点前端源码在公开仓库里、本轮只按需只读了个别文件当线索，
-公开结论以匿名只读响应为准，见[契约附注](cosine-contract-notes.md)。
-Nhentai（`nhentai.net`）使用独立的 `/api/v2/galleries`、`/search`、`/tags` 契约与
-`Authorization: Key` 认证，应选择 `Nhentai`；同名 `.to` 克隆站不属于这个家族。
-依据是站点自带 OpenAPI 加匿名响应，见[契约附注](nhentai-contract-notes.md)。
+Danbooru / Moebooru / e621ng 是三个互不相同的 Rails 引擎。Serika 是独立的 Next.js 引擎，提供官方 `/api/v1` 与前端自用、没有公共兼容保证的 `/api/*`。
 
-ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎：本类覆盖它的公开作品集 JSON 路由
-（`projects.json`、随机作品、用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、
-`api/v2/community/` 下的专辑、频道、作品评论与探索最新）、只读搜索与一个 RSS 订阅源（`artwork.rss`），
-共 17 个原生方法 = 15 个 `GET` + 2 个 `POST`，其中 16 个返回 JSON、`feed()` 返回 RSS 原文。
-两个 POST 都**不是内容写入**：`csrf_token()` 按调用方给的属性取公开 CSRF token（返回体里的
-`public_csrf_token`，站点会话 Cookie 由会话自然保存），`project_search_post()` 是同一个搜索的只读 POST 形态，
-token 由调用方每次传入；本库不自动获取、不续期、不重放、不重试、不落盘。本轮**未取得官方 API 文档页、
-OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作品 `/projects/G1ew2N.json` 被站点质询挡下
-（`403`，HTML），v2 的单作品 `/api/v2/community/projects/{id}.json` 匿名返回 `401`，所以本类**没有封装**
-`project_show`，也没有指向随机或搜索的自动替代路径。`/openapi.json` 返回 Explore HTML，200 不证明 API 存在。
-本类没有凭据字段或内容写入方法，不下载或改写媒体地址，见[契约附注](artstation-contract-notes.md)。
-不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，
-但返回的 JSON 结构完全不同。判断方法见
-[配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
+Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，只能拿官方 API 页面原文和真实响应当依据。它的附注引用页面文字与实测响应，不是源码行号。
+
+Gelbooru 使用 `index.php`：`page=dapi&json=1` 请求官方 JSON，`page=autocomplete2` 返回站内补全 JSON；`page=tags/post/wiki` 等浏览路由返回 HTML。依据是官方 wiki/帮助页、站点 JavaScript 和真实匿名响应，没有当前 PHP 服务端快照可引用，不能由前端字段推出 dapi 字段。
+
+Gelbooru02 是另一套东西：TBIB（`tbib.org`）自述 `Running Gelbooru 0.2`，同一个 `index.php` 上**帖子可选 JSON**、**标签与评论实测返回 XML 文本**（加 `json=1` 也一样）。依据是该站 `index.php?page=help&topic=dapi` 帮助页与真实匿名响应，没有服务端源码快照，也不能由帮助页推出未观察到的字段。
+
+e-shuushuu 是独立 FastAPI REST API，所有原生方法在 `/api/v1`。依据是站点自带 OpenAPI 和真实响应；没有本地上游服务端源码，不套用 Danbooru 或 Moebooru 的路由、标签字符串规则。
+
+Sakuria 是 Pixiv 第三方镜像而非 booru：插画、小说、用户、系列和特辑各有独立路由，完整 JSON 不拆层。没有可引用的服务端源码、官方 API 页面或 OpenAPI；依据只有匿名响应与待核实的用户观察，证据等级最弱。
+
+Anime-Pictures 也是非 booru 的一类：站点自研 `api/v3` JSON 接口，**API 主机** `api.anime-pictures.net` 与网页主机 `anime-pictures.net` 分开（网页主机被 Cloudflare 质询挡下，`/api/v3/*` 的 302 不依赖），根、帖子、标签、用户与评论各走自己的路径与参数名。官方 API 手册页同样读不到，也没有 OpenAPI 与服务端源码；依据只是匿名响应实测与候选输入资料（其中的外部客户端源码链接本轮没有独立读过），未实测项单独标明，见[契约附注](anime-pictures-contract-notes.md)。
+
+Cosine（`pic.cosine.ren`）也不是 booru 引擎：它是 Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + Meilisearch 自研 API，`api/list`、`api/artwork/{id}`、`api/random`、`api/search`、`api/tag` 与 `api/tags`、`api/artist` 与 `api/artists`、`api/search/admin` 以及 `feed.xml` 各走自己的路由，参数名（`pageSize` / `start` / `offset` / `r18`）与返回外壳都属于站点自己，四种外壳本库一个都不拆。没有 OpenAPI 与服务端源码快照，站点前端源码在公开仓库里、本轮只按需只读了个别文件当线索，公开结论以匿名只读响应为准，见[契约附注](cosine-contract-notes.md)。
+
+Nhentai（`nhentai.net`）使用独立的 `/api/v2/galleries`、`/search`、`/tags` 契约与 `Authorization: Key` 认证，应选择 `Nhentai`；同名 `.to` 克隆站不属于这个家族。依据是站点自带 OpenAPI 加匿名响应，见[契约附注](nhentai-contract-notes.md)。
+
+ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎：本类覆盖它的公开作品集 JSON 路由（`projects.json`、随机作品、用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、作品评论与探索最新）、只读搜索与一个 RSS 订阅源（`artwork.rss`），共 17 个原生方法 = 15 个 `GET` + 2 个 `POST`，其中 16 个返回 JSON、`feed()` 返回 RSS 原文。两个 POST 都**不是内容写入**：`csrf_token()` 按调用方给的属性取公开 CSRF token（返回体里的 `public_csrf_token`，站点会话 Cookie 由会话自然保存），`project_search_post()` 是同一个搜索的只读 POST 形态，token 由调用方每次传入；本库不自动获取、不续期、不重放、不重试、不落盘。本轮**未取得官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作品 `/projects/G1ew2N.json` 被站点质询挡下（`403`，HTML），v2 的单作品 `/api/v2/community/projects/{id}.json` 匿名返回 `401`，所以本类**没有封装** `project_show`，也没有指向随机或搜索的自动替代路径。`/openapi.json` 返回 Explore HTML，200 不证明 API 存在。本类没有凭据字段或内容写入方法，不下载或改写媒体地址，见[契约附注](artstation-contract-notes.md)。
+
+不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，但返回的 JSON 结构完全不同。判断方法见[配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
 ## 十三个家族共用的用法
 
@@ -100,133 +78,87 @@ OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作�
 
 ## 客户端共同约定
 
-1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；
-   不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
-2. **通用入口与原生方法**：十三个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
-   有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
+1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
+
+2. **通用入口与原生方法**：十三个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
+
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
-   有些方法会替你剥掉一层外层对象：Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、
-   把 `meta` 放进 `client.last_call['meta']`；e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，
-   而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆；Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，
-   详情路径直接是条目对象；Gelbooru、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 一个外层都不拆，服务端给什么就返回什么
-   （Cosine 的四种外壳原样返回：superjson 的 `{"json":…,"meta":…}`、`{"images":…,"total":…}`、
-   `{"success":true,"data":…}` 与裸数组；`image_random` 在 `count=1` 时 superjson 里的 `json` 是**对象**、
-   `count≥2` 时才是数组；Nhentai 的作品列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，
-   `gallery_popular` 是裸作品数组、`tag_show` 是裸标签对象、`blacklist_ids` 是整数数组；
-   ArtStation 的 `project_list` 也把 `{"data":…,"total_count":…}` 原样返回）；
-   Gelbooru02 的 XML 方法给你**服务端原文**（含 XML 声明、根元素属性与全部空白，不解析、不转换、不裁剪）。
+   有些方法会替你剥掉一层外层对象：
+   - Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、把 `meta` 放进 `client.last_call['meta']`。
+   - e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆。
+   - Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，详情路径直接是条目对象。
+   - Gelbooru、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 一个外层都不拆，服务端给什么就返回什么。Cosine 的四种外壳原样返回：superjson 的 `{"json":…,"meta":…}`、`{"images":…,"total":…}`、`{"success":true,"data":…}` 与裸数组；`image_random` 在 `count=1` 时 superjson 里的 `json` 是**对象**、`count≥2` 时才是数组。Nhentai 的作品列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，`gallery_popular` 是裸作品数组、`tag_show` 是裸标签对象、`blacklist_ids` 是整数数组。ArtStation 的 `project_list` 也把 `{"data":…,"total_count":…}` 原样返回。
+   - Gelbooru02 的 XML 方法给你**服务端原文**（含 XML 声明、根元素属性与全部空白，不解析、不转换、不裁剪）。
    返回内容的完整原貌、以及哪些方法不拆，见各家族方法参考。
-4. **参数按各引擎的写法发**：Rails 引擎把嵌套字典编成 `a[b]`、列表编成重复键 `a[]`，布尔发成 `true` / `false`，
-   值为 `None` 的键不发送；Danbooru 不带文件的 `data` 用 JSON 请求体，Moebooru 一律用 Rails 表单。
-   Serika 的标签与评级是逗号分隔的字符串（不是数组），批量查询用 JSON，上传用 multipart。
-   e621ng 与 Danbooru 同为 Basic 认证，但评级的取值和帖子字段都不同，查询不能互相照抄。
-   Zerochan 用站点自己的单字母查询键（`p` 页码、`l` 每页条数、`s` 排序、`t` 人气窗口、`d` 尺寸、`c` 颜色），
-   标签写在路径上，要 JSON 得在查询串里带 `json` 标记，而不是给路径加 `.json`。
-   Gelbooru 的路径固定是 `index.php`，用 `page` 选择入口，dapi 补 `json=1`，autocomplete2 本身返回 JSON；
-   凭据只在 dapi 请求上发送。
-   Gelbooru02 也走 `index.php`，用 `page` 选入口、`response_format` 选 JSON 还是 XML 原文；
-   查询键（`limit` / `pid` / `tags` / `id` / `post_id`）原样转发，`s` 与 `q` 由客户端补。
-   Shuushuu 的 `tags='46,169'` 是数字 ID 逗号串，`status=[1, 2]` 是重复同名键；分页用 `page/per_page`，
-   标签搜索方法 `search` 用 `limit/offset`。构造从不登录；`user_ratings` 是显式私有读取，其余资源读取的实测范围见家族文档。
-   Sakuria 的插画搜索使用 `q/page/size`，标签路径逐段 URL 编码；不把 booru 的 `tags/limit` 换算成这些参数。
-   Anime-Pictures 用站点自己的查询键（`page` 0 起步、`posts_per_page`、`search_tag`、`order_by` 等），
-   资源 id 与文件名都在路径段上逐段编码；`'posts'` 这类相对路径拼在 **API 基址** `/api/v3` 后面，
-   而带前导 `/` 的路径（`'/api/v3/posts'`、`'/'`）落在主机根——这是与其它家族最直观的差别。
-   Cosine 的参数走共享编码：`None` 丢弃、布尔发成小写、数组按 Rails 重复键；`path` 去掉前导 `/` 后拼在
-   站点根上，`data` 按 JSON 原样发送。它的分页用站点自己的键（`page`/`pageSize`、`limit`/`offset`、
-   `start`/`limit`），`response_format='xml'` 时 `feed()` 走 `.text` 返回完整 RSS 原文，不做 JSON 嗅探。
-   Nhentai 的原生路径带完整 `api/v2` 前缀，配置填写站点根；查询与 JSON 正文的写法见
-   [客户端用法](nhentai.md)，不同端点的页码与条数差异见[分页](pagination.md#nhentai-的分页)。
-   ArtStation 的路径标识符（用户名、评论路径中的作品编号）按 `quote(str(value), safe='')` 编码；
-   专辑/频道编号是查询参数。相对路由去前导 `/` 后拼在站点根上；`filters` 要调用者明确给 JSON 字符串。
-   `request()` 显式选择 `json` 解析或 `xml`/`html` 原文，除此之外才抛 `KeyError`；`feed()` 固定用 `xml`，
-   不看 `Content-Type` 嗅探格式。只读搜索 POST 走共享编码器编出的 Rails 表单（`form=`，`data` 仍是 JSON 正文），
-   公开 CSRF token 由调用方每次通过 `PUBLIC-CSRF-TOKEN` 头传入，客户端不自动取 token 也不替调用方选正文形态。
+
+4. **参数按各引擎的写法发**：
+   - Rails 引擎（Danbooru / Moebooru / e621ng）：嵌套字典编成 `a[b]`、列表编成重复键 `a[]`，布尔发成 `true` / `false`，值为 `None` 的键不发送。Danbooru 不带文件的 `data` 用 JSON 请求体，Moebooru 一律用 Rails 表单。e621ng 与 Danbooru 同为 Basic 认证，但评级的取值和帖子字段都不同，查询不能互相照抄。
+   - Serika：标签与评级是逗号分隔的字符串（不是数组），批量查询用 JSON，上传用 multipart。
+   - Zerochan：用站点自己的单字母查询键（`p` 页码、`l` 每页条数、`s` 排序、`t` 人气窗口、`d` 尺寸、`c` 颜色），标签写在路径上，要 JSON 得在查询串里带 `json` 标记，而不是给路径加 `.json`。
+   - Gelbooru：路径固定是 `index.php`，用 `page` 选择入口，dapi 补 `json=1`，autocomplete2 本身返回 JSON；凭据只在 dapi 请求上发送。
+   - Gelbooru02：也走 `index.php`，用 `page` 选入口、`response_format` 选 JSON 还是 XML 原文；查询键（`limit` / `pid` / `tags` / `id` / `post_id`）原样转发，`s` 与 `q` 由客户端补。
+   - Shuushuu：`tags='46,169'` 是数字 ID 逗号串，`status=[1, 2]` 是重复同名键；分页用 `page/per_page`，标签搜索方法 `search` 用 `limit/offset`。构造从不登录；`user_ratings` 是显式私有读取，其余资源读取的实测范围见家族文档。
+   - Sakuria：插画搜索使用 `q/page/size`，标签路径逐段 URL 编码；不把 booru 的 `tags/limit` 换算成这些参数。
+   - Anime-Pictures：用站点自己的查询键（`page` 0 起步、`posts_per_page`、`search_tag`、`order_by` 等），资源 id 与文件名都在路径段上逐段编码；`'posts'` 这类相对路径拼在 **API 基址** `/api/v3` 后面，而带前导 `/` 的路径（`'/api/v3/posts'`、`'/'`）落在主机根——这是与其它家族最直观的差别。
+   - Cosine：参数走共享编码：`None` 丢弃、布尔发成小写、数组按 Rails 重复键；`path` 去掉前导 `/` 后拼在站点根上，`data` 按 JSON 原样发送。分页用站点自己的键（`page`/`pageSize`、`limit`/`offset`、`start`/`limit`），`response_format='xml'` 时 `feed()` 走 `.text` 返回完整 RSS 原文，不做 JSON 嗅探。
+   - Nhentai：原生路径带完整 `api/v2` 前缀，配置填写站点根；查询与 JSON 正文的写法见[客户端用法](nhentai.md)，不同端点的页码与条数差异见[分页](pagination.md#nhentai-的分页)。
+   - ArtStation：路径标识符（用户名、评论路径中的作品编号）按 `quote(str(value), safe='')` 编码；专辑/频道编号是查询参数。相对路由去前导 `/` 后拼在站点根上；`filters` 要调用者明确给 JSON 字符串。
+
+5. **解析与 POST 约定**：`request()` 显式选择 `json` 解析或 `xml`/`html` 原文，除此之外才抛 `KeyError`；`feed()` 固定用 `xml`，不看 `Content-Type` 嗅探格式。只读搜索 POST 走共享编码器编出的 Rails 表单（`form=`，`data` 仍是 JSON 正文），公开 CSRF token 由调用方每次通过 `PUBLIC-CSRF-TOKEN` 头传入，客户端不自动取 token 也不替调用方选正文形态。
 
 ## 边界与未实测
 
-- 源码家族 Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注）。
-  Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 依据站点页面、脚本、帮助页或 OpenAPI 加真实响应。
-  Cosine 没有本地上游服务端源码，站点前端源码在公开仓库里，本轮只按需只读了个别文件当线索
-  （不 clone、不写行号），公开结论以匿名只读响应为准。
-  Sakuria 没有上述正式来源，仅有匿名实测；Anime-Pictures 同样没有可读到的官方手册页、OpenAPI 或服务端源码，
-  依据只是匿名响应加候选输入资料。Nhentai 没有本地上游服务端源码，依据是站点自带的 OpenAPI
-  （`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）加匿名只读响应，引用按 JSON Pointer 与
-  `operationId` 而不是行号。ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码，
-  依据同样只有匿名只读响应实测。未复核的资料说法集中标明。任何一种依据都不是对下游站点的保证。
-- 已经真实执行过的匿名读取：Danbooru 的 12 次成功与 3 次预期错误、Moebooru 的指定匿名读取、Serika 的
-  官方公开入口与部分站内读取、e621ng 三个示例在 e621.net 与 e926.net 各跑一遍、Zerochan 的
-  `entry_list` 与 `entry_show`、Gelbooru 的 `autocomplete`（`200`，返回建议数组；实测 `limit=3` 仍返回
-  10 条）、Gelbooru02（TBIB）的匿名冒烟与两个示例（`post` 的 JSON 与 XML、`tag`、`comment`、`pid` 分页，
-  共 10 次请求全部 `200`，三个脚本退出 `0`）、Anime-Pictures 的 90 次串行匿名 GET（`200`×76、
-  `400`×4、`403`×2、`404`×6、`410`×1、`500`×1：API 主机根、两页帖子、帖子详情、帖评论、标签列表与详情、
-  用户列表与详情、评论列表与详情、分页与排序参数、缺失资源的四种状态码、非法路径段的纯文本 `400`、
-  `get_image` 的空正文 `403`）、Cosine 的匿名读取路径与边界、Nhentai 的 31 个 GET 路由（逐条直接请求：
-  25 次 `200`、6 次需账号的 `401`）；
-  ArtStation 的匿名只读探测也按同样方式记录：公开作品列表与用户作品、随机作品、用户资料三面、用户关注、
-  搜索与可搜索字段、专辑作品、频道列表与频道作品、作品评论、探索最新与 `artwork.rss` 都有响应样本，
-  固定作品详情与 v2 单作品的拒绝形态、以及缺 `per_page` 的搜索 `400` 一并照实记录；两条只读 POST
-  （`csrf_token` 与 `project_search_post`）随后单独跟进，其执行记录与这批 GET 结果分开标注在
-  [验证记录](verification.md)（POST 侧的实际尝试与结果以那份记录为准），这里不复用也不改写前面的数字。
-  已跟到的 POST 样本：`csrf_token()` 返回 `200` 加 `application/json`，正文顶层只有 `public_csrf_token`
-  （字符串），响应里的会话 Cookie（`PRIVATE-CSRF-TOKEN`）由会话自然保存、值不落盘；`project_search_post()`
-  返回 `200`，请求是 `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳仍是
-  `{"total_count":…,"data":[…]}`，本次 3 条结果的条目都带 `assets` 与 `description`（`assets` 里既有图片也有
-  video 条目）。缺 token、过期 token、其它 `filters` 形状与 `412` 一类 POST 边界仍未实测；
-  各家族示例脚本的实跑情况见同一份[验证记录](verification.md)。
-- 只有源码或站点文档依据、没有成功响应记录的部分：所有需要登录或 API key 的写路径、e621ng 需要成员权限的
-  `related_tag` / `related_tag_bulk`、Serika 全部需 key 的 v1 方法、Gelbooru 全部 5 个 dapi 方法
-  （账号成功返回未实测，匿名已各取得401空正文）、Gelbooru02 未观察到的部分（评论非空结构、`post_deleted`
-  的成功流、`limit` 的真实上限）、Anime-Pictures 的 `post_create`（没发过 POST）、带 Cookie 的
-  `post_tags` 与 `image_get`、媒体地址的成功返回、Cosine 的两个 POST（`artwork_revalidate` 需要站点密钥、
-  `search_index_admin` 会改站点索引，本轮都没有调用）、Nhentai 的 4 个 POST 与 1 个 DELETE
-  （`favorite_add` / `favorite_remove` / `gallery_download` / `blacklist_update`，以及**不需要认证**的
-  `tag_search`）、旧版 web 路由与 `PUT` / `PATCH` / `DELETE`。
-  方法存在不等于成功路径测过。
-- 只读范围并不相同：e621ng 面没有原生写方法，写路由要用通用 `request()` 自己拼方法与路径；
-  Zerochan 的 API 本身只读，且只提供 JSON（不实现 `xml`），文档要求的 User-Agent 里含项目名与
-  Zerochan 用户名是站点约定，本库照配置原样发送、不校验、不代填。Gelbooru 面同样没有写方法，
-  使用 `page=dapi` 与 `page=autocomplete2` 两个 JSON 入口；`page=tags/post/wiki` 等 HTML 浏览页面
-  不封装为 JSON 方法，也不抓取解析。Gelbooru02（TBIB）只有 4 个只读方法、没有写方法也没有账号接口：
-  帖子的 JSON 与 XML 字段并不一致（JSON 没有 `file_url` / `sample_url` / `preview_url`，XML 有且 `rating` 用
-  单字母 `s`），它不替你构造媒体地址；`post_deleted` 在 TBIB 上是 `500` 加不完整 XML，客户端照原样抛
-  `AnybooruHTTPError`，不降级、不重试；`tag` / `comment` 只会返回 XML 文本（`json=1` 也一样），
-  XML 也不解析成字典。
-- Shuushuu 默认匿名；公开图片、标签、评论、用户资料等读取不要求账号，但个人资料和管理 GET 不在此列。
-  登录、刷新、登出及账号写操作未实测；本次匿名冒烟与示例的实际范围见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
-- Sakuria 提供 27 个公共资源 GET 与 17 个账号 GET。账号方法只接收已有 token，成功返回结构未实测；
-  不实现登录、刷新或媒体下载。匿名执行范围与资料矛盾见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
-- Anime-Pictures 的 13 个原生方法里有 12 个只读 GET 和 1 个 POST（`post_create`）；`post_tags` 与
-  `image_get`（`/pictures/get_image/{file_url}`，原样返回 `bytes`）也是读请求但需要身份，匿名实测 `403`。
-  本类不提供登录、注册或刷新方法，也不索要账号密码；本家族唯一的字节读取方法是
-  `image_get`，其余 CDN 地址只写在文档里。匿名执行范围、输入资料矛盾与未实测项见
-  [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
-  [契约附注](anime-pictures-contract-notes.md)。
-- Cosine 的 13 个原生方法里 11 个是只读 GET（`search_index_status` 也是只读 GET），另有两个 POST：
-  `artwork_revalidate` 把 `{"artworkId":…,"secret":…}` 作为 JSON 原文发出，密钥留空就照发空串、由站点判定；
-  `search_index_admin` **会重建或删除站点搜索索引**，公开路由源码没有鉴权检查，本库不做自动重试与兜底，
-  示例和冒烟都不调用它。两个 POST 本轮都未执行，成功与拒绝形态都未实测；`feed()` 用 `response_format='xml'`
-  返回 RSS 原文。匿名可读范围、状态码样本与未实测项见
-  [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[契约附注](cosine-contract-notes.md)。
-- Nhentai 只覆盖 `.net` API v2 的第三方资源面，不封装 `.to`、第一方账号管理、挑战求解与广告。
-  规范与实测差异见[契约附注](nhentai-contract-notes.md)，真实调用和未实测项见
-  [验证记录](verification.md#nhentai匿名只读实测2026-09-20)。
-- ArtStation 的 17 个原生方法是 15 个只读 `GET` + 2 个只读 `POST`（16 个返回 JSON + `feed()` 的
-  `artwork.rss` 原文）：`csrf_token(**attributes)` 把属性原样作为 JSON 正文 POST 到
-  `api/v2/csrf_protection/token.json`，`project_search_post(public_csrf_token, **params)` 用共享编码器编出的
-  Rails 表单 POST 到 `api/v2/search/projects.json`，token 只放本次调用的 `PUBLIC-CSRF-TOKEN` 头。
-  两个 POST 都不是内容写入，也没有账号、关系或管理改动；token 必须由调用方传入并配合同一个 `ArtStation`
-  实例的会话 Cookie，本库不自动获取、不续期、不重放、不把它存成配置项或对象属性。
-  范围限于公开作品集资源、只读搜索与订阅源；本类没有凭据槽位，也没有封装指定作品详情方法：固定详情
-  `/projects/{hash}.json` 实测是站点的质询页（`403`，HTML），v2 单作品
-  `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），两条都不做自动替代路径，
-  确需时用通用 `request()` 显式调用。`project_search_post` 的 `additional_fields=['assets','description']`
-  只是让这次查询的结果多带这两个字段；专辑作品与随机作品本来就带 `assets`，它不是按 id 取任意作品的入口。
-  `project_search` 缺 `per_page` 时是 `400`（`{"data":"per_page should be given"}`），客户端不钳位、
-  不补默认分页；媒体地址按服务端原值返回，不构造、不改写、不下载。已测 `/openapi.json` 与
-  `/no-such-route-xyz-123` 是 200 HTML，不是 JSON API。需要登录的账号写操作不在本类范围内，也未实测；
-  匿名可读范围、GET 与两条 POST 的样本及未实测项见[验证记录](verification.md)与
-  [契约附注](artstation-contract-notes.md)。
+- 源码家族 Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注）。Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 依据站点页面、脚本、帮助页或 OpenAPI 加真实响应。
+- Cosine 没有本地上游服务端源码，站点前端源码在公开仓库里，本轮只按需只读了个别文件当线索（不 clone、不写行号），公开结论以匿名只读响应为准。
+- Sakuria 没有上述正式来源，仅有匿名实测。Anime-Pictures 同样没有可读到的官方手册页、OpenAPI 或服务端源码，依据只是匿名响应加候选输入资料。
+- Nhentai 没有本地上游服务端源码，依据是站点自带的 OpenAPI（`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）加匿名只读响应，引用按 JSON Pointer 与 `operationId` 而不是行号。
+- ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码，依据同样只有匿名只读响应实测。未复核的资料说法集中标明。
+- 任何一种依据都不是对下游站点的保证。
+- 已经真实执行过的匿名读取：
+  - Danbooru：12 次成功与 3 次预期错误。
+  - Moebooru：指定匿名读取。
+  - Serika：官方公开入口与部分站内读取。
+  - e621ng：三个示例在 e621.net 与 e926.net 各跑一遍。
+  - Zerochan：`entry_list` 与 `entry_show`。
+  - Gelbooru：`autocomplete`（`200`，返回建议数组；实测 `limit=3` 仍返回 10 条）。
+  - Gelbooru02（TBIB）：匿名冒烟与两个示例（`post` 的 JSON 与 XML、`tag`、`comment`、`pid` 分页，共 10 次请求全部 `200`，三个脚本退出 `0`）。
+  - Anime-Pictures：90 次串行匿名 GET（`200`×76、`400`×4、`403`×2、`404`×6、`410`×1、`500`×1）：API 主机根、两页帖子、帖子详情、帖评论、标签列表与详情、用户列表与详情、评论列表与详情、分页与排序参数、缺失资源的四种状态码、非法路径段的纯文本 `400`、`get_image` 的空正文 `403`。
+  - Cosine：匿名读取路径与边界。
+  - Nhentai：31 个 GET 路由（逐条直接请求：25 次 `200`、6 次需账号的 `401`）。
+  - ArtStation：公开作品列表与用户作品、随机作品、用户资料三面、用户关注、搜索与可搜索字段、专辑作品、频道列表与频道作品、作品评论、探索最新与 `artwork.rss` 都有响应样本。固定作品详情与 v2 单作品的拒绝形态、以及缺 `per_page` 的搜索 `400` 一并照实记录。
+  - ArtStation 两条只读 POST（`csrf_token` 与 `project_search_post`）随后单独跟进，执行记录与 GET 结果分开标注在[验证记录](verification.md)（POST 侧的实际尝试与结果以那份记录为准），这里不复用也不改写前面的数字。
+    - `csrf_token()` 返回 `200` 加 `application/json`，正文顶层只有 `public_csrf_token`（字符串），响应里的会话 Cookie（`PRIVATE-CSRF-TOKEN`）由会话自然保存、值不落盘。
+    - `project_search_post()` 返回 `200`，请求是 `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳仍是 `{"total_count":…,"data":[…]}`，本次 3 条结果的条目都带 `assets` 与 `description`（`assets` 里既有图片也有 video 条目）。
+  - 缺 token、过期 token、其它 `filters` 形状与 `412` 一类 POST 边界仍未实测。
+  - 各家族示例脚本的实跑情况见同一份[验证记录](verification.md)。
+- 只有源码或站点文档依据、没有成功响应记录的部分：
+  - 所有需要登录或 API key 的写路径。
+  - e621ng 需要成员权限的 `related_tag` / `related_tag_bulk`。
+  - Serika 全部需 key 的 v1 方法。
+  - Gelbooru 全部 5 个 dapi 方法（账号成功返回未实测，匿名已各取得 401 空正文）。
+  - Gelbooru02 未观察到的部分：评论非空结构、`post_deleted` 的成功流、`limit` 的真实上限。
+  - Anime-Pictures 的 `post_create`（没发过 POST）、带 Cookie 的 `post_tags` 与 `image_get`、媒体地址的成功返回。
+  - Cosine 的两个 POST：`artwork_revalidate` 需要站点密钥、`search_index_admin` 会改站点索引，本轮都没有调用。
+  - Nhentai 的 4 个 POST 与 1 个 DELETE（`favorite_add` / `favorite_remove` / `gallery_download` / `blacklist_update`，以及**不需要认证**的 `tag_search`）。
+  - 旧版 web 路由与 `PUT` / `PATCH` / `DELETE`。
+  - 方法存在不等于成功路径测过。
+- 只读范围并不相同：
+  - e621ng 面没有原生写方法，写路由要用通用 `request()` 自己拼方法与路径。
+  - Zerochan 的 API 本身只读，且只提供 JSON（不实现 `xml`），文档要求的 User-Agent 里含项目名与 Zerochan 用户名是站点约定，本库照配置原样发送、不校验、不代填。
+  - Gelbooru 面同样没有写方法，使用 `page=dapi` 与 `page=autocomplete2` 两个 JSON 入口；`page=tags/post/wiki` 等 HTML 浏览页面不封装为 JSON 方法，也不抓取解析。
+  - Gelbooru02（TBIB）只有 4 个只读方法、没有写方法也没有账号接口。帖子的 JSON 与 XML 字段并不一致（JSON 没有 `file_url` / `sample_url` / `preview_url`，XML 有且 `rating` 用单字母 `s`），它不替你构造媒体地址；`post_deleted` 在 TBIB 上是 `500` 加不完整 XML，客户端照原样抛 `AnybooruHTTPError`，不降级、不重试；`tag` / `comment` 只会返回 XML 文本（`json=1` 也一样），XML 也不解析成字典。
+- Shuushuu 默认匿名；公开图片、标签、评论、用户资料等读取不要求账号，但个人资料和管理 GET 不在此列。登录、刷新、登出及账号写操作未实测；本次匿名冒烟与示例的实际范围见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+- Sakuria 提供 27 个公共资源 GET 与 17 个账号 GET。账号方法只接收已有 token，成功返回结构未实测；不实现登录、刷新或媒体下载。匿名执行范围与资料矛盾见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
+- Anime-Pictures 的 13 个原生方法里有 12 个只读 GET 和 1 个 POST（`post_create`）；`post_tags` 与 `image_get`（`/pictures/get_image/{file_url}`，原样返回 `bytes`）也是读请求但需要身份，匿名实测 `403`。本类不提供登录、注册或刷新方法，也不索要账号密码；本家族唯一的字节读取方法是 `image_get`，其余 CDN 地址只写在文档里。匿名执行范围、输入资料矛盾与未实测项见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与[契约附注](anime-pictures-contract-notes.md)。
+- Cosine 的 13 个原生方法里 11 个是只读 GET（`search_index_status` 也是只读 GET），另有两个 POST：`artwork_revalidate` 把 `{"artworkId":…,"secret":…}` 作为 JSON 原文发出，密钥留空就照发空串、由站点判定；`search_index_admin` **会重建或删除站点搜索索引**，公开路由源码没有鉴权检查，本库不做自动重试与兜底，示例和冒烟都不调用它。两个 POST 本轮都未执行，成功与拒绝形态都未实测；`feed()` 用 `response_format='xml'` 返回 RSS 原文。匿名可读范围、状态码样本与未实测项见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与[契约附注](cosine-contract-notes.md)。
+- Nhentai 只覆盖 `.net` API v2 的第三方资源面，不封装 `.to`、第一方账号管理、挑战求解与广告。规范与实测差异见[契约附注](nhentai-contract-notes.md)，真实调用和未实测项见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)。
+- ArtStation 的 17 个原生方法是 15 个只读 `GET` + 2 个只读 `POST`（16 个返回 JSON + `feed()` 的 `artwork.rss` 原文）：`csrf_token(**attributes)` 把属性原样作为 JSON 正文 POST 到 `api/v2/csrf_protection/token.json`，`project_search_post(public_csrf_token, **params)` 用共享编码器编出的 Rails 表单 POST 到 `api/v2/search/projects.json`，token 只放本次调用的 `PUBLIC-CSRF-TOKEN` 头。
+- 两个 POST 都不是内容写入，也没有账号、关系或管理改动；token 必须由调用方传入并配合同一个 `ArtStation` 实例的会话 Cookie，本库不自动获取、不续期、不重放、不把它存成配置项或对象属性。
+- 范围限于公开作品集资源、只读搜索与订阅源；本类没有凭据槽位，也没有封装指定作品详情方法：固定详情 `/projects/{hash}.json` 实测是站点的质询页（`403`，HTML），v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），两条都不做自动替代路径，确需时用通用 `request()` 显式调用。
+- `project_search_post` 的 `additional_fields=['assets','description']` 只是让这次查询的结果多带这两个字段；专辑作品与随机作品本来就带 `assets`，它不是按 id 取任意作品的入口。
+- `project_search` 缺 `per_page` 时是 `400`（`{"data":"per_page should be given"}`），客户端不钳位、不补默认分页；媒体地址按服务端原值返回，不构造、不改写、不下载。
+- 已测 `/openapi.json` 与 `/no-such-route-xyz-123` 是 200 HTML，不是 JSON API。
+- 需要登录的账号写操作不在本类范围内，也未实测；匿名可读范围、GET 与两条 POST 的样本及未实测项见[验证记录](verification.md)与[契约附注](artstation-contract-notes.md)。
 
 ## 许可
 
