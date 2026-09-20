@@ -4,12 +4,12 @@
 
 ## 资源
 
-* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十一个家族各四份（客户端用法 / 方法参考 /
+* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十二个家族各四份（客户端用法 / 方法参考 /
   能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
 * [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单（判引擎、摸契约、写客户端、
   冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界）。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine 十一个家族共 31 个可运行脚本。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / ArtStation 十二个家族共 33 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -23,7 +23,7 @@
 * `Serika.art/`：Serika 引擎，官方 v1 在 `app/api/v1/**/route.ts`，站内面在 `app/api/**/route.ts`。
 * `e621ng/`：e621ng 引擎，路由见 `e621ng/config/routes.rb`，帖子序列化在 `app/blueprints/`。
 
-**Zerochan、Gelbooru、Gelbooru02（TBIB）、e-shuushuu、Sakuria 与 Anime-Pictures 没有可引用的本地上游服务端源码**：
+**Zerochan、Gelbooru、Gelbooru02（TBIB）、e-shuushuu、Sakuria、Anime-Pictures、Cosine 与 ArtStation 没有可引用的本地上游服务端源码**：
 
 * `zerochan.net` 只在站内 API 页面写契约，没有公开的引擎仓库，本仓库拿不到可引用的源码或行号。依据是
   **官方 API 页面快照 + 真实请求实测**，逐条出处、与实现的差异以及排除项（`xml` 格式、meta 标签、限流语义）
@@ -64,8 +64,17 @@
   需要站点服务端密钥，两者本轮都未执行。来源层级、与输入资料的矛盾与未实测项记在
   [`docs/cosine-contract-notes.md`](docs/cosine-contract-notes.md)。
 
-改动这七个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
-不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十一个家族都有源码依据”。
+* `artstation.com`（ArtStation，公开作品集站点）本轮**未取得官方 API 文档页、OpenAPI 或服务端源码**，
+  依据只有**匿名只读响应实测**。本站点不是 booru：本类只覆盖公开作品集资源（`projects.json`、随机作品、
+  用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、
+  作品评论、探索最新）与一个 RSS 订阅源（`artwork.rss`），共 15 个原生 `GET`（14 个 JSON + `feed()` 的
+  RSS 原文）；没有凭据字段、没有写方法、也没有作品详情方法——固定详情 `/projects/{hash}.json` 实测是
+  站点质询页（`403`，HTML），v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`，
+  两条都不做自动替代路径。已测 `/openapi.json` 返回 Explore HTML，200 状态码不能证明 JSON API 存在；
+  成功字段与未实测项记在 [`docs/artstation-contract-notes.md`](docs/artstation-contract-notes.md)。
+
+改动这八个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
+不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十二个家族都有源码依据”。
 
 ## 我能做什么？
 
@@ -100,7 +109,9 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   Anime-Pictures 请给出可复现的匿名响应（API 主机 `api.anime-pictures.net` 上的请求 URL、状态码与正文关键字段）
   以及执行范围——它同样没有可读到的官方手册页、OpenAPI 与源码，外部客户端源码链接只能当线索，不能当契约；
   Cosine 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围，并注明结论有没有公开前端文件
-  支撑（只写文件、不编行号）——它没有本地上游服务端源码、OpenAPI，也没有可读到的官方手册页。
+  支撑（只写文件、不编行号）——它没有本地上游服务端源码、OpenAPI，也没有可读到的官方手册页；
+  ArtStation 请给出可复现的匿名响应（请求 URL、状态码与正文关键字段）与执行范围——本轮未取得官方
+  API 文档页、OpenAPI 与服务端源码，本类只覆盖公开作品集资源与 RSS，没有指定作品详情方法。
   **不要以某个站点的私有行为当契约**。
 
 ### 提交 Pull Request
@@ -131,6 +142,8 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
    .venv/Scripts/python.exe examples/anime_pictures/browse_resources.py
    .venv/Scripts/python.exe examples/cosine/list_images.py
    .venv/Scripts/python.exe examples/cosine/browse_resources.py
+   python examples/artstation/list_projects.py
+   python examples/artstation/browse_resources.py
    ```
 
    示例脚本默认读包内 `anybooru/anybooru.json`，用 `--config` 指向自己的配置、用 `--site` 换站点。
@@ -158,7 +171,7 @@ Bug 使用 **Bug report** 模板创建。一份能直接定位问题的报告包
   也不为旧行为保留别名或垫片。
 * 新增方法要给出依据（路由与控制器的文件位置；Zerochan 为 API 页面出处 + 实测响应，Gelbooru 为官方
   wiki/帮助页或页面脚本出处 + 实测响应，Gelbooru02 为 TBIB 帮助页条目与真实响应，
-  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria 与 Anime-Pictures 为可复现的匿名响应与执行范围），
+  Shuushuu 为 OpenAPI 路径/schema + 实测响应，Sakuria、Anime-Pictures 与 ArtStation 为可复现的匿名响应与执行范围），
   并在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 
 ## 文档风格
