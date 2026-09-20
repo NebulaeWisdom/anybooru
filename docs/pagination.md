@@ -2,7 +2,7 @@
 
 ## 客户端行为
 
-十一个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+十二个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
 tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，
@@ -10,12 +10,13 @@ Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `
 Anime-Pictures 的帖子列表用 **0 起步**的 `page` / `posts_per_page`，标签、用户与评论列表用 `limit` / `offset`。
 Cosine 的 `image_list` / `artist_list` 用 `page`（1 起）/ `pageSize`，`search` 用 `limit` / `offset`，
 `tag_images` 用 `start` / `limit`。
+ArtStation 的列表路由用 `page`（1 起）/ `per_page`，且对这几个参数的取值有硬性检查（见下）。
 
 * 页码与每页数量原样发给服务端，不裁剪、不改写、不补默认值（服务端自己的默认值与上限见下文各节）；
 * 不自动翻页：没有生成器，也没有内部循环，一次调用就是一次请求；
 * 失败不自动重试，包括被限流的情况；
-* 返回服务端给的那一页：有的家族直接返回数组，有的把数组包在 `{"posts": [...]}` 或 `{"items": [...]}` 里，
-  见各节。
+* 返回服务端给的那一页：有的家族直接返回数组，有的把数组包在 `{"posts": [...]}`、`{"items": [...]}` 或
+  `{"data": [...], "total_count": …}` 里，见各节。
 
 ```python
 from anybooru import Danbooru
@@ -444,6 +445,84 @@ with Cosine('cosine') as client:
 非数字页码与别的取值组合没有完整样本，所以客户端不做钳位、不补默认值、也不替你判末页。
 逐条参数与返回字段见[方法参考](cosine-api.md)，状态码样本见[错误处理](errors.md#cosine)，
 真实请求记录见[验证记录](verification.md#cosine匿名只读实测2026-09-20)。
+
+## ArtStation 的分页
+
+ArtStation 的列表路由用 `page`（页码，实测从 `1` 开始——搜索上 `page=0` 直接回 `400`
+「page should be a positive integer」）与 `per_page`（每页条数），两个参数都原样转发，客户端不补默认值、
+不裁剪、不自动翻页。收这一对参数的有 `project_list` / `user_projects` / `user_following` / `project_search` /
+`album_projects` / `channel_projects` / `explore_latest`（`project_comments` 的分页参数本轮没有实测）；
+`random_project` / `user_show` / `user_quick` / `user_profile` / `search_filter_fields` 是单对象或全量列表，
+没有分页参数；`feed(sorting='latest')` 的 RSS 也没有页码，本轮只试过 `sorting='latest'` 这一个取值。
+
+**服务端对取值是硬性检查，越界直接 `400`、不夹到范围内**。本轮实测（全部匿名请求）：
+
+| 路由 | 输入 | 实测 |
+| :--- | :--- | :--- |
+| `GET /projects.json` | `page=1&per_page=1` / `page=1&per_page=50` | `200`，`data` 分别是 1 / 50 条，`total_count` 当天是 14522955 |
+| `GET /projects.json` | `page=1&per_page=51` | `400`，**空正文**（`text/plain; charset=utf-8`） |
+| `GET /projects.json` | `page=999999&per_page=1` | `400`，空正文（同样 `text/plain`） |
+| `GET /api/v2/search/projects.json` | `query=cat&page=1&per_page=3` / `per_page=75` | `200`，各 3 / 75 条 |
+| `GET /api/v2/search/projects.json` | 缺 `page` / 缺 `per_page` | `400` `{"data":"page should be given"}` / `{"data":"per_page should be given"}` |
+| `GET /api/v2/search/projects.json` | `page=0` | `400` `{"data":"page should be a positive integer"}` |
+| `GET /api/v2/search/projects.json` | `per_page=76` / `per_page=2` | `400` `{"message":"per_page should be <= 75","code":"per_page"}` / `{"message":"per_page should be >= 3","code":"per_page"}` |
+| `GET /api/v2/community/projects/by_album.json` | `per_page=4` / `per_page=3` | `200` 4 条 / `400` `{"message":"per_page should be >= 4","code":"per_page"}` |
+| `GET /api/v2/community/explore/projects/latest.json` | `per_page=10` / `per_page=9` | `200` 10 条 / `400` `{"message":"per_page should be >= 10","code":"per_page"}` |
+| `GET /users/{username}/projects.json` | `page=1&per_page=2` / `page=2&per_page=2` | `200`，各 2 条，`total_count` 40 |
+| `GET /users/{username}/projects.json` | `page=9999&per_page=2` | **`200` 加空 `data`**（不是 `404` 也不是 `400`），`total_count` 仍是 40 |
+
+三条要点：
+
+* 搜索的 `page` 与 `per_page` 是**必填**，不是缺省成 `page=1&per_page=50`：缺任一个都回 `400` 的 JSON
+  `{"data": "… should be given"}`；
+* `per_page` 的可接受区间**逐路由不同**，只在四条路由上取得样本（全局列表 1–50、搜索 3–75、专辑 ≥4、探索 ≥10）：
+  同一个 `per_page=2` 在用户作品上成功，在搜索上回 `400`（`per_page should be >= 3`），专辑与探索的越界样本
+  （`per_page=3`、`per_page=9`）也各回 `400`。别把一条路由的区间搬到另一条，
+  也别把「用户作品翻到第 9999 页回空数组」当成整站通用的深页行为——全局列表在 `page=999999` 上直接 `400`；
+* 空页与空数组**不是错误**：用户作品深页、以及评论 `{"total_count": 0, "data": []}` 都是 `200`；
+  客户端照原样返回，不替换成异常，也不据此判断作品不存在。
+
+其余边界未测：`per_page` 1 与 50 之间、3 与 75 之间没有细分，用户作品在第 2 页与第 9999 页之间没有细分，
+`channel_projects` 的 `page` 取值、`user_following` 的深页、非数字的 `page` / `per_page` 都没有样本。
+逐条 URL 与响应正文见[验证记录](verification.md)。
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:
+    # GET https://www.artstation.com/projects.json?page=1&per_page=2
+    first_page = client.project_list(page=1, per_page=2)
+    # GET https://www.artstation.com/projects.json?page=2&per_page=2
+    second_page = client.project_list(page=2, per_page=2)
+    print(first_page['total_count'], len(first_page['data']), len(second_page['data']))
+    for project in first_page['data']:
+        # 条目有 id / hash_id / title / permalink / cover / assets_count / tag_list
+        print(project['id'], project['hash_id'], project['assets_count'])
+
+    # 用户作品是另一套条目字段（没有 user / views_count），翻页照样手动把 page 加 1
+    # GET https://www.artstation.com/users/timwarnock/projects.json?page=1&per_page=2
+    user_page = client.user_projects('timwarnock', page=1, per_page=2)
+    print(user_page['total_count'], [item['id'] for item in user_page['data']])
+
+    # 搜索：query 可以是空串，per_page 必须在 3..75，page 必须 >= 1
+    # GET https://www.artstation.com/api/v2/search/projects.json?query=cat&page=1&per_page=3&sorting=relevance
+    hits = client.project_search(query='cat', page=1, per_page=3, sorting='relevance')
+    print(hits['total_count'], [item['hash_id'] for item in hits['data']])
+
+    # GET https://www.artstation.com/api/v2/community/projects/by_album.json?album_id=104104&page=1&per_page=4
+    album_page = client.album_projects(104104, page=1, per_page=4)
+    print(album_page['total_count'], [item['position'] for item in album_page['data']])
+
+    # GET https://www.artstation.com/api/v2/community/explore/projects/latest.json?page=1&per_page=10
+    latest = client.explore_latest(page=1, per_page=10)
+    print(len(latest['data']))          # 这条路由的正文只有 data，没有 total_count
+```
+
+`explore_latest` 的正文**只有 `data`**（本轮 `per_page=10` 收 10 条），没有 `total_count`，所以拿不到总数、
+也不能按总数反推末页；`channel_list()` 不吃参数、一次给全部 64 个频道，同一个频道的作品才用
+`channel_projects(channel_id=70, page=1, per_page=5)`（本轮 5 条，`total_count` 10000）。所有路由的推进方式都是
+手动把 `page` 加 1；客户端没有游标参数，也不会替你换算 `total_count`。参数细节见[方法参考](artstation-api.md)，
+错误形态见[错误处理](errors.md#artstation)。
 
 ## 相关文档
 
