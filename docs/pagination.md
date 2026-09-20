@@ -2,7 +2,7 @@
 
 ## 客户端行为
 
-十二个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
+十三个家族的页码参数名不一样：Danbooru、Moebooru、Serika、e621ng 用 `page` / `limit`，
 Sakuria 用 `page` / `size`，Zerochan 用 `p` / `l`，Gelbooru 的 post/user 用 `pid` / `limit`，
 tag 用 `after_id`，删除流用 `last_id`。
 Gelbooru02（TBIB）用 `pid` / `limit`；Shuushuu 的资源列表用 `page` / `per_page`，

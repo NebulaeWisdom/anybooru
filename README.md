@@ -2,7 +2,7 @@
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问十二类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问十三类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
 、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
@@ -12,7 +12,7 @@ Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhenta
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。
 
-同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十二个例子里：
+同名方法在不同引擎上返回的字段不同。下表的 `client` 由对应家族创建，完整代码在后面的十三个例子里：
 
 | 调用 | 真实请求 | 你拿到什么 |
 | :--- | :--- | :--- |
@@ -30,7 +30,7 @@ Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhenta
 | Nhentai：`client.gallery_list(per_page=2)` | `GET https://nhentai.net/api/v2/galleries?per_page=2` | 完整信封：`result` 是作品数组，另有 `num_pages` / `per_page` / `total`；每项有 `id`、`media_id`、`num_pages`、`num_favorites`、`thumbnail` 与 `thumbnail_width` / `thumbnail_height`、`tag_ids`（标签编号数组）、`blacklisted`。`gallery_show(id, include='related')` 是另一套详情对象（`cover` / `thumbnail` 带宽高、`pages`、`tags`、`scanlator`、`upload_date`）；方法不拆层 |
 | ArtStation：`client.project_list(page=1, per_page=2)` | `GET https://www.artstation.com/projects.json?page=1&per_page=2` | 公开作品列表；方法原样返回 `{"data": [...], "total_count": N}`，不剥 `data` 层。条目样本含 `id`、`hash_id`、`title`、`permalink`、`cover`、`assets_count` 与 `tag_list`。**用户作品列表是另一套条目字段**：`user_projects` 的条目没有 `user` / `views_count`，不要跨路由照抄字段清单 |
 
-十二个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
+十三个家族的来路不同：Danbooru、Moebooru、e621ng 是三个**互不相同**的 Rails 引擎，同名路由与相同的
 认证头不代表同一套契约；Serika 是独立的 Next.js 应用，官方版本化 `/api/v1` 与站内未版本化 `/api/*`
 两面分开标注；Zerochan 是站点自有的只读 JSON API，**没有公开的引擎源码**，契约依据是官方 API 页面快照
 加真实请求实测——见
@@ -80,7 +80,7 @@ ArtStation（`artstation.com`）是公开作品集站点，本类覆盖它的公
 - 许可：**MIT License**
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan
-  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
+  、Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十一个家族，重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1`
   重新起算。除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准；
   原项目的 MIT 许可与版权声明保留在 [LICENSE](https://github.com/NebulaeWisdom/anybooru/blob/master/LICENSE)。
 
@@ -108,7 +108,7 @@ python -m venv .venv
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 16 个条目，下面列出部分站点）：
+包内文件的开头长这样（`sites` 段一共 17 个条目，下面列出部分站点）：
 
 ```json
 {
@@ -180,7 +180,7 @@ python -m venv .venv
   由调用方每次传入，**不写进配置、不落盘、不自动获取或续期**。通用 `request()` 可显式带头调用未封装路由，
   但本库不代管登录，也不保证认证成功。
 
-## 十二个家族的第一次调用
+## 十三个家族的第一次调用
 
 每段代码都可以直接复制执行（匿名只读），默认站点都来自包内配置。
 
@@ -646,7 +646,7 @@ video 条目，字段含 `asset_type`、`width`、`height`、`small_image_url`�
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十二个家族怎么选 |
+| [docs/index.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/index.md) | 导航：想做什么 → 读哪份；十三个家族怎么选 |
 | [docs/installation.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪 |
 | [docs/configuration.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
 | [docs/authentication.md](https://github.com/NebulaeWisdom/anybooru/blob/master/docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据；Sakuria 只接收已有 token，Anime-Pictures 原样转发 `Authorization` / `Cookie`，Cosine 默认匿名且 `revalidate_secret` 留空，Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>`，ArtStation 站点条目无凭据字段且公开 CSRF token 按次传入 |
@@ -709,7 +709,7 @@ video 条目，字段含 `asset_type`、`width`、`height`、`small_image_url`�
 
 ## 可运行示例
 
-`examples/` 下 33 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
+`examples/` 下 35 个脚本都按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认配置，
 站点名与参数（标签、页码、条数、间隔）取自 `examples.<家族>` 段——例如上面 Zerochan 那段的
 `entry_list(p=1, l=2, s='id')` 对应 `examples.zerochan.entry_query`，`entry_show(3793685)` 对应
 `examples.zerochan.entry_id`。示例里不硬编码站点、代理与分页。

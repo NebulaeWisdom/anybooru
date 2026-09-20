@@ -45,7 +45,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 ## 完整样例
 
 完整、可直接复制的内容见包内的 [`anybooru/anybooru.json`](../anybooru/anybooru.json)（wheel 与 sdist
-都带这份文件），`sites` 段共 16 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
+都带这份文件），`sites` 段共 17 个条目。它的结构如下（`sites` 段可以按需要增删站点；`verification` 段是
 维护者验证脚本专用的，普通使用者可以省略）：
 
 ```json
@@ -232,7 +232,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 }
 ```
 
-十类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / nhentai / ArtStation）各有几个容易踩的点，键与对应调用见下文
+十一类“查询整块放进字典”的家族（Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / nhentai / ArtStation）各有几个容易踩的点，键与对应调用见下文
 [`examples` 段](#examples-段)的总表：
 
 * **Serika**：查询值是逗号分隔的字符串（`ratings='safe'`），不是 Rails 数组；站内详情示例从列表响应里取
@@ -608,7 +608,7 @@ ArtStation 站点（公开作品集 JSON 路由与 artwork.rss，本轮依据为
 ### 怎么判断一个站点该用哪个类
 
 **库不做自动识别**：`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、
-`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation` 是十二个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
+`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation` 是十三个并列的类，各自的传输方式、认证形态与参数拼法按各自引擎写死；选错类不会自动降级，也不会失败后换成
 另一个类重试。判断依据只能是你自己手里的信息：**站点自述**（页脚、帮助页、API 页面、上游仓库）加上
 **发一次请求看响应**（Zerochan、Gelbooru02、Sakuria、Anime-Pictures、Cosine、nhentai、ArtStation 这类没有可读到的上游服务端源码的站点，
 只能靠站点页面、可读到的公开前端文件与实测响应）。

@@ -4,12 +4,12 @@
 
 ## 资源
 
-* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十二个家族各四份（客户端用法 / 方法参考 /
+* [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown，十三个家族各四份（客户端用法 / 方法参考 /
   能力入口 / 契约审计附注），另有安装、配置、认证、分页、错误、迁移与验证记录。
 * [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口；本库暂不发布到 PyPI。
 * [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单（判引擎、摸契约、写客户端、
   冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界）。
-* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation 十二个家族共 33 个可运行脚本。
+* [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation 十三个家族共 35 个可运行脚本。
 * [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -89,8 +89,8 @@
   都记在 [`docs/verification.md`](docs/verification.md)。
   成功字段与未实测项记在 [`docs/artstation-contract-notes.md`](docs/artstation-contract-notes.md)。
 
-改动这八个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
-不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十二个家族都有源码依据”。
+改动这九个家族请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应；候选字段的推断必须显式标明，
+不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十三个家族都有源码依据”。
 
 ## 我能做什么？
 

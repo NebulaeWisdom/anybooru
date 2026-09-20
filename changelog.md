@@ -11,7 +11,7 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
-### ArtStation 第十二家族
+### ArtStation 第十三家族
 
 - 新增 `ArtStation`、`anybooru/artstation.py` 与 `anybooru/api_artstation.py`。站点是公开作品集站点，**不是**
   booru 引擎：本类覆盖公开作品集 JSON 路由（`projects.json`、随机作品、用户与用户作品/关注、

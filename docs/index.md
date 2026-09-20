@@ -1,6 +1,6 @@
 # Anybooru 文档
 
-Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十二类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十三类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），
 再进对应家族的「三行上手」跑通第一个请求。
@@ -87,14 +87,14 @@ OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作�
 但返回的 JSON 结构完全不同。判断方法见
 [配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
-## 十二个家族共用的用法
+## 十三个家族共用的用法
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | Python 与依赖要求、源码安装步骤、装完怎么验证、包内文件都在哪 |
 | [配置](configuration.md) | 默认读哪份 JSON、怎么换一份自己的、`sites` 每个字段什么意思、`examples` 各键对应哪个调用、代理与超时写在哪 |
 | [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token、Anime-Pictures 原样转发 `Authorization` / `Cookie`、Cosine 默认匿名且 `revalidate_secret` 留空、Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>`、ArtStation 站点条目无凭据字段且公开 CSRF token 按次传入 |
-| [分页](pagination.md) | 十二个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000、Nhentai 的 `page`/`per_page` 与 `total` 是快照 |
+| [分页](pagination.md) | 十三个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000、Nhentai 的 `page`/`per_page` 与 `total` 是快照 |
 | [错误处理](errors.md) | 三个异常类各自什么时候抛、HTTP 错误带哪些字段、各引擎的状态码含义、为什么不自动重试 |
 | [迁移](migration.md) | 从 Pybooru 4.x 改名/换参数/换返回值的逐方法对照表 |
 
@@ -102,7 +102,7 @@ OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作�
 
 1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；
    不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
-2. **通用入口与原生方法**：十二个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
+2. **通用入口与原生方法**：十三个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、
    有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
    有些方法会替你剥掉一层外层对象：Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、
