@@ -1,37 +1,28 @@
 # Sakuria：我要做什么，用哪个方法？
 
-Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它的公开 API 主机
-`https://sakuria-api.syarolia.com`。一共 **44 个原生方法**：
+Sakuria 是 Pixiv 的第三方镜像站，不是 booru。本库包装其公开 API 主机 `https://sakuria-api.syarolia.com`，共 44 个原生方法。
 
-* **27 个匿名只读方法**——站点与配置 5 个、插画 5 个、用户 8 个、小说 4 个、系列·特辑·标签 5 个；
-* **17 个 `/me/*` 账号路由透传**——全部需要登录；本轮只请求过 `me_likes`，其余 16 条返回结构未知。
+* 27 个匿名只读方法：站点与配置 5 个、插画 5 个、用户 8 个、小说 4 个、系列·特辑·标签 5 个。
+* 17 个 `/me/*` 账号路由透传：全部需要登录。本轮只请求过 `me_likes`，其余 16 条返回结构未知。
 
-除位置参数外，所有方法都接 `**params`，原样拼进查询串；**44 个包装方法都不接 `headers`**，
-需要 `x-sakuria-data-contract` 这类头时走通用入口。完整参数表与逐字段说明在[方法参考](sakuria-api.md)；
-依据出处、权限分支与矛盾在[依据与差异](sakuria-contract-notes.md)。
+除位置参数外，所有方法都接 `**params`，原样拼进查询串。44 个包装方法都不接 `headers`；需要 `x-sakuria-data-contract` 这类头时，走通用入口。完整参数表见[方法参考](sakuria-api.md)；依据与差异见[依据与差异](sakuria-contract-notes.md)。
 
-**表里的数字来自直接 HTTP 路由观察**，不是每个 Python 方法的执行记录；逐条 URL 与状态见
-[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。具体编号、条数与计数
-只作形态示例。输入文档（T）里本轮没测到的候选说法不写进本页，集中列在
-[边界清单](sakuria-contract-notes.md#边界与未实测)。
+表中的数字来自直接 HTTP 路由观察，不是每个 Python 方法的执行记录。逐条 URL 与状态见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。编号、条数与计数只作形态示例。输入文档（T）里本轮没测到的候选说法不写进本页，集中列在[边界清单](sakuria-contract-notes.md#边界与未实测)。
 
-用面的共同约定：
+## 共同约定
 
-* 下面的 `client` 由 `Sakuria('sakuria')` 创建，包内配置默认匿名；构造参数或配置中的
-  `access_token` 非空才发 `Authorization: Bearer`（构造见[客户端用法](sakuria.md)）。
-* 路径都接在 `https://sakuria-api.syarolia.com` 后面；编号就是 Pixiv 的 illust / novel / user 编号。
-* 列表信封本轮出现过的键是 `items`/`page`/`pageSize`/`total`/`totalPages`/`hasMore`/`nextPage`/
-  `hiddenCount`；**`total`、`totalPages`、`nextPage` 不能用来导航**（见文末）。
-* **详情是裸对象**：`/illust/{id}`、`/novels/{id}`、`/series/{id}`、`/users/{id}`、`/spotlight/{id}`。
-* **只有部分参数会被校验**：非法值回 `400` 且带 `field`；本轮只证 `limit` 这一个取值会被忽略。
-* 媒体只给地址：响应里的 `urls`/`cover` 等是**以 `/` 开头的相对路径**，拼 `client.site_url` 才是完整
-  地址；本库不下载媒体（见[客户端用法](sakuria.md#媒体地址只给地址拼接是你的事)）。
+* 本文中的 `client` 由 `Sakuria('sakuria')` 创建，包内配置默认匿名。构造参数或配置中的 `access_token` 非空时才发 `Authorization: Bearer`。构造方式见[客户端用法](sakuria.md)。
+* 所有路径接在 `https://sakuria-api.syarolia.com` 后面。路径中的编号就是 Pixiv 的 illust / novel / user 编号。
+* 列表信封本轮出现过的键：`items`、`page`、`pageSize`、`total`、`totalPages`、`hasMore`、`nextPage`、`hiddenCount`。**`total`、`totalPages`、`nextPage` 不能用来导航**。
+* 详情接口返回裸对象：`/illust/{id}`、`/novels/{id}`、`/series/{id}`、`/users/{id}`、`/spotlight/{id}`。
+* 只有部分参数会被校验：非法值回 `400` 且带 `field`。本轮只证 `limit` 这一个取值会被忽略。
+* 媒体只给地址：响应里的 `urls`、`cover` 等是以 `/` 开头的相对路径，拼 `client.site_url` 才是完整地址。本库不下载媒体。拼接方式见[客户端用法](sakuria.md#媒体地址只给地址拼接是你的事)。
 
 ## 按目的找调用
 
 | 我要做什么 | 调用 | 给什么 → 返回什么（本轮实测） |
 | :--- | :--- | :--- |
-| 看服务标识 | `client.index()` | 无参数 → `200 {"name": "sakuria-api", "ok": true, "docs": "https://github.com/your-org/sakuria"}`；`docs` 指向占位仓库 |
+| 看服务标识 | `client.index()` | 无参数 → `200 {"name": "sakuria-api", "ok": true, "docs": "https://github.com/your-org/sakuria"}`；`docs` 是占位仓库地址 |
 | 看站点计数 | `client.stats()` | 无参数 → `200 {"newToday": 30, "totalIllusts": 85, "totalCreators": 197, "totalUsers": 113}`；站点自述计数，随实时数据变动 |
 | 看部署健康 | `client.health()` | 无参数 → `200`，键 `ok`/`releaseSha`/`releaseVersionId`/`checks`；`checks` 含 `db`、`jwt`、`pxve`、`cache`、`cacheBackend`、`databaseDriver` 等 |
 | 看客户端配置 | `client.app_config()` | 无参数 → `200`，键含 `latestVersion`（本轮 `"1.0.0"`）、`latestBuild`、`updateUrl`、`updateAvailable`、`updateRequired`、`announcement`（本轮 `null`）、`maintenance`、`flags`、`servers`（2 条）、`imageProxy`、`iap` |
@@ -51,13 +42,13 @@ Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它�
 | 读某条评论的回复 | `client.illust_comment_replies(70937229, 183991501)` | 插画编号 + 评论 `id` → `200 {"items": [回复, …]}`（本轮 1 条，键与评论同构，**没有 `hasMore`**） |
 | 找相关插画 | `client.illust_related(128641898, size=2)` | 插画编号 + 条数 → `200 {"items": [Illust, …]}`（本轮 2 条，只有 `items`） |
 | 按用户名找画师 | `client.user_search(q='mika', page=1)` | 关键词 + 页码 → `200 {"items": [{"user": …, "previews": […]}, …], "total": …}`；本轮 page1/2/3 的 `items` 与 `total` 都是 6/12/21 且各页 `id` 互不重叠 → `total` 是**本页条数**；信封没有 `hasMore`/`nextPage` |
-| 看用户资料 | `client.user_show(129030276)` | 用户编号 → **裸用户对象**：`id`/`name`/`handle`/`accent`/`avatar`/`banner`/`stats`/`social`；本轮 `stats` 是 `{"followers": 0, "following": 11, "works": 8, "totalLikes": 0, "totalBookmarks": 13}`、`social` 1 条 `{kind: "pixiv", …}` |
-| 看某用户的插画 | `client.user_illusts(1039353, page=1)` | 用户编号 + 页码 → Illust 信封；本轮 page1/page2 各 45 条、`pageSize` 24、`nextPage` 3/4、`hiddenCount` 3、两页交集 23 |
-| 看某用户的小说 | `client.user_novels(3182410, page=1)` | 用户编号 + 页码 → 小说信封；本轮 24 条、`nextCursor` 是上游地址 `https://app-api.pixiv.net/v1/user/novels?user_id=3182410&offset=30`（**不能拿去请求本站**） |
-| 看某用户公开收藏 | `client.user_bookmarks(1554775)` | 用户编号 → `{"items": [Illust, …], "pageSize", "hasMore", "nextCursor", "hiddenCount"}`；本轮 19 条、`nextCursor` `"9175901406"`、`hiddenCount` 5，且 **`page=1` 与 `page=2` 的完整 JSON 相同**（只证这两个取值没有推进） |
-| 看某用户的关注者 | `client.user_followers(1039353, page=1)` | 用户编号 + 页码 → 本轮 page1/page2 都是空 `items`、`pageSize` 12、`page` 分别回显 1/2、`hasMore` false；**不能据此说分页无效或功能未实现**，非空 item 结构没有样本 |
-| 看某用户的小说系列 | `client.user_series(3182410, page=1)` | 用户编号 + 页码 → 本轮是空 `items`、`pageSize` 24、`hasMore` false；item 结构没有样本 |
-| 找相似画师 | `client.user_related(1039353)` | 用户编号 → `{"items": [{"user", "previews"}, …]}`；本轮 12 条，只有 `items` |
+| 看用户资料 | `client.user_show(129030276)` | user 编号 → **裸用户对象**：`id`/`name`/`handle`/`accent`/`avatar`/`banner`/`stats`/`social`；本轮 `stats` 是 `{"followers": 0, "following": 11, "works": 8, "totalLikes": 0, "totalBookmarks": 13}`、`social` 1 条 `{kind: "pixiv", …}` |
+| 看某用户的插画 | `client.user_illusts(1039353, page=1)` | user 编号 + 页码 → Illust 信封；本轮 page1/page2 各 45 条、`pageSize` 24、`nextPage` 3/4、`hiddenCount` 3、两页交集 23 |
+| 看某用户的小说 | `client.user_novels(3182410, page=1)` | user 编号 + 页码 → 小说信封；本轮 24 条、`nextCursor` 是上游地址 `https://app-api.pixiv.net/v1/user/novels?user_id=3182410&offset=30`（**不能拿去请求本站**） |
+| 看某用户公开收藏 | `client.user_bookmarks(1554775)` | user 编号 → `{"items": [Illust, …], "pageSize", "hasMore", "nextCursor", "hiddenCount"}`；本轮 19 条、`nextCursor` `"9175901406"`、`hiddenCount` 5，且 **`page=1` 与 `page=2` 的完整 JSON 相同**（只证这两个取值没有推进） |
+| 看某用户的关注者 | `client.user_followers(1039353, page=1)` | user 编号 + 页码 → 本轮 page1/page2 都是空 `items`、`pageSize` 12、`page` 分别回显 1/2、`hasMore` false；**不能据此说分页无效或功能未实现**，非空 item 结构没有样本 |
+| 看某用户的小说系列 | `client.user_series(3182410, page=1)` | user 编号 + 页码 → 本轮是空 `items`、`pageSize` 24、`hasMore` false；item 结构没有样本 |
+| 找相似画师 | `client.user_related(1039353)` | user 编号 → `{"items": [{"user", "previews"}, …]}`；本轮 12 条，只有 `items` |
 | 搜小说 | `client.novel_search(q='blue', page=1)` | 关键词 + 页码 → 小说信封；本轮 page1 24 条（`total` 48、`nextPage` 2）、page2 26 条（`total` 72、`nextPage` 3）；item 不含正文 |
 | 用小说不支持的筛选条件 | `client.novel_search(q='blue', type='illust')` / `ai='exclude'` | `400 {"error": "小说不支持该作品筛选条件", "code": "unsupported_filter_for_scope", "field": "type"}` / `401 {"error": "高级筛选需要 Sakuria+", "code": "auth_required", "feature": "advanced_search"}` |
 | 读小说详情 | `client.novel_show(29167620)` | 小说编号 → **裸对象**，键含 `id`/`title`/`author`/`caption`/`captionHtml`/`tags`/`textLength`/`text`/`document`/`coverSvg`/`cover`/`stats`/`publishedAt`/`publishedDays`/`isAi`/`isR18`/`xRestrict`/`sl`；**本轮这部的 `text` 是空串，而 `document.text` 是 4 行 `[uploadedimage:…]` 标记**（`uploadedImages` 4 条、`pixivImages` 为空）——输入文档说两者内容相同，已被推翻；别把本轮当成拿到了非空正文 |
@@ -67,9 +58,9 @@ Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它�
 | 看特辑列表 | `client.spotlight_list(page=1, lang='zh-cn')` | 页码 + 语言 → `{"items": [{"id", "title", "caption", "tag", "coverSvg", "cover", "tags", "date", "articleUrl", "works"}, …], "page", "pageSize", "hasMore"}`；本轮 20 条而信封写 `pageSize` 12、`hasMore` true、`works` 全空 |
 | 看一条特辑 | `client.spotlight_show(11971, lang='zh-cn')` | 特辑编号 + 语言 → **裸对象**，键含 `id`/`title`/`date`/`description`/`cover`/`tags`/`works`/`articles`/`relatedLatest`/`relatedRecommend`/`articleUrl`；本轮 `articles` 19 篇、`works` 空、两个 related 的 `items` 空；`cover` 是相对路径 `/p/embed.pixiv.net/…` |
 | 查不存在的特辑 id | `client.spotlight_show(0)` | `503 {"error": "upstream temporarily unavailable", "retryable": true}`（不是 `404`） |
-| 用别的路由/自定义头 | `client.request('GET', 'stats')` | 动词 + 站点相对路径 + `params` + `headers` → 与原生方法同一条通路，JSON 原样返回（见[通用入口](sakuria.md#通用入口-request)） |
+| 用别的路由/自定义头 | `client.request('GET', 'stats')` | 动词 + 站点相对路径 + `params` + `headers` → 与原生方法同一条通路，JSON 原样返回。见[通用入口](sakuria.md#通用入口-request) |
 
-### 账号面（`/me/*`，17 条全部**需登录、返回结构未知**）
+### 账号面（`/me/*`，17 条全部需登录、返回结构未知）
 
 | 我要做什么 | 调用 | 本轮状态 |
 | :--- | :--- | :--- |
@@ -91,16 +82,11 @@ Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它�
 | 读搜索历史 | `client.me_search_history()` | 未请求、返回结构未知 |
 | 读推荐 | `client.me_recommend()` | 未请求、返回结构未知 |
 
-**不要把它们写成匿名可用**，也不要用它们当匿名探针；逐条权限记录见
-[账号方法与访问面](sakuria-contract-notes.md#账号方法与访问面)。
-44 个包装方法只接位置参数与 `**params`、**不接 `headers`**，需要契约头时用
-`client.request('GET', 'me/likes', headers={'x-sakuria-data-contract': '2'})`。
+**不要把它们写成匿名可用**，也不要用它们当匿名探针。逐条权限记录见[账号方法与访问面](sakuria-contract-notes.md#账号方法与访问面)。44 个包装方法只接位置参数与 `**params`、不接 `headers`；需要契约头时用 `client.request('GET', 'me/likes', headers={'x-sakuria-data-contract': '2'})`。
 
 ## 完整方法索引（27 匿名读 + 17 账号透传 = 44）
 
-每个原生方法一行；参数范围与字段表只放在[方法参考](sakuria-api.md)。除 `index()` 的 `/` 之外，
-以下路径都接在 `https://sakuria-api.syarolia.com` 后面。**27 条匿名读路由本轮全部真发过至少一次**
-（部分只拿到空集合样本，例如小说评论与相关小说）。
+每个原生方法一行。参数范围与字段表见[方法参考](sakuria-api.md)。除 `index()` 的 `/` 之外，以下路径都接在 `https://sakuria-api.syarolia.com` 后面。**27 条匿名读路由本轮全部真发过至少一次**（部分只拿到空集合样本，例如小说评论与相关小说）。
 
 ### 站点与配置（5，匿名）
 
@@ -168,8 +154,7 @@ Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它�
 
 ## 本库不封装的能力
 
-这些路由/主机不在本库范围内；需要时用
-`client.request(method, path, params=…, headers=…)` 自己发（**只有 JSON 才解析**）。
+这些路由/主机不在本库范围内；需要时用 `client.request(method, path, params=…, headers=…)` 自己发（**只有 JSON 才解析**）。
 
 | 类别 | 例子 | 为什么不封装 |
 | :--- | :--- | :--- |
@@ -184,23 +169,11 @@ Sakuria 是 **Pixiv 的第三方镜像站**（不是 booru），本库包装它�
 
 ## 边界与未实测
 
-* **未请求的面**：媒体字节、三个其它主机、Web 前端与登录/注册端点、任何写接口、
-  `/me/*` 里除 `me_likes` 之外的 16 条——全部没有样本。
+* **未请求的面**：媒体字节、三个其它主机、Web 前端与登录/注册端点、任何写接口、`/me/*` 里除 `me_likes` 之外的 16 条——全部没有样本。
 * **`/me/*` 返回结构**：17 条全部未知；只有 `426`（缺契约头）与 `401`（带契约头）两个样本。
-* **输入文档候选但未复测**：`size` 的可用范围与默认值、`sort`/`type`/`ai`/`mode`/`ratio` 的完整枚举、
-  各列表的默认页大小、`lang` 的取值与回退、错误码全集（`403` 本轮无样本）、末页判据
-  （`hasMore=false` 只在空集合样本上出现过，`nextPage=null` 本轮未见）、`sl`/`hiddenCount`/`alt` 的语义、
-  `r18`/`safe` 等参数的忽略清单、ugoira 的帧信息、媒体占位图与图片 token 主机。
-  完整清单见[依据与差异的边界](sakuria-contract-notes.md#边界与未实测)。
-* **本轮已证的相关行为**：`total`/`totalPages`/`nextPage` 不能用来导航；相邻页会重叠；
-  `items` 条数不等于 `size`；`size=0/49` 回 `400 field=size`；`limit` 这一个取值会被忽略；
-  用户搜画的 `total` 是本页条数；收藏 `page=1/2` 结果相同；关注者两页皆空；
-  `/tags/blue` 与 `/search/illust?q=blue` 不是同一批；特辑 id 不存在回 `503`；
-  小说详情的 `text` 与 `document.text` **不相同**。
-* **用法路径另跑过**：轻量冒烟 10 次请求 `passed 10 / failed 0`（8 次 `200` + 预期的 `404`/`400`）、
-  退出码 0；两个示例分别 2 次与 3 次请求全部 `200`、退出码 0。逐条见
-  [验证记录](verification.md#sakuria匿名只读实测2026-09-19)；它们覆盖用法路径，
-  不等于 44 个方法逐一验证。
+* **输入文档候选但未复测**：`size` 的可用范围与默认值、`sort`/`type`/`ai`/`mode`/`ratio` 的完整枚举、各列表的默认页大小、`lang` 的取值与回退、错误码全集（`403` 本轮无样本）、末页判据（`hasMore=false` 只在空集合样本上出现过，`nextPage=null` 本轮未见）、`sl`/`hiddenCount`/`alt` 的语义、`r18`/`safe` 等参数的忽略清单、ugoira 的帧信息、媒体占位图与图片 token 主机。完整清单见[依据与差异的边界](sakuria-contract-notes.md#边界与未实测)。
+* **本轮已证的相关行为**：`total`/`totalPages`/`nextPage` 不能用来导航；相邻页会重叠；`items` 条数不等于 `size`；`size=0/49` 回 `400 field=size`；`limit` 这一个取值会被忽略；用户搜画的 `total` 是本页条数；收藏 `page=1/2` 结果相同；关注者两页皆空；`/tags/blue` 与 `/search/illust?q=blue` 不是同一批；特辑 id 不存在回 `503`；小说详情的 `text` 与 `document.text` **不相同**。
+* **用法路径另跑过**：轻量冒烟 10 次请求 `passed 10 / failed 0`（8 次 `200` + 预期的 `404`/`400`）、退出码 0；两个示例分别 2 次与 3 次请求全部 `200`、退出码 0。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)；它们覆盖用法路径，不等于 44 个方法逐一验证。
 * 站点数据实时变动：编号、条数、计数与 `hiddenCount` 都会变，别把本页的数字当契约。
 * 依据出处、权限分支与输入文档矛盾的完整记录见[依据与差异](sakuria-contract-notes.md)。
 
