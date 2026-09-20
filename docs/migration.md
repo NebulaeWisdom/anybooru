@@ -1,50 +1,22 @@
 # 从 Pybooru 4.x 迁移到 Anybooru
 
-Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了对 Danbooru 面与 Moebooru 面的访问。
-本文列出所有需要改调用方的地方。
+Anybooru（`0.1.0.dev1`）按本地上游引擎源码重写了 Danbooru 面与 Moebooru 面。本文列出调用方需要改的所有地方。
 
-Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine、Nhentai 与 ArtStation 是 4.x 里不存在的家族：4.x 没有对应方法可对照，
-迁不迁移与本文无关，直接用各自的「三行上手」即可（见 [index.md](index.md#按家族选文档)）。
-Sakuria（Pixiv 第三方镜像站）与其他几个不同：它连官方页面与上游源码都没有，本轮只按匿名响应记录接入，
-44 个方法里 17 个 `/me/*` 需要登录且返回结构未实测，写作与依据见
-[Sakuria 契约审计附注](sakuria-contract-notes.md)。
-Anime-Pictures（站点自研 `api/v3` JSON 接口，API 主机与网页主机分开）同样没有可读到的官方手册页、
-OpenAPI 或服务端源码；它接入 13 个原生方法（12 GET + 1 POST），其中 10 个 GET 有匿名成功样本，
-`post_tags` / `image_get` 匿名被拒，二者与 `post_create` 的成功路径均未实测，依据见
-[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
-Cosine（Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + Meilisearch 自研 API）同样没有
-本地上游服务端源码：13 个原生方法（11 个只读 GET + 2 个 POST）覆盖作品列表与详情、随机、搜索与建议、
-标签、画师、只读索引进度、`feed.xml` 与两个写入口；四种返回外壳一个都不拆，参数用站点自己的
-`page` / `pageSize` / `limit` / `offset` / `start`。`artwork_revalidate` 与 `search_index_admin` 本轮都未执行，
-公开结论以匿名只读响应为准，依据与矛盾见 [Cosine 契约审计附注](cosine-contract-notes.md)。
-Nhentai 也是 4.x 里没有的家族，没有方法级对照可谈；但把旧脚本迁过来要看清两件事。
-① 本库只实现 `nhentai.net` 的 `/api/v2`：站点早期的第三方 JSON 面（`/api/gallery/<id>` 这类 v1 路径）
-实测回 `403` 加 `text/plain: Use new API https://nhentai.net/api/v2/docs`，官方 changelog 另写明
-`/api/v2/galleries/{id}/pages` 与 `/api/v2/galleries/{id}/pages/{page_number}` 已删除；v2 的数据形状也不同
-（列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，详情是另一套带 `title` / `cover` /
-`thumbnail` / `pages` / `tags` 的对象）。照抄 v1 的路径或字段名对不上 v2 的返回，本库不做 v1 兼容、
-不改字段名、不补旧形状，要迁就按 v2 的路径与字段改。
-② `nhentai.to` 是另一套克隆站，不是 `nhentai.net` 的替代基址：画廊编号和内嵌 JavaScript
-结构不同，已测 API 路径返回 404。它仍有返回 JSON 的 `/trending-searches`，不能泛称没有 JSON。
-本库不为它留站点条目、不做 ID 转换或回退。
-36 个原生方法的分组、参数与返回字段见 [Nhentai 方法参考](nhentai-api.md)，依据与排除项见
-[Nhentai 契约审计附注](nhentai-contract-notes.md)。
-ArtStation（公开作品集站点 `artstation.com`，配置条目只有 `url`）本轮未取得官方 API 文档页、
-OpenAPI 或服务端源码：接入 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，16 个返回 JSON + `feed()` 返回
-`artwork.rss` 原文），覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索（`project_search` 与
-只读的 `project_search_post`）与可搜索字段、专辑、频道与其作品、作品评论、探索最新、订阅源，以及取公开
-CSRF token 的 `csrf_token()`。两个 POST 都不是内容写入：token 由调用方取回后每次传入，本库不自动获取、
-不续期、不重放、不重试、不落盘。本类没有凭据字段、内容写入方法或指定作品详情方法——固定详情
-`/projects/{hash}.json` 实测被站点质询挡下（`403`）、v2 单作品 `/api/v2/community/projects/{id}.json`
-匿名 `401`；依据只有匿名只读响应，样本之外的取值仍是候选，见
-[ArtStation 契约审计附注](artstation-contract-notes.md)。
+Sakuria、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Anime-Pictures、Cosine、Nhentai 与 ArtStation 是 4.x 里没有的家族：4.x 没有对应方法可对照，没有“迁移”可谈，直接用各自的「三行上手」（见 [index.md](index.md#按家族选文档)）。各家族的接入范围、依据与未实测项见文末[边界与未实测](#五边界与未实测)。
+
+* Sakuria：Pixiv 第三方镜像站，44 个方法，依据见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
+* Anime-Pictures：站点自研 `api/v3` JSON 接口，API 主机与网页主机分开，13 个原生方法，依据见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+* Cosine：Telegram 频道 `@CosineGallery` 的配套图站，Next.js + Prisma + Meilisearch 自研 API，13 个原生方法，覆盖作品列表与详情、随机、搜索与建议、标签、画师、只读索引进度、`feed.xml` 与两个写入口，依据见 [Cosine 契约审计附注](cosine-contract-notes.md)。
+* Nhentai：只实现 `nhentai.net` 的 `/api/v2`，36 个原生方法，方法参考见 [Nhentai 方法参考](nhentai-api.md)，依据见 [Nhentai 契约审计附注](nhentai-contract-notes.md)。
+* ArtStation：公开作品集站点 `artstation.com`，配置条目只有 `url`，17 个原生方法，覆盖公开作品列表与随机作品、用户资料三面、用户作品与关注、搜索（`project_search` 与只读的 `project_search_post`）与可搜索字段、专辑、频道与其作品、作品评论、探索最新、订阅源，以及取公开 CSRF token 的 `csrf_token()`，依据见 [ArtStation 契约审计附注](artstation-contract-notes.md)。
+
+迁 Nhentai 旧脚本前先看两点。① 本库只实现 `nhentai.net` 的 `/api/v2`。站点早期的第三方 JSON 面（`/api/gallery/<id>` 这类 v1 路径）实测回 `403` 加 `text/plain: Use new API https://nhentai.net/api/v2/docs`。官方 changelog 另写明 `/api/v2/galleries/{id}/pages` 与 `/api/v2/galleries/{id}/pages/{page_number}` 已删除。v2 数据形状也不同：列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，详情是另一套带 `title` / `cover` / `thumbnail` / `pages` / `tags` 的对象。照抄 v1 的路径或字段名对不上 v2 的返回；本库不做 v1 兼容、不改字段名、不补旧形状，要迁就按 v2 的路径与字段改。② `nhentai.to` 是另一套克隆站，不是 `nhentai.net` 的替代基址：画廊编号和内嵌 JavaScript 结构不同，已测 API 路径返回 404。它仍有返回 JSON 的 `/trending-searches`，不能泛称没有 JSON。本库不为它留站点条目、不做 ID 转换或回退。
 
 ## 一、破坏性变更总览
 
 ### 1. 站点清单消失，改为配置文件
 
-4.x 把默认站点硬编码在 `pybooru/resources.py` 的 `SITE_LIST` 里，并允许用 `site_url=` 传任意地址。
-Anybooru 删除 `SITE_LIST`，站点、凭据、代理、超时、User-Agent 全部来自 `anybooru.json`：
+4.x 把默认站点硬编码在 `pybooru/resources.py` 的 `SITE_LIST` 里，并允许用 `site_url=` 传任意地址。Anybooru 删除 `SITE_LIST`，站点、凭据、代理、超时、User-Agent 全部来自 `anybooru.json`：
 
 ```python
 # 4.x
@@ -59,11 +31,12 @@ client = Danbooru('danbooru', config_file='my-anybooru.json')   # 换成自己�
 client = Danbooru('danbooru', site_url='https://safebooru.donmai.us')   # 仍可显式覆盖地址
 ```
 
-* 默认读的那份配置随包安装，缺不了；`config_file` 显式指到的文件不存在时抛 `FileNotFoundError`，
-  没有内置站点后备，也不读环境变量；
+* 默认那份配置随包安装，缺不了。`config_file` 显式指到的文件不存在时抛 `FileNotFoundError`；没有内置站点后备，也不读环境变量。
 * 文件放哪、怎么指向见 [configuration.md](configuration.md)。
 
 ### 2. 通用请求入口取代 `_get()`
+
+4.x 用内部方法 `_get()` 发请求，每个方法还带 `auth=` 开关。Anybooru 用一个 `request()` 统一出口，两个面都不再有 `_get()`：
 
 ```python
 # 4.x（内部方法，且每个方法带 auth= 开关）
@@ -73,15 +46,13 @@ client._get('posts.json', {'tags': 'rating:g'})
 client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 ```
 
-`request(method, path, *, params=None, data=None, files=None)` 成为唯一出口（Anybooru 的两个面**都不再有**
-`_get()`）：
+`request(method, path, *, params=None, data=None, files=None)` 是唯一出口：
 
-* `path` 是相对路径，自动补 `.json`（Moebooru 面在旧 `api_version` 下还会给裸集合路径补 `/index`）；
-* 查询参数与 multipart 表单使用 Rails 括号编码；`None` 省略。请求体分面：**Danbooru 面无文件的 `data`
-  用 JSON 请求体**（保留空数组等结构），**Moebooru 面恒用 Rails 表单**；
-* 认证分面：Danbooru 按“`username` 或 `api_key` 任一非空就附加 HTTP Basic（缺项为空串）”自动处理，
-  **不再有 `auth=` 参数**，只有两项都为空才是匿名请求，凭据不全会由服务端返回 `401`；
-  Moebooru 用 `login` + `password_hash`（GET 进查询串，其他动词进表单体）；
+* 给 `method` 与相对 `path`，返回解析后的响应体；`204` 或空响应体返回 `None`。
+* `path` 是相对路径，自动补 `.json`（Moebooru 面在旧 `api_version` 下还会给裸集合路径补 `/index`）。
+* 查询参数与 multipart 表单使用 Rails 括号编码（形如 `search[name]` 的嵌套键写法）；值 `None` 省略。
+* 请求体分面：Danbooru 面无文件的 `data` 用 JSON 请求体（保留空数组等结构）；Moebooru 面恒用 Rails 表单。
+* 认证分面：Danbooru 按“`username` 或 `api_key` 任一非空就附加 HTTP Basic（HTTP 基本认证，缺项为空串）”自动处理，不再有 `auth=` 参数；只有两项都为空才是匿名请求，凭据不全会由服务端返回 `401`。Moebooru 用 `login` + `password_hash`（GET 进查询串，其他动词进表单体）。
 * 不自动重试，不做本地权限判断。
 
 详见 [danbooru.md](danbooru.md) 与 [moebooru.md](moebooru.md)。
@@ -92,7 +63,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | :--- | :--- |
 | 各方法零散参数（`name=`, `order=`, `limit=` …） | Danbooru 面列表方法统一 `xxx_list(search=None, **params)`；Moebooru 面没有 `search` 字典，过滤条件都是顶层 `**params` |
 | `auth=False` 开关 | 无（凭据决定） |
-| 写方法逐个显式参数 | `xxx_create(**attributes)` / `xxx_update(id, **attributes)`，键名与 Rails strong params 一致 |
+| 写方法逐个显式参数 | `xxx_create(**attributes)` / `xxx_update(id, **attributes)`，键名与 Rails strong params（Rails 强参数，服务端只收白名单键名）一致 |
 | 本地 `raise PybooruAPIError(...)` 校验参数 | 不做本地校验，交给服务端 |
 | `limit > 1000` 触发 `warnings.warn` | 删除，`limit` 原样发给服务端 |
 | 文件参数 `file_=open(...)` | 文件对象由调用者传入并负责关闭 |
@@ -110,40 +81,37 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 ### 5. 资源命名对齐上游
 
-* wiki 相关（Danbooru 面）：`wiki_*` → `wiki_page_*`（`wiki_list` → `wiki_page_list`、`wiki_show` → `wiki_page_show` 等）；
-* 版本列表：`*_versions` → `*_versions_list`；
-* 别名与蕴含：`tag_aliases` → `tag_aliases_list`、`tag_implications` → `tag_implications_list`；
-* 相关标签：`tag_related` → `related_tag`（签名不同，见下）；
-* 投票：`post_vote` → `post_vote_create`、`comment_vote` → `comment_vote_create`；
-* 收藏：`favorite_add` / `favorite_remove` → `favorite_create` / `favorite_delete`；
+* wiki 相关（Danbooru 面）：`wiki_*` → `wiki_page_*`（`wiki_list` → `wiki_page_list`、`wiki_show` → `wiki_page_show` 等）。
+* 版本列表：`*_versions` → `*_versions_list`。
+* 别名与蕴含：`tag_aliases` → `tag_aliases_list`、`tag_implications` → `tag_implications_list`。
+* 相关标签：`tag_related` → `related_tag`（签名不同，见[标签](#标签)表）。
+* 投票：`post_vote` → `post_vote_create`、`comment_vote` → `comment_vote_create`。
+* 收藏：`favorite_add` / `favorite_remove` → `favorite_create` / `favorite_delete`。
 * 计数：`count_posts` → `counts_posts`。
 
 ### 6. Moebooru 面也按上游路由重写
 
-`Moebooru` 类在 Anybooru 同样逐端点对齐了上游 `moebooru/config/routes.rb`（HEAD `206455e1`）与控制器，
-共 90 个原生方法，方法命名与 Danbooru 面一致（`xxx_list` / `xxx_show` / `xxx_create` / `xxx_update` /
-`xxx_destroy`）。**旧名字只在本文出现**：
+`Moebooru` 类同样逐端点对齐上游 `moebooru/config/routes.rb`（HEAD `206455e1`）与控制器，共 90 个原生方法，命名与 Danbooru 面一致（`xxx_list` / `xxx_show` / `xxx_create` / `xxx_update` / `xxx_destroy`）。旧名字只在本文出现：
 
 | 旧名 / 旧签名 | Anybooru |
 | :--- | :--- |
-| `pool_posts(**params)` | `pool_show(pool_id, **params)`：返回的是**一个合集对象**，帖子在 `posts` 里 |
+| `pool_posts(**params)` | `pool_show(pool_id, **params)`：返回一个合集对象，帖子在 `posts` 里 |
 | `user_search(**params)` | `user_list(**params)` |
 | `note_create_update(...)` | `note_update(note_id=None, **attributes)`，新建时用 `note[post_id]` |
-| `wiki_show(**params)` | **移除**：`wiki/show` 只有 HTML 分支（`.json` → `406`），改用 `wiki_list` / `wiki_history` |
+| `wiki_show(**params)` | 移除：`wiki/show` 只有 HTML 分支（`.json` → `406`），改用 `wiki_list` / `wiki_history` |
 | `wiki_update(title, new_title=, page_body=)` | `wiki_update(title, new_title=..., body=...)`：`new_title` 保留为显式关键字，区分顶层旧标题与嵌套新标题；`page_body` 改为 `body` |
 | `comment_create(post_id, comment_body, anonymous=)` | `comment_create(post_id, body)`：`comment[anonymous]` 不被允许 |
 | `post_create(tags, file_=, rating_locked=, note_locked=, …)` | `post_create(tags, *, file=None, source=None, md5=None, anonymous=None, **attributes)`：文件可选、`source` 可单独使用；创建接口不接受 `is_*_locked` |
 | `post_update(post_id, …, file_=)` | `post_update(post_id, **attributes)`：没有 `post[file]` |
 | `post_vote(post_id, score)` | `post_vote(post_id, score=None)`：省略 `score` 是读取当前投票 |
-| 合集写操作用 PUT / DELETE（`pool_update` / `pool_destroy` / `pool_add_post` / `pool_remove_post`） | 全部改为 **POST**：这些路由不接受 PUT / DELETE |
+| 合集写操作用 PUT / DELETE（`pool_update` / `pool_destroy` / `pool_add_post` / `pool_remove_post`） | 全部改为 POST：这些路由不接受 PUT / DELETE |
 | `tag_update(...)` 用 PUT + 顶层 `name` | `tag_update(name, **attributes)` 用 POST + `tag[name]` |
 | `artist_create/update(..., alias=, group=)` | 改用 `artist[alias_name]` / `artist[alias_names]` / `artist[member_names]`；`artist[alias]` 与 `artist[group]` 不被允许，`artist_destroy` 补 `commit='Yes'` |
 | `note_history(..., limit=)` | `limit` 移除：控制器忽略它 |
-| `favorite_list_users(post_id)` 拆分成名字列表 | 返回**原始对象** `{'favorited_users': 'name1,name2'}`（服务端把名字拼成一个字符串） |
+| `favorite_list_users(post_id)` 拆分成名字列表 | 返回原始对象 `{'favorited_users': 'name1,name2'}`（服务端把名字拼成一个字符串） |
 | 布尔开关 | 引擎按字面量比较，要传字符串：`unflag='1'`、`redo='1'`、`forcegray='1'`、`commit='Yes'` 等 |
 
-新增端点与完整签名见 [moebooru-api.md](moebooru-api.md)，按用途查找见
-[moebooru-capabilities.md](moebooru-capabilities.md)。
+新增端点与完整签名见 [moebooru-api.md](moebooru-api.md)，按用途查找见 [moebooru-capabilities.md](moebooru-capabilities.md)。
 
 ## 二、逐方法对照
 
@@ -158,7 +126,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `post_copy_notes(post_id, other_post_id)` | `post_copy_notes(post_id, other_post_id)` | 不变 |
 | `post_mark_translated(post_id, check_translation, partially_translated)` | `post_mark_as_translated(post_id, check_translation=None, partially_translated=None)` | 名字对齐路由 |
 | `post_vote(post_id, score)` | `post_vote_create(post_id, score)` | |
-| `post_unvote(post_id)` | **删除**，改用 `post_vote_delete(vote_id)` | 4.x 请求的 `PUT posts/<id>/unvote` 已无该路由 |
+| `post_unvote(post_id)` | 删除，改用 `post_vote_delete(vote_id)` | 4.x 请求的 `PUT posts/<id>/unvote` 已无该路由 |
 | `post_flag_list(creator_id=..., ...)` | `post_flags_list(search=None, **params)` | 过滤条件统一走 `search`；`is_resolved` 已废，现用 `status=pending/succeeded/rejected` 与 `category` |
 | `post_flag_show(flag_id)` | `post_flag_show(flag_id)` | 修正：4.x 实际请求的是 `post_appeals/<flag_id>`，拿 flag id 去查 appeal |
 | `post_flag_create(post_id, reason)` | `post_flag_create(post_id, reason, **attributes)` | `post_flag[post_id, reason]` |
@@ -166,14 +134,14 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `post_appeals_show(appeal_id)` | `post_appeal_show(appeal_id)` | |
 | `post_appeals_create(post_id, reason)` | `post_appeal_create(post_id, reason, **attributes)` | |
 | `post_versions_list(updater_name=..., ...)` | `post_versions_list(search=None, **params)` | `search[start_id]` 从不存在；改用 `post_id` / `updater_id` / `changed_tags` / `is_new`；站点未配置 archive 服务时整个端点返回 501 |
-| `post_versions_show(version_id)` | **删除**（无该路由） | 上游只路由了 `post_versions` 的 index 与 undo，没有单版本查询；版本数据只能整表检索或用 `post_version_undo()` |
+| `post_versions_show(version_id)` | 删除（无该路由） | 上游只路由了 `post_versions` 的 index 与 undo，没有单版本查询；版本数据只能整表检索或用 `post_version_undo()` |
 | `post_versions_undo(version_id)` | `post_version_undo(version_id)` | 路由本身未变 |
 
 ### 上传与媒体
 
 | 4.x | Anybooru | 说明 |
 | :--- | :--- | :--- |
-| `upload_list(uploader_id=..., ...)` | `upload_list(search=None, **params)` | 顶层 `user_id` / `limit` / `mode` / `size`；过滤走 `search`。**可见范围收紧**：非 moderator 只能看到自己的上传 |
+| `upload_list(uploader_id=..., ...)` | `upload_list(search=None, **params)` | 顶层 `user_id` / `limit` / `mode` / `size`；过滤走 `search`。可见范围收紧：非 moderator 只能看到自己的上传 |
 | `upload_show(upload_id)` | `upload_show(upload_id)` | 同上（仅本人或 moderator） |
 | `upload_create(tags, rating, file_=..., ...)` | `upload_create(files=None, source=None, referer_url=None)` | 上传接口不再接受 `tag_string` / `rating` / `parent_id`；文件字段是字面键名 `upload[files][<索引>]`，打标改走 `post_create()` |
 | — | `upload_assets_list` / `upload_media_assets_list` / `upload_media_asset_show` | 新增上传资源查询 |
@@ -191,7 +159,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `tag_related(query, category=None)` | `related_tag(search=None, **params)` | `query` / `category` / `order` / `search_sample_size` / `tag_sample_size` 放入 `search`；`limit` / `media_asset_id` 在顶层 |
 | — | `tag_versions_list` / `tag_version_show` | 新增 |
 
-> 创建别名/蕴含请走 `bulk_update_request_create()`（现役站点不再提供直接的 alias/implication 创建接口）。
+创建别名/蕴含请走 `bulk_update_request_create()`：现役站点不再提供直接的 alias/implication 创建接口。
 
 ### 画师
 
@@ -203,14 +171,14 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `artist_create(name, ...)` | `artist_create(name, **attributes)` | 修正：4.x 调用了不存在的 `self.get(...)`，必然 `AttributeError` |
 | `artist_update(artist_id, ...)` | `artist_update(artist_id, **attributes)` | 同上 |
 | `artist_delete(artist_id)` | `artist_delete(artist_id)` | 不变（置 `is_deleted=true`）；服务端 `redirect_to`，客户端跟随重定向，最终格式以目标端点为准（写类未实测） |
-| `artist_undelete(artist_id)` | **删除**，改用 `artist_update(artist_id, is_deleted=False)` | 上游无 `artists/<id>/undelete` 路由 |
-| `artist_banned()` | **删除**，改用 `artist_list(search={'is_banned': True})` | 上游无 `artists/banned` 路由 |
+| `artist_undelete(artist_id)` | 删除，改用 `artist_update(artist_id, is_deleted=False)` | 上游无 `artists/<id>/undelete` 路由 |
+| `artist_banned()` | 删除，改用 `artist_list(search={'is_banned': True})` | 上游无 `artists/banned` 路由 |
 | `artist_revert(artist_id, version_id)` | `artist_revert(artist_id, version_id)` | 不变 |
 | — | `artist_ban` / `artist_unban` | 新增（需 admin）；服务端 `redirect_to`，未实测 |
 | `artist_versions(name=..., ...)` | `artist_versions_list(search=None, **params)` | `search[is_active]` 已废，现为 `is_deleted` / `is_banned` |
 | `artist_commentary_list(...)` | `artist_commentaries_list(search=None, **params)` | |
 | `artist_commentary_create_update(post_id, ...)` | `artist_commentary_create_or_update(post_id, **attributes)` | 动词改为 PUT，参数嵌套在 `artist_commentary` |
-| `artist_commentary_revert(id_, version_id)` | `artist_commentary_revert(post_id, version_id)` | 路径里的 `:id` 实为 **post_id**，4.x 文档描述有误导 |
+| `artist_commentary_revert(id_, version_id)` | `artist_commentary_revert(post_id, version_id)` | 路径里的 `:id` 实为 post_id，4.x 文档描述有误导 |
 | `artist_commentary_versions(post_id, updater_id)` | `artist_commentary_versions_list(search=None, **params)` | 另有 `artist_commentary_version_show` |
 
 画师查询的参数与匹配语义见[方法参考的 artists 节](danbooru-api.md#artists)。
@@ -224,11 +192,11 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `comment_update(comment_id, body)` | `comment_update(comment_id, **attributes)` | |
 | `comment_show` / `comment_delete` / `comment_undelete` | 同名 | `comment_create` 之外的读/删保持原样 |
 | `comment_vote(comment_id, score)` | `comment_vote_create(comment_id, score)` | |
-| `comment_unvote(comment_id)` | **删除**，改用 `comment_vote_delete(vote_id)` | 4.x 请求的 `posts/<id>/unvote` 已无该路由 |
+| `comment_unvote(comment_id)` | 删除，改用 `comment_vote_delete(vote_id)` | 4.x 请求的 `posts/<id>/unvote` 已无该路由 |
 | `note_list(...)` | `note_list(search=None, **params)` | `search[creator_id]` / `[creator_name]` 已不在搜索字段内 |
 | `note_show(note_id)` | `note_show(note_id)` | 不变 |
 | `note_create(post_id, coor_x, coor_y, width, height, body)` | `note_create(post_id, x, y, width, height, body, **attributes)` | 坐标形参更名为上游字段 `x` / `y` |
-| `note_delete(note_id)` | `note_delete(note_id)` | 仍为软删除（`is_active=false`） |
+| `note_delete(note_id)` | `note_delete(note_id)` | 仍为软删除（`is_active=false`，即标记不真正删行） |
 | `note_revert(note_id, version_id)` | `note_revert(note_id, version_id)` | 不变 |
 | `note_update(note_id, ...)` | `note_update(note_id, **attributes)` | 修正：4.x 路由拼成 `notes/<id>.jso`（缺 n） |
 | `note_versions(...)` | `note_versions_list(search=None, **params)` | 另有 `note_version_show` |
@@ -240,7 +208,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | :--- | :--- | :--- |
 | `pool_list(name_matches=..., ...)` | `pool_list(search=None, **params)` | `name_matches` 仍有效（Pool.name 是 text）；另支持 `name` / `name_contains`；`is_active` / `creator_*` 已废，现为 `is_deleted` |
 | `pool_update(pool_id, ..., is_active=...)` | `pool_update(pool_id, **attributes)` | `pool[is_active]` 已废；`post_ids` 保留，另有 `post_ids_string` |
-| `pool_create` / `pool_show` / `pool_delete` / `pool_undelete` / `pool_revert` / `pool_versions` | 同名（`pool_versions` → `pool_versions_list`） | `pool_delete` / `pool_undelete` 需要 **builder** 权限；`pool_update` 允许的字段是 `name` / `description` / `category` / `post_ids` / `post_ids_string`（`is_active` 不在其中） |
+| `pool_create` / `pool_show` / `pool_delete` / `pool_undelete` / `pool_revert` / `pool_versions` | 同名（`pool_versions` → `pool_versions_list`） | `pool_delete` / `pool_undelete` 需要 builder 权限；`pool_update` 允许的字段是 `name` / `description` / `category` / `post_ids` / `post_ids_string`（`is_active` 不在其中） |
 | — | `pool_gallery` / `pool_element_create` / `pool_version_diff` | 新增 |
 | `wiki_list(...)` | `wiki_page_list(search=None, **params)` | `search[creator_id]` / `[creator_name]` 已废；标题模糊用 `title_normalize` / `title_or_body_matches` |
 | `wiki_show(wiki_page_id)` | `wiki_page_show(id_or_title)` | 支持标题；标题需 URL 转义 |
@@ -249,7 +217,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `wiki_delete(page_id)` | `wiki_page_delete(page_id)` | |
 | `wiki_revert(wiki_page_id, version_id)` | `wiki_page_revert(page_id, version_id)` | |
 | `wiki_versions_list(page_id, updater_id)` | `wiki_page_versions_list(search=None, **params)` | 修正：4.x 键名拼成 `earch[updater_id]`（永不发送） |
-| `wiki_versions_show(page_id)` | `wiki_page_version_show(version_id)` | 语义修正：取的是**版本 id** |
+| `wiki_versions_show(page_id)` | `wiki_page_version_show(version_id)` | 语义修正：取的是版本 id |
 | — | `wiki_page_show_or_new(title)` / `wiki_page_versions_diff(...)` | 新增 |
 
 ### 用户、收藏、站内信
@@ -266,7 +234,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `dmail_list(message_matches=..., read=...)` | `dmail_list(search=None, **params)` | `search[read]` 不存在，改用 `is_read`；补 `folder` |
 | `dmail_show(dmail_id)` | `dmail_show(dmail_id)` | 不变，只能读取获授权的邮件 |
 | `dmail_create(to_name, title, body)` | `dmail_create(title, body, to_name=None, to_id=None)` | 收件人改为关键字参数；同时支持 `to_id` |
-| `dmail_delete(dmail_id)` | **删除**，改用 `dmail_update(dmail_id, is_deleted=True)` | 上游无 `DELETE dmails/<id>` |
+| `dmail_delete(dmail_id)` | 删除，改用 `dmail_update(dmail_id, is_deleted=True)` | 上游无 `DELETE dmails/<id>` |
 | — | `dmail_update` / `dmails_mark_all_as_read` | 新增 |
 
 ### 论坛
@@ -278,7 +246,7 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 | `forum_topic_update(topic_id, ...)` | `forum_topic_update(topic_id, **attributes)` | 属性嵌套在 `forum_topic` |
 | `forum_post_create(topic_id, body)` | `forum_post_create(topic_id, body)` | 参数与路由不变 |
 | `forum_post_list(topic_title_matches=..., topic_category_id=...)` | `forum_posts_list(search=None, **params)` | 改为 `search[topic][title_matches]`、`search[topic][category_id]` |
-| `forum_post_update(topic_id, body)` | `forum_post_update(post_id, body)` | 形参名误导：传的是论坛**帖子** id |
+| `forum_post_update(topic_id, body)` | `forum_post_update(post_id, body)` | 形参名误导：传的是论坛帖子 id |
 | `forum_topic_show(topic_id)` | `forum_topic_show(topic_id)` | 路由不变 |
 | `forum_topic_delete(topic_id)` | `forum_topic_delete(topic_id)` | 路由不变，删除需相应权限 |
 | `forum_topic_undelete(topic_id)` | `forum_topic_undelete(topic_id)` | 路由不变 |
@@ -299,73 +267,41 @@ client.request('GET', 'posts.json', params={'tags': 'rating:g'})
 
 这些是 4.x 里“看起来能用、实际发错请求”的地方，升级后行为会变：
 
-1. `post_update` 把 `source` 拼成了 `ost[source]`，该参数从未生效；
-2. `post_flag_show` 请求 `post_appeals/<id>`，用 flag id 查 appeal；
-3. `post_appeals_list` 的过滤条件发成了顶层参数，不产生过滤效果；
-4. `post_versions_list` 发送不存在的 `search[start_id]`；
-5. `post_unvote` / `comment_unvote` 指向不存在的 `unvote` 路由；
-6. `upload_create` 发送已不被允许的 `upload[tag_string]` 等字段，并在文件参数为 `None` 时崩溃；
-7. `artist_create` / `artist_update` 调用不存在的 `self.get(...)`，直接 `AttributeError`；
-8. `artist_banned` / `artist_undelete` 指向不存在的路由；
-9. `tag_update` 请求 `pools/<id>`（完全错路由）；
-10. `note_update` 路由拼成 `notes/<id>.jso`；
-11. `wiki_versions_list` 键名拼成 `earch[updater_id]`，从不发送；
-12. `wiki_update` 的 `is_locked` / `is_deleted` 是死参数；
-13. `pool_list` 的 `creator_id` / `creator_name` / `is_active` 已不在搜索属性内（`name_matches` 仍有效）；
-14. `forum_post_list` 发送已不存在的扁平参数 `topic_title_matches` / `topic_category_id`；
-15. `dmail_list` 使用不存在的 `search[read]`；
-16. `artist_versions` 使用已废的 `search[is_active]`；
+1. `post_update` 把 `source` 拼成了 `ost[source]`，该参数从未生效。
+2. `post_flag_show` 请求 `post_appeals/<id>`，用 flag id 查 appeal。
+3. `post_appeals_list` 的过滤条件发成了顶层参数，不产生过滤效果。
+4. `post_versions_list` 发送不存在的 `search[start_id]`。
+5. `post_unvote` / `comment_unvote` 指向不存在的 `unvote` 路由。
+6. `upload_create` 发送已不被允许的 `upload[tag_string]` 等字段，并在文件参数为 `None` 时崩溃。
+7. `artist_create` / `artist_update` 调用不存在的 `self.get(...)`，直接 `AttributeError`。
+8. `artist_banned` / `artist_undelete` 指向不存在的路由。
+9. `tag_update` 请求 `pools/<id>`（完全错路由）。
+10. `note_update` 路由拼成 `notes/<id>.jso`。
+11. `wiki_versions_list` 键名拼成 `earch[updater_id]`，从不发送。
+12. `wiki_update` 的 `is_locked` / `is_deleted` 是死参数。
+13. `pool_list` 的 `creator_id` / `creator_name` / `is_active` 已不在搜索属性内（`name_matches` 仍有效）。
+14. `forum_post_list` 发送已不存在的扁平参数 `topic_title_matches` / `topic_category_id`。
+15. `dmail_list` 使用不存在的 `search[read]`。
+16. `artist_versions` 使用已废的 `search[is_active]`。
 17. 文件句柄：旧 `_get(file_=open(...))` 打开的句柄从不关闭，现在由调用者管理。
 
 ## 四、迁移检查清单
 
-1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`anybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`；
-2. 把 `Danbooru('danbooru')` 之外的站点构造改为 `sites` 段的键名，删掉对 `SITE_LIST` 的依赖；
-3. 除 `post_list(**params)` 与 `autocomplete_list(query, ...)` 外，列表过滤迁至 `search={...}`；分页保持顶层；
-4. 写接口改用 `**attributes` 形式，删掉 `auth=` 参数；
-5. 替换已删除的方法（`post_unvote` / `comment_unvote` / `artist_undelete` / `artist_banned` /
-   `dmail_delete`）；
-6. 捕获异常时改用新字段（`AnybooruHTTPError.http_code` / `.url` / `.body` / `.data`）；
-7. Moebooru 调用方要改构造与配置来源，并按[上文第 6 小节](#6-moebooru-面也按上游路由重写)替换旧方法与参数
-   （`pool_posts` / `user_search` / `note_create_update` / `wiki_show`、合集写操作的动词、属性键名等）。
+1. 默认配置随包安装，无需准备；要改站点或凭据就复制一份（`anybooru.DEFAULT_CONFIG_FILE` 是模板路径），再把路径交给 `config_file`。
+2. 把 `Danbooru('danbooru')` 之外的站点构造改为 `sites` 段的键名，删掉对 `SITE_LIST` 的依赖。
+3. 除 `post_list(**params)` 与 `autocomplete_list(query, ...)` 外，列表过滤迁至 `search={...}`；分页保持顶层。
+4. 写接口改用 `**attributes` 形式，删掉 `auth=` 参数。
+5. 替换已删除的方法：`post_unvote` / `comment_unvote` / `artist_undelete` / `artist_banned` / `dmail_delete`。
+6. 捕获异常时改用新字段：`AnybooruHTTPError.http_code` / `.url` / `.body` / `.data`。
+7. Moebooru 调用方要改构造与配置来源，并按[上文第 6 小节](#6-moebooru-面也按上游路由重写)替换旧方法与参数（`pool_posts` / `user_search` / `note_create_update` / `wiki_show`、合集写操作的动词、属性键名等）。
 
-## 五、未验证项
+## 五、边界与未实测
 
-* 所有需要登录的写接口都只做了源码对齐，**未做线上实测**；
-* Moebooru 面的写接口与账号动作未做线上实测；匿名只读记录见
-  [verification.md](verification.md)；
-* 已完成的匿名只读执行与逐请求结果见 [验证记录](verification.md)，源码依据见 [Danbooru 契约审计附注](danbooru-contract-notes.md)；
-* Sakuria 是 4.x 里没有的家族，没有“迁移”可谈：它按 44 个方法（27 个匿名只读 + 17 个需登录的 `/me/*`）接入，
-  本轮真实执行过的只有有界匿名样本：54 次串行 GET（每个请求只发一次），另有 10 次上限的匿名冒烟与
-  两个示例全部通过；样本之外不泛化枚举与上限，`/me/*` 里也只请求过 `/me/likes`，
-  其余路径的返回结构未知；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码），
-  候选字段不得当成返回值承诺。逐条见
-  [Sakuria 契约审计附注](sakuria-contract-notes.md) 与[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
-* Anime-Pictures 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 13 个原生方法（12 个 GET + 1 个 POST）接入，
-  本轮真实执行过的只有 90 次串行匿名 GET（两个请求批次，每个请求只发一次）与随后的有界冒烟、两个示例。
-  `post_create` 没有发过 POST，带 Cookie 的 `post_tags` / `image_get` 与所有媒体成功返回都未实测；
-  参数边界只在下文列出的取值上验证过（`posts_per_page` 没有穷举 `1..100`，`order_by` 也只试过少数取值），
-  样本之外的取值仍是候选，不构成返回值承诺。逐条见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md) 与
-  [验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
-* Cosine 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 13 个原生方法（11 个只读 GET + 2 个 POST）接入，
-  本轮真实执行过的是匿名只读探测；10 次上限的冒烟与两个示例的结果同样列在
-  [验证记录](verification.md#cosine匿名只读实测2026-09-20)；两个 POST（`artwork_revalidate`、`search_index_admin`）
-  从未调用，成功与拒绝形态都未实测。样本之外的参数取值仍是候选，不构成返回值承诺。
-* Nhentai 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 36 个原生方法（31 个 GET + 4 个 POST + 1 个 DELETE）
-  接入 `.net` API v2，本轮真实执行过的是 31 个 GET 路由的逐个直接请求（25 次 `200`、6 次需账号的 `401`），
-  这是路由级证据、不等于对应的 Python 方法都跑过；4 个 POST 与 1 个 DELETE（含不需要认证的 `tag_search`）
-  从未调用，账号成功路径、第一方账号与用户令牌写操作、媒体字节均未实测。参数边界只在本轮列出的取值上
-  验证过（`per_page` 不是每条路由都照办，`total` 与 `num_pages` 是快照），样本之外的取值仍是候选，
-  不构成返回值承诺。逐条见 [Nhentai 契约审计附注](nhentai-contract-notes.md) 与[验证记录](verification.md)。
-* ArtStation 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 17 个原生方法（15 个 `GET` + 2 个只读 `POST`，
-  16 个返回 JSON + 1 个 RSS 原文）接入，`GET` 面本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例；
-  两条只读 POST 方法（`csrf_token` 与 `project_search_post`）随后单独跟进，其记录与本批 `GET` 结果分开标注
-  （POST 侧的实际尝试与结果见[验证记录](verification.md)），不复用也不改写前面的数字：跟到的样本是 token
-  请求 `200` + `application/json`（正文顶层只有 `public_csrf_token`，会话 Cookie 由会话自然保存），搜索请求
-  `200` + `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳 `{"total_count","data"}`；
-  缺 token、过期 token、其它 `filters` 形状与 `412` 一类边界仍未实测。固定作品详情
-  `/projects/{hash}.json` 实测 `403`（站点质询，HTML）、v2 单作品
-  `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，
-  也没有自动回退到随机或搜索；排序只实测过 `relevance`、订阅源只实测过 `latest`，POST 表单里 `filters` 的
-  嵌套形状同样按候选处理，其余排序取值与频道/专辑/探索的分页边界也不构成返回值承诺。
-  逐条见 [ArtStation 契约审计附注](artstation-contract-notes.md) 与[验证记录](verification.md)。
+* 所有需要登录的写接口都只做了源码对齐，未做线上实测。
+* Moebooru 面的写接口与账号动作未做线上实测；匿名只读记录见 [verification.md](verification.md)。
+* Danbooru 已完成的匿名只读执行与逐请求结果见 [验证记录](verification.md)，源码依据见 [Danbooru 契约审计附注](danbooru-contract-notes.md)。
+* Sakuria 没有官方页面与上游源码，本轮只按匿名响应记录接入：44 个方法（27 个匿名只读 + 17 个需登录的 `/me/*`），真实执行过的只有有界匿名样本——54 次串行 GET（每个请求只发一次），另有 10 次上限的匿名冒烟与两个示例全部通过。样本之外不泛化枚举与上限，`/me/*` 里只请求过 `/me/likes`，其余路径的返回结构未知。依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码），候选字段不得当成返回值承诺。逐条见 [Sakuria 契约审计附注](sakuria-contract-notes.md) 与[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
+* Anime-Pictures 没有可读到的官方手册页、OpenAPI 或服务端源码：13 个原生方法（12 GET + 1 POST），其中 10 个 GET 有匿名成功样本。本轮真实执行过的只有 90 次串行匿名 GET（两个请求批次，每个请求只发一次）与随后的有界冒烟、两个示例。`post_create` 没有发过 POST，带 Cookie 的 `post_tags` / `image_get` 与所有媒体成功返回都未实测；`post_tags` / `image_get` 匿名被拒。参数边界只在列出的取值上验证过（`posts_per_page` 没有穷举 `1..100`，`order_by` 也只试过少数取值），样本之外的取值仍是候选，不构成返回值承诺。逐条见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md) 与[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)。
+* Cosine 没有本地上游服务端源码：13 个原生方法（11 个只读 GET + 2 个 POST），四种返回外壳一个都不拆，参数用站点自己的 `page` / `pageSize` / `limit` / `offset` / `start`。本轮真实执行过的是匿名只读探测；10 次上限的冒烟与两个示例的结果列在[验证记录](verification.md#cosine匿名只读实测2026-09-20)。两个 POST（`artwork_revalidate`、`search_index_admin`）从未调用，成功与拒绝形态都未实测，公开结论以匿名只读响应为准。样本之外的参数取值仍是候选，不构成返回值承诺。逐条见 [Cosine 契约审计附注](cosine-contract-notes.md)。
+* Nhentai 同样是 4.x 里没有的家族，没有“迁移”可谈：它按 36 个原生方法（31 个 GET + 4 个 POST + 1 个 DELETE）接入 `.net` API v2，本轮真实执行过的是 31 个 GET 路由的逐个直接请求（25 次 `200`、6 次需账号的 `401`），这是路由级证据，不等于对应的 Python 方法都跑过。4 个 POST 与 1 个 DELETE（含不需要认证的 `tag_search`）从未调用，账号成功路径、第一方账号与用户令牌写操作、媒体字节均未实测。参数边界只在本轮列出的取值上验证过（`per_page` 不是每条路由都照办，`total` 与 `num_pages` 是快照），样本之外的取值仍是候选，不构成返回值承诺。逐条见 [Nhentai 契约审计附注](nhentai-contract-notes.md) 与[验证记录](verification.md)。
+* ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码：按 17 个原生方法（15 GET + 2 个只读 POST，16 个返回 JSON + `feed()` 返回 `artwork.rss` 原文）接入。`GET` 面本轮真实执行过的是匿名只读探测与随后的有界冒烟、两个示例；两条只读 POST 方法（`csrf_token` 与 `project_search_post`）随后单独跟进，记录与本批 `GET` 结果分开标注（POST 侧的实际尝试与结果见[验证记录](verification.md)），不复用也不改写前面的数字。跟到的样本是 token 请求 `200` + `application/json`（正文顶层只有 `public_csrf_token`，会话 Cookie 由会话自然保存），搜索请求 `200` + `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳 `{"total_count","data"}`；缺 token、过期 token、其它 `filters` 形状与 `412` 一类边界仍未实测。固定作品详情 `/projects/{hash}.json` 实测被站点质询挡下（`403`），v2 单作品 `/api/v2/community/projects/{id}.json` 匿名 `401`（正文 `data` 为 `null`），所以没有指定作品详情方法，也没有自动回退到随机或搜索。排序只实测过 `relevance`、订阅源只实测过 `latest`，POST 表单里 `filters` 的嵌套形状同样按候选处理，其余排序取值与频道/专辑/探索的分页边界也不构成返回值承诺。两个 POST 都不是内容写入：token 由调用方取回后每次传入，本库不自动获取、不续期、不重放、不重试、不落盘。逐条见 [ArtStation 契约审计附注](artstation-contract-notes.md) 与[验证记录](verification.md)。

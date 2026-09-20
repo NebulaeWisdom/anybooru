@@ -1,6 +1,6 @@
 # Gelbooru 客户端用法
 
-`Gelbooru` 从同一个 `index.php` 入口读取两种 JSON：官方 `page=dapi` 的帖子、标签、用户、评论和删除记录，以及站内 `page=autocomplete2` 的输入建议。后者可以匿名调用；前者使用账号的 `api_key` 与数字 `user_id`。
+`Gelbooru` 客户端从同一个 `index.php` 入口读取两种 JSON。第一种是官方 `page=dapi`，可读帖子、标签、用户、评论和删除记录，需要用账号的 `api_key` 和数字 `user_id`。第二种是站内 `page=autocomplete2` 输入建议，可以匿名调用。
 
 ## 第一次调用：把 blue 补成可搜索的标签
 
@@ -16,7 +16,7 @@ with Gelbooru('gelbooru') as client:
     print(client.last_call['status_code'], client.last_call['url'])
 ```
 
-本次该请求返回 HTTP 200、**10 条**建议，不是请求中写的 3 条；首项 `label='blue eyes'`、`value='blue_eyes'`、`post_count='2817483'`。库没有截断数组；`limit` 是发送给服务器的参数，不是客户端切片。完整命令与响应摘要见[实测记录](verification.md#gelbooru匿名只读实测2026-09-18)。
+给查询词和参数，返回建议数组。每项含 `label`（展示文字）、`value`（可放入标签搜索的名字）、`post_count`。本次该请求返回 HTTP 200、10 条建议，不是请求中写的 3 条；首项 `label='blue eyes'`、`value='blue_eyes'`、`post_count='2817483'`。库不截断数组；`limit` 只发送给服务器，不是客户端切片。`client.last_call` 保存本次 `status_code` 和 `url`。完整命令与响应摘要见[实测记录](verification.md#gelbooru匿名只读实测2026-09-18)。
 
 ## 构造与配置
 
@@ -80,7 +80,7 @@ with Gelbooru('gelbooru') as client:
 * 标签名里的空格通常写成下划线，例如补全用 `'hatsune_miku'`。库不会把空格替换为下划线，也不会改变大小写。
 * `tag_list(names='schoolgirl moon cat')` 的多个名字放在一个空格分隔字符串里，**不是** Python 列表；`name_pattern='%choolgirl%'` 的百分号由 requests 编码为 `%25`。
 * 参数值为 `None` 不发送；整数直接编码成数值字符串。库不转换 dapi 与站内 HTML 的分页含义。
-* dapi 返回结构尚无本站账号响应作为依据，原生方法也保留完整 JSON，具体候选字段与来源区分见[方法参考](gelbooru-api.md)。不会用 HTML 抓取或猜测字段填补响应。
+* 原生方法保留完整 JSON，具体候选字段与来源区分见[方法参考](gelbooru-api.md)。不会用 HTML 抓取或猜测字段填补响应。
 
 `last_call` 在收到响应后保存 `API`（`page` 值）、`url`（最终 URL）、`status_code`、`status` 和 `headers`。非 2xx 抛 `AnybooruHTTPError`，保留真实状态、正文和能解析的 JSON；2xx 非 JSON 抛 `AnybooruAPIError`；空的成功正文按共享传输返回 `None`。requests 网络异常原样抛出，没有重试或换接口。
 
@@ -93,6 +93,7 @@ with Gelbooru('gelbooru') as client:
 * `post_list`、`post_deleted`、`tag_list`、`user_list`、`comment_list` 已逐个匿名请求，均为 **401、空正文**，抛 `AnybooruHTTPError`，`last_call` 保留 URL、401 与 Unauthorized。需账号的成功返回、字段类型、外层、分页、上限和业务错误正文仍未实测。
 * 九个脚本枚举 `type` 已逐个请求，非空项全部是 `type='tag'`，没有证明独立用户、池或 wiki 对象补全。拼错 `taq` 与未列举的 `wiki` 配 blue 均回 10 条标签；空 term 与 `'hatsune miku'` 回 `[]`。别名字段、缺省 type 和其它参数组合仍未实测；逐项见[扩展记录](verification.md#gelbooru有界匿名扩展实测2026-09-18)。
 * `limit=3` 本次收到 10 条；脚本固定发 10，也不能由此推导服务器的默认值或最大值。
+* dapi 返回结构尚无本站账号响应作为依据，字段、外层与分页含义未实测。
 * 本库不封装 HTML 页面、不解析图片网页、不构造 CDN 地址，不做 XML、写操作、登录、自动翻页、限流或重试。标签列表、蕴含、别名、wiki 等网页的实际地址与用途见[网页入口表](gelbooru-capabilities.md#网页入口本库不封装)。
 * 14 条 HTML 路由各一次得到 200，只证明 HTTP 可达，未解析页面内容。三个给定 CDN 地址的初始响应均为 302，指向 `hotlink.php`；没有跟随跳转或读取图片内容，不能据此证明能下载到图片。
 * 没有能作为当前服务端契约的官方 PHP 源码快照，也没有其它部署的旁证。官方页面、站点 JavaScript、外部记录与推断分开列在[契约附注](gelbooru-contract-notes.md)。

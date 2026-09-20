@@ -1,30 +1,18 @@
 # Serika 能力总览：先确认你在读哪一面
 
-**不知道有哪些接口，先看这页。** 逐条签名、参数与返回字段见[方法参考](serika-api.md)；
-源码出处、逐条线上状态与排除清单见[契约审计附注](serika-contract-notes.md)。
+**不知道有哪些接口，先看这页。** 逐条签名、参数与返回字段见[方法参考](serika-api.md)；源码出处、逐条线上状态与排除清单见[契约审计附注](serika-contract-notes.md)。
 
-* **Serika 是独立引擎**：与 Danbooru、Moebooru、e621ng、Zerochan、Gelbooru、Shuushuu 都不同。站点是 Next.js
-  自研的 "Danbooru-style" 图站，对外**没有** `/posts.json`、`/post.json` 这类 Danbooru 路由；
-  Serika 自己仓库里对 `/posts.json` 的调用是它作为 Danbooru **消费者**的导入器，不能反推它提供
-  Danbooru 接口。
+* **Serika 是独立引擎**，与 Danbooru、Moebooru、e621ng、Zerochan、Gelbooru、Shuushuu 都不同。站点是 Next.js 自研的 "Danbooru-style" 图站，对外**没有** `/posts.json`、`/post.json` 这类 Danbooru 路由。Serika 自己仓库里对 `/posts.json` 的调用，是它作为 Danbooru **消费者**的导入器，不能反推它对外提供 Danbooru 接口。
 * **两套接口**：
-  * **官方 `/api/v1/*`**：带版本号，站点自述为 "SerikaART API 1.0.0"；用
-    `Authorization: Bearer sk_serika_*`（服务端也收 `X-API-Key`），成功正文是
-    `{"success": true, "data": ..., "meta": {...}}`；共 16 个方法，4 个公开、12 个要 key。
-  * **站内 `/api/*`**：**没有版本号**、没有对外文档，是 Serika 网页前端自己调用的路由；其中一批读
-    接口不需要任何凭据，本库统一用 `internal_` 前缀暴露，共 14 个方法，返回原始 JSON 不做字段提取。
-* **认证是第三种形态**：官方面用 API key；站内面正常靠会话凭据（`session_token` cookie 或账号服务
-  签发的会话 token）。**本库只实现 API key 与站内匿名读，不实现浏览器 cookie 登录**，也不提供获取、
-  配置或刷新会话身份的方法。
-* **库只负责发 API 请求**，不是采集器：不自动保存图片、不自动翻页；官方随机图片方法直接返回
-  Python `bytes`。
-* **有接口不等于本站已启用，也不等于都实测过**：文末统一汇总实测边界，逐条状态与排除项在
-  [契约审计附注](serika-contract-notes.md#路由清单与逐条状态)。
+  * **官方 `/api/v1/*`**：带版本号，站点自述为 "SerikaART API 1.0.0"。认证用 `Authorization: Bearer sk_serika_*`，服务端也收 `X-API-Key`。成功正文是 `{"success": true, "data": ..., "meta": {...}}`。共 16 个方法，4 个公开、12 个要 key。
+  * **站内 `/api/*`**：**没有版本号**，没有对外文档，是 Serika 网页前端自己调用的路由。其中一批读接口不需要任何凭据；本库用 `internal_` 前缀暴露，共 14 个方法，返回原始 JSON，不做字段提取。
+* **认证是第三种形态**：官方面用 API key；站内面正常靠会话凭据（`session_token` cookie 或账号服务签发的会话 token）。**本库只实现 API key 与站内匿名读**，不实现浏览器 cookie 登录，也不提供获取、配置或刷新会话身份的方法。
+* **库只负责发 API 请求**，不是采集器：不自动保存图片，不自动翻页；官方随机图片方法直接返回 Python `bytes`。
+* **有接口不等于本站已启用，也不等于都实测过**：实测边界集中在文末；逐条状态与排除项见[契约审计附注](serika-contract-notes.md#路由清单与逐条状态)。
 
 ## 按目的找入口
 
-下表里的 `client` 指 `Serika('serika')` 的实例；最简调用栏写的就是可直接抄的字面参数（`3`、`'safe'`、
-`'dairi'` 都是真值），`post_id`、`user_id` 这类要从实际响应里取（来源写在括号里）。
+下表里的 `client` 指 `Serika('serika')` 的实例。最简调用栏写的就是可直接抄的字面参数（`3`、`'safe'`、`'dairi'` 都是真值）；`post_id`、`user_id`、`account_id` 这类要从实际响应里取，来源写在括号里。
 
 | 我想做什么 | 用哪个方法 | 最简调用形态 | 是否需要凭据 |
 | :--- | :--- | :--- | :--- |
@@ -43,11 +31,7 @@
 | 删除图片、批量读取（官方面） | 官方 `image_delete`（事务删依赖行并减标签计数）/ `image_batch`（JSON 体一次取最多 100 张） | `client.image_delete(7323837)`；`client.image_batch([7323837, 7323836])` | 分别需 `images:delete` / `images:read` |
 | 调没有原生封装的路由 | `client.request('GET', 'api/v1/stats')`，见[通用请求入口](serika.md#通用请求入口) | `client.request('GET', 'api/v1/stats', envelope='data')` | 看该路由本身 |
 
-**三个容易选错的地方**：① 站内 `/api/images/:id` 用**公开序号**（响应里的 `post_id`），官方
-`/api/v1/images/:id` 用**内部图片 id**（响应里的 `id` / `dbid`），详见下面的
-[ID 语义](#id-语义四个同名不同义的数字)；② 两面的 `tags` / `ratings` 都是**逗号分隔字符串**，
-不是数组，也不是 Danbooru 的搜索表达式；③ 带评级过滤的列表、随机、搜索与热门路由，不传 `ratings`
-时只返回 `safe`（详情与 similar 不适用这条泛化），这是服务端行为，不是客户端补的。
+**三个容易选错的地方**：① 站内 `/api/images/:id` 用**公开序号**（响应里的 `post_id`），官方 `/api/v1/images/:id` 用**内部图片 id**（响应里的 `id` / `dbid`），详见下面的[ID 语义](#id-语义四个同名不同义的数字)；② 两面的 `tags` / `ratings` 都是**逗号分隔字符串**，不是数组，也不是 Danbooru 的搜索表达式；③ 带评级过滤的列表、随机、搜索与热门路由，不传 `ratings` 时只返回 `safe`（详情及 similar 不适用这条泛化），这是服务端行为，不是客户端补的。
 
 ## 认证边界
 
@@ -57,11 +41,8 @@
 | 官方 API key（`sk_serika_*`，`Authorization: Bearer` 或 `X-API-Key`） | 官方 `/api/v1/*` 中与该 key 权限相符的读写 | 权限共 8 种：`images:read/write/delete`、`tags:read/write`、`users:read`、`random:read`、`upload`；新建 key 默认只有四个 `*:read`。限流按 key 自己的限流值执行，不按 rank 现算，超限 HTTP `429`，但正文 `code` 与非超限失败一样是 `UNAUTHORIZED` |
 | 站内会话（`session_token` cookie 或账号服务签发的会话 token） | 站内写操作与私有交互 | **本库不实现会话登录与会话写方法**；官方 API key 不等于会话 token，两者不能互相替代 |
 
-* 站内 14 个方法的共同点是：**存在一条不需要会话就走得通的分支**，本页列出的方法走的都是这条。
-  多数控制器完全不看会话；`internal_image_show` 是例外——它会**有条件地**读一次会话以放宽可见性，
-  没有凭据时走的正是公开分支。
-* 站点根中间件只保护上传页与用户页（`/upload/:path*`、`/user/:path*`），**不拦截 `/api/*`**；
-  每个站内路由的可见性完全由它自己的控制器决定。
+* 站内 14 个方法的共同点：**存在一条不需要会话就走得通的分支**，本页列出的方法走的都是这条。多数控制器完全不看会话；`internal_image_show` 是例外——它会**有条件地**读一次会话以放宽可见性，没有凭据时走的正是公开分支。
+* 站点根中间件只保护上传页与用户页（`/upload/:path*`、`/user/:path*`），**不拦截 `/api/*`**；每个站内路由的可见性完全由它自己的控制器决定。
 
 ## ID 语义：四个同名不同义的数字
 
@@ -72,16 +53,11 @@
 | **账号 id**：站内 `user_id` / `userId`，官方用户对象里的 `id` / `_id` | 账号服务的账号编号（文本，形如 `692ad0df032c62f79b57a08d`） | 上传者的 `userId`、评论的 `userId`、投票与收藏的归属、两个站内用户路由、画师认领字段 |
 | **标签内部 id** | 标签在站点内部的编号 | `image_tags`、画师资料、评论与画师标签的关联；站内对外一律用**标签名**访问 |
 
-2026-09-15 实测的差异：同一个对象的 `id = 7323837` 与 `post_id = 4237836` 是两个不同的数字，
-不要拿一个去查另一个接口。评论的 `_id` 是评论自己的内部编号，也不是公开序号。
-数据库列定义、列名与上游行号见[附注](serika-contract-notes.md#id-语义sql)。
+2026-09-15 实测的差异：同一个对象的 `id = 7323837` 与 `post_id = 4237836` 是两个不同的数字，不要拿一个去查另一个接口。评论的 `_id` 是评论自己的内部编号，也不是公开序号。数据库列定义、列名与上游行号见[附注](serika-contract-notes.md#id-语义sql)。
 
 ## 官方 v1 面：16 个方法
 
-**成功正文**是 `{"success": true, "data": <内容>, "meta": {"timestamp": ...}}`；失败既改 HTTP 状态码，
-也在正文给 `{"success": false, "error": <文本>, "code": <代码>}`。两个例外：`GET /api/v1` 直接返回
-自述对象；`GET /api/v1/users` 返回 `{"success": true, "users": [...], "pagination": {...}}`，没有
-`data`。另外二进制随机图返回的是图片本身。
+**成功正文**是 `{"success": true, "data": <内容>, "meta": {"timestamp": ...}}`；失败既改 HTTP 状态码，也在正文给 `{"success": false, "error": <文本>, "code": <代码>}`。两个例外：`GET /api/v1` 直接返回自述对象；`GET /api/v1/users` 返回 `{"success": true, "users": [...], "pagination": {...}}`，没有 `data`。另外二进制随机图返回的是图片本身。
 
 | 方法（路由） | 做什么 | 凭据 |
 | :--- | :--- | :--- |
@@ -102,16 +78,11 @@
 | `stats`（`GET /api/v1/stats`） | 站点统计：总量、按评级、按 AI、最近 24 小时上传 | 公开 |
 | `upload`（`POST /api/v1/upload`） | 上传图片（唯一 multipart 端点），返回新图对象与 `meta.message` | `upload` |
 
-方法签名、逐参数表与返回字段见[方法参考](serika-api.md#官方-v1索引统计用户目录)；
-官方文档只收录其中 10 个动词，我们的清单以控制器为准。
+方法签名、逐参数表与返回字段见[方法参考](serika-api.md#官方-v1索引统计用户目录)；官方文档只收录其中 10 个动词，我们的清单以控制器为准。
 
 ## 站内面（未版本化）：14 个匿名读方法
 
-站内面没有版本号、没有兼容承诺，形状可能随时改。共同点：路径以 `api/` 开头、**没有 `.json` 后缀**；
-返回原始 JSON（一般是 `{"success": true, ...}` 加资源键，失败是
-`{"success": false, "error": ..., "code": ...}`）；查询参数是扁平字典，服务端字段名大小写敏感
-（线上是 `userId`、`hideAI`），本库只在 Python 形参层用下划线；`tags` / `ratings` 是逗号分隔字符串；
-不传的参数不会被客户端补成服务端默认值；站内面**没有游标分页**，翻页一律是页码。
+站内面没有版本号、没有兼容承诺，形状可能随时改。共同点：路径以 `api/` 开头、**没有 `.json` 后缀**；返回原始 JSON（一般是 `{"success": true, ...}` 加资源键，失败是 `{"success": false, "error": ..., "code": ...}`）；查询参数是扁平字典，服务端字段名大小写敏感（线上是 `userId`、`hideAI`），本库只在 Python 形参层用下划线；`tags` / `ratings` 是逗号分隔字符串；不传的参数不会被客户端补成服务端默认值；站内面**没有游标分页**，翻页一律是页码。
 
 | 方法（路由） | 做什么 | 返回里最关键的东西 |
 | :--- | :--- | :--- |
@@ -130,31 +101,20 @@
 | `internal_user_show`（`GET /api/users/:id`） | 按**账号 id** 查用户；本地没有时由服务端向账号服务补齐并写回本地表 | `user{id,username,avatarUrl,rank,createdAt}` |
 | `internal_user_activity`（`GET /api/users/:id/activity`） | 用户的点赞与评论，每段最多 50 条；路径参数也可以传用户名 | `likes`（图片对象数组）与 `comments`（含 `image{sequentialId,thumbnailUrl}`） |
 
-参数、服务端默认值与逐路由分支见[附注的站内逐路由](serika-contract-notes.md#站内逐路由游标之外的实现细节)，
-逐参数表见[方法参考](serika-api.md#站内匿名读共同模式)。
+参数、服务端默认值与逐路由分支见[附注的站内逐路由](serika-contract-notes.md#站内逐路由游标之外的实现细节)，逐参数表见[方法参考](serika-api.md#站内匿名读共同模式)。
 
 ## 本库不提供的能力
 
-* **站内会话登录**：没有 cookie 登录，也没有会话 token 的获取 / 配置 / 刷新。官方 API key 与会话
-  token 是两种凭据，前者不能代替后者。
-* **站内写操作与私有交互**：发评论、投票、收藏、改标签类型、改画师资料 / wiki / 评价、画师认领、
-  图片编辑与删除、举报与客服、API key 管理与审核/管理面都没有方法。
-* **只有登录才有意义的接口与站点广告位**：匿名时只返回常量的探测接口（如"能否以画师身份评论"、
-  私有交互状态）与需要第三方广告网络的接口都不封装。
-* **自动采集**：不自动翻页、不自动保存图片、不自动重试、不做引擎自动识别。库也不做形状猜测：
-  官方那套 `data` / `meta` 只在两个明确的 `envelope` 模式下拆，站内 JSON 原样返回。
+* **站内会话登录**：没有 cookie 登录，也没有会话 token 的获取 / 配置 / 刷新。官方 API key 与会话 token 是两种凭据，前者不能代替后者。
+* **站内写操作与私有交互**：发评论、投票、收藏、改标签类型、改画师资料 / wiki / 评价、画师认领、图片编辑与删除、举报与客服、API key 管理与审核/管理面都没有方法。
+* **只有登录才有意义的接口与站点广告位**：匿名时只返回常量的探测接口（如"能否以画师身份评论"、私有交互状态）与需要第三方广告网络的接口都不封装。
+* **自动采集**：不自动翻页、不自动保存图片、不自动重试、不做引擎自动识别。库也不做形状猜测：官方那套 `data` / `meta` 只在两个明确的 `envelope` 模式下拆，站内 JSON 原样返回。
 * 逐条排除理由（含每个路由的动词）见[附注的排除项](serika-contract-notes.md#排除项有路由但本库不封方法)。
 
 ## 边界与未实测
 
-* 站内 14 个方法中，本轮用客户端实际运行过 4 个（图片列表、图片详情、标签列表、画师列表）；
-  官方 v1 实际运行过 4 个公开入口（索引、统计、用户目录、随机图片字节），合计 **8 次匿名请求、
-  8 个 HTTP `200`**，命令与真实输出见
-  [verification.md](verification.md#serika2026-09-15-实现后的匿名调用)。
-* **官方 12 个需 key 的方法成功路径未实测**（用户没有也不申请 key）；站内其余 10 个方法只有源码
-  对齐，没有发过线上请求。
-* 自托管部署、认证成功路径、权限与限流、上传与删除、灰色/红色占位 PNG 的错误分支、参数组合均
-  未实测；逐条状态见[附注的路由清单](serika-contract-notes.md#路由清单与逐条状态)。
+* 站内 14 个方法中，本轮用客户端实际运行过 4 个（图片列表、图片详情、标签列表、画师列表）；官方 v1 实际运行过 4 个公开入口（索引、统计、用户目录、随机图片字节），合计 **8 次匿名请求、8 个 HTTP `200`**，命令与真实输出见[verification.md](verification.md#serika2026-09-15-实现后的匿名调用)。
+* **官方 12 个需 key 的方法成功路径未实测**（用户没有也不申请 key）；站内其余 10 个方法只有源码对齐，没有发过线上请求。
+* 自托管部署、认证成功路径、权限与限流、上传与删除、灰色/红色占位 PNG 的错误分支、参数组合均未实测；逐条状态见[附注的路由清单](serika-contract-notes.md#路由清单与逐条状态)。
 
-继续阅读：[方法参考](serika-api.md) · [客户端用法](serika.md) · [契约审计附注](serika-contract-notes.md) ·
-[配置](configuration.md) · [错误处理](errors.md) · [线上验证状态](verification.md)。
+继续阅读：[方法参考](serika-api.md) · [客户端用法](serika.md) · [契约审计附注](serika-contract-notes.md) · [配置](configuration.md) · [错误处理](errors.md) · [线上验证状态](verification.md)。

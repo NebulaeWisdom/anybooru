@@ -1,15 +1,12 @@
 # ArtStation：我要做什么，用哪个方法？
 
-`ArtStation` 包装公开作品集与 RSS：**17个原生方法=15 GET+2 POST，16个JSON响应+1个RSS原文**。
-两个POST用于显式匿名CSRF准备与form搜索，不登录、不修改内容、不下载媒体。
-它不是 booru 家族：作品的数字 `id` 与网页短码 `hash_id` 是两个字段，不能相互推导。
+`ArtStation` 包装公开作品集与 RSS。原生方法共 17 个：15 个 GET，2 个 POST。其中 16 个返回 JSON，1 个返回 RSS 原文。两个 POST 分别用于显式匿名 CSRF 准备与 form 搜索；不登录，不修改内容，不下载媒体。它不是 booru 家族（一类以标签检索为主的图站 API 约定）：作品的数字 `id` 与网页短码 `hash_id` 是两个字段，不能相互推导。
 
-本页只做任务选型与完整方法索引；构造和通用请求见 [客户端用法](artstation.md)，
-全部参数、缺省行为、字段与代码见 [方法参考](artstation-api.md)。
+本页只做任务选型与完整方法索引；构造和通用请求见 [客户端用法](artstation.md)，全部参数、缺省行为、字段与代码见 [方法参考](artstation-api.md)。
 
 ## 按目的找调用
 
-以下调用中的 `client` 由 `ArtStation('artstation')` 创建；值都是可直接使用的字面示例。
+`client` 由 `ArtStation('artstation')` 创建；表中参数值是可直接运行的字面示例。
 
 | 我要做什么 | 调用 | 返回的关键内容 |
 | :--- | :--- | :--- |
@@ -31,8 +28,7 @@
 | 看指定作品评论 | `client.project_comments(22897630)` | 数字作品 ID；本轮 `{total_count:0,data:[]}`，不猜非空评论字段 |
 | 读 RSS 订阅 | `client.feed(sorting='latest')` | RSS 完整字符串，样本 50 个 item；不解析、不访问媒体链接 |
 
-例如搜索最短调用不能省掉分页：缺 `page` 或 `per_page` 都有 400 样本，
-每页 2 条也会报错。页码、每页限制、错误体与缺省值的细节统一查方法参考，不由本页另定一套规则。
+搜索最短调用不能省掉分页：缺 `page` 或 `per_page` 都有 400 样本，每页 2 条也会报错。页码、每页限制、错误体与缺省值的细节统一查方法参考，不由本页另定一套规则。
 
 ## 完整方法索引（15 GET + 2 POST）
 
@@ -58,9 +54,7 @@
 | `explore_latest(**params)` | `/api/v2/community/explore/projects/latest.json` | 只有 data 的列表对象 |
 | `feed(**params)` | `/artwork.rss` | XML 原文字符串 |
 
-另有通用入口
-`request(method, path, *, params=None, data=None, form=None, headers=None, response_format='json')`，
-用来显式给路径、参数与返回格式；不自动获取权限或替换失败路由。
+另有通用入口 `request(method, path, *, params=None, data=None, form=None, headers=None, response_format='json')`，用来显式给路径、参数与返回格式；不自动获取权限或替换失败路由。
 
 ## 本库不封装的能力
 
@@ -73,10 +67,6 @@
 
 ## 边界与未实测
 
-上表不是所有参数组合都真跑过：15个GET路径有直接样本，两个POST方法有同会话完整成功样本；
-Python 包装方法的实际执行范围见 [验证记录](verification.md#artstation匿名只读实测2026-09-20)。
-其它排序/过滤组合、POST边界、token失效、账号认证、非空评论与媒体访问仍未实测；
-所有计数与字段集都只是快照，不是静态 schema。
+上表不是所有参数组合都真跑过：15个GET路径有直接样本，两个POST方法有同会话完整成功样本；Python 包装方法的实际执行范围见 [验证记录](verification.md#artstation匿名只读实测2026-09-20)。其它排序/过滤组合、POST边界、token失效、账号认证、非空评论与媒体访问仍未实测；所有计数与字段集都只是快照，不是静态 schema。
 
-匿名可达不等于内容使用许可；站点条款、输入资料的错误/缺口与集中未实测清单见
-[契约附注](artstation-contract-notes.md#6-边界与未实测)。
+匿名可达不等于内容使用许可；站点条款、输入资料的错误/缺口与集中未实测清单见 [契约附注](artstation-contract-notes.md#6-边界与未实测)。

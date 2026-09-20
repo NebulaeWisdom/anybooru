@@ -1,20 +1,14 @@
 # e-shuushuu 客户端用法
 
-`Shuushuu` 访问 e-shuushuu（`https://e-shuushuu.net`）的 REST 接口。站点前端是 SvelteKit、后端是 FastAPI，
-接口自称 **Shuushuu API 2.0.0**，全部挂在 `/api/v1` 下：资源路径 + HTTP 方法 + JSON，
-和 Gelbooru 那种“一个 `index.php` 用 `page`/`s` 分发”的老式接口完全不同。
-本客户端默认匿名；只有你显式给出 `access_token` 时才随请求发送 `Authorization: Bearer <token>`，
-**不会因为配置了用户名密码就自动登录**。
+`Shuushuu` 访问 e-shuushuu（`https://e-shuushuu.net`）的 REST 接口。REST 这里指资源路径 + HTTP 方法 + JSON。站点前端是 SvelteKit、后端是 FastAPI，接口自称 **Shuushuu API 2.0.0**，全部挂在 `/api/v1` 下。和 Gelbooru 那种“一个 `index.php` 用 `page`/`s` 分发”的老式接口不同。
 
-接口分三类：**35 个公开读方法**（图片、标签、搜索、用户、评论、新闻、站点配置）、
-**1 个私有读方法** `user_ratings`（只有本人或有 `USER_EDIT_PROFILE` 权限的版主能看）、
-以及 **5 个认证方法**（登录、续期、当前用户、登出、全部登出）。
-逐条参数表与返回字段见[方法参考](shuushuu-api.md)，按目的找入口见[按目的找方法](shuushuu-capabilities.md)，
-接口依据、权限与排除项见[接口依据与排除项](shuushuu-contract-notes.md)。
+默认匿名。只有显式给出 `access_token` 时才随请求发送 `Authorization: Bearer <token>`。配置了 `username`/`password` 也不会自动登录。
 
-## 第一次调用：把标签名换成 tag_id
+接口分三类：**35 个公开读方法**（图片、标签、搜索、用户、评论、新闻、站点配置）、**1 个私有读方法** `user_ratings`（只有本人或有 `USER_EDIT_PROFILE` 权限的版主能看）、**5 个认证方法**（登录、续期、当前用户、登出、全部登出）。逐条参数表与返回字段见[方法参考](shuushuu-api.md)，按目的找入口见[按目的找方法](shuushuu-capabilities.md)，接口依据、权限与排除项见[接口依据与排除项](shuushuu-contract-notes.md)。
 
-筛图接口只认 **tag_id**，不认标签名。所以先搜标签拿到编号：
+## 第一次调用：标签名换 tag_id
+
+筛图接口只认 **tag_id**（标签编号），不认标签名。先搜标签拿编号：
 
 ```python
 from anybooru import Shuushuu
@@ -28,10 +22,9 @@ with Shuushuu('shuushuu') as client:
         print(hit['tag_id'], hit['title'], hit['usage_count'])
 ```
 
-拿到 `tag_id` 之后就能筛图（下面 `46`、`169` 就是两个 tag_id）。
-注释里的 `46`/`long hair` 这组对应与字段名来自接口文档的既有记录（T），
-以及官方 OpenAPI 的 schema 名；本库自己的执行记录见
-[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+给 `q` 和 `limit` → 返回 `query`、`entity`、`hits`、`total`、`limit`、`offset`；`hits` 每项有 `tag_id`、`title`、`type`、`usage_count`、`is_alias` 等。代码注释里 `46`/`long hair` 的对应与字段名来自接口文档既有记录（T）和官方 OpenAPI 的 schema 名；本库自己的执行记录见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+
+拿到 `tag_id` 后筛图：
 
 ```python
 from anybooru import Shuushuu
@@ -46,12 +39,9 @@ with Shuushuu('shuushuu') as client:
         print(image['image_id'], image['width'], image['height'], image['url'])
 ```
 
-`images` 里每一项是完整图片对象（`image_id`、`filename`、`md5_hash`、`width`、`height`、`caption`、
-`source_url`、`status`、`rating`、`favorites`、`tags`、`url`、`thumbnail_url`、`medium_url`、`large_url` 等）。
-字段逐条见[方法参考](shuushuu-api.md)。上面的请求 URL 与返回字段来自接口自身的参数与 schema 定义；
-本库已经真实跑过一轮**匿名只读**：10 次冒烟请求里 8 次 `200`、1 次 `422`（`per_page` 超上限）、
-1 次 `404`（不存在的图片编号），两个示例脚本各 4 次 `200`，全部退出码 `0`、
-stderr 为空；逐条命令、URL 与响应摘要见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+`image_list` 给 `tags`、`tags_mode`、`tag_depth`、`per_page`、`sort_by`、`sort_order` → 返回 `total`、`page`、`per_page`、`images`、`comments`。`images` 每项是完整图片对象：`image_id`、`filename`、`md5_hash`、`width`、`height`、`caption`、`source_url`、`status`、`rating`、`favorites`、`tags`、`url`、`thumbnail_url`、`medium_url`、`large_url` 等。字段逐条见[方法参考](shuushuu-api.md)。上面的请求 URL 与返回字段来自接口自身的参数与 schema 定义。
+
+匿名只读已真实跑过一轮：10 次冒烟请求里 8 次 `200`、1 次 `422`（`per_page` 超上限）、1 次 `404`（不存在的图片编号）；两个示例脚本各 4 次 `200`，全部退出码 `0`、stderr 为空。逐条命令、URL 与响应摘要见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
 
 ## 构造与配置
 
@@ -75,13 +65,11 @@ stderr 为空；逐条命令、URL 与响应摘要见[验证记录](verification
 {"shuushuu": {"url": "https://e-shuushuu.net", "username": "", "password": "", "access_token": ""}}
 ```
 
-复制完整配置的方法见[配置指南](configuration.md)。显式构造参数优先于配置；空字符串是“明确留空”，
-`None` 才回落到站点条目。用完记得 `client.close()`，或用 `with` 语句块。
+复制完整配置的方法见[配置指南](configuration.md)。显式构造参数优先于配置；空字符串是“明确留空”，`None` 才回落到站点条目。用完调用 `client.close()`，或用 `with` 语句块。
 
 ## 认证：默认匿名，登录必须显式调用
 
-**匿名不需要任何参数**，请求里没有 `Authorization` 头。受保护的接口匿名访问会得到 **`401`**，
-响应头带 `www-authenticate: Bearer`（接口文档记录过这个行为）。
+匿名请求不带 `Authorization` 头。受保护接口匿名访问会得到 **`401`**，响应头带 `www-authenticate: Bearer`（接口文档记录过这个行为）。Bearer 指把 token 放进 `Authorization` 头的方式；Cookie 指站点下发、由客户端会话保存并携带的小段凭据，HTTPOnly 表示脚本读不到。
 
 五个认证方法（**本轮没有执行过任何一个**，都按接口定义与参数写入）：
 
@@ -95,10 +83,8 @@ stderr 为空；逐条命令、URL 与响应摘要见[验证记录](verification
 
 两个要点：
 
-* **不会自动登录**：构造时给了 `username` / `password` 也不会自动换成 token，必须自己调用 `auth_login()`。
-  手动拿到 token 时可以直接构造 `Shuushuu('shuushuu', access_token='…')`。
-* **token 过期不会自动续期**：需要续期时显式调用 `auth_refresh()`；`refresh` 的凭据在 Cookie 里，
-  不在请求体，所以调用前要保持同一个 `client`（同一个会话）的 Cookie。
+* **不会自动登录**：构造时给了 `username`/`password` 也不会自动换成 token，必须自己调用 `auth_login()`。手动拿到 token 时可以直接构造 `Shuushuu('shuushuu', access_token='…')`。
+* **token 过期不会自动续期**：需要续期时显式调用 `auth_refresh()`；`refresh` 的凭据在 Cookie 里，不在请求体，调用前要保持同一个 `client`（同一个会话）的 Cookie。
 
 ## 通用 request：完整路径自己给
 
@@ -127,9 +113,7 @@ with Shuushuu('shuushuu') as client:
 | `data` | JSON 对象；`files` 不是 `None` 时改走表单 | `None`，不发请求体 | `client.request('POST', 'api/v1/auth/login', data={'username': 'myname', 'password': 'secret'})` |
 | `files` | requests 文件字典或二元组列表，文件对象由调用者关闭 | `None`，不启用文件表单 | `files={'file': ('image.png', file_object, 'image/png')}`，`file_object` 是调用者用 `open('image.png', 'rb')` 打开的文件 |
 
-客户端**不做**这些事：不拆响应外层（返回什么 JSON 就给你什么）、不钳位 `page` / `per_page`、
-不自动翻页、不重试、不回退、不本地校验参数。它只支持 JSON 响应：
-Atom 订阅源（`/api/v1/images.atom`）、图片与头像文件路由、随机图 302 跳转都不封装，也**不会解码**。
+客户端**不做**这些事：不拆响应外层（返回什么 JSON 就给你什么）、不钳位 `page`/`per_page`（不把超范围值改回允许值）、不自动翻页、不重试、不回退、不本地校验参数。它只支持 JSON 响应：Atom 订阅源（`/api/v1/images.atom`）、图片与头像文件路由、随机图 302 跳转都不封装，也**不会解码**。
 
 ## 参数编码
 
@@ -149,8 +133,7 @@ with Shuushuu('shuushuu') as client:
     print(images['total'], len(images['images']))
 ```
 
-`tags=1+2` 这种写法在服务端会被当成非法值并把过滤条件**静默丢掉**（接口文档记录的一次匿名请求返回了全库
-`total=1087908`），所以客户端不会替你转换分隔符，也不会替你把列表还原成逗号串。
+`tags=1+2` 这种写法在服务端会被当成非法值并把过滤条件**静默丢掉**（接口文档记录的一次匿名请求返回了全库 `total=1087908`），所以客户端不会替你转换分隔符，也不会替你把列表还原成逗号串。
 
 ## 返回值与 last_call
 
@@ -161,8 +144,7 @@ with Shuushuu('shuushuu') as client:
 | 2xx 但正文不是 JSON | 抛 `AnybooruAPIError`（例如误用 `request()` 去取 Atom 或媒体文件） |
 | 网络错误 | requests 自己的异常原样抛出，没有重试 |
 
-每次收到响应后 `client.last_call` 是最近一次的情况：`API`（站点相对路径，不含 HTTP 方法）、`url`（含查询串的最终地址）、
-`status_code`、`status`、`headers`。核对“参数发成什么样”看它：
+每次收到响应后 `client.last_call` 是最近一次的情况：`API`（站点相对路径，不含 HTTP 方法）、`url`（含查询串的最终地址）、`status_code`、`status`、`headers`。核对“参数发成什么样”看它：
 
 ```python
 from anybooru import Shuushuu
@@ -175,61 +157,37 @@ with Shuushuu('shuushuu') as client:
 
 ## 常见坑
 
-1. **筛图只认 tag_id**：`tags`、`exclude_tags`、`missing_tag_types` 收的都是编号串，不是标签名。
-   按名字查只有 `search(q=…)` 与 `tag_list(search=…)` 两个入口。
-2. **`tags` 用英文逗号，不能用 `+`**：`tags=46,169` 是“同时含 46 与 169”（配 `tags_mode='all'`）；
-   写成 `tags='46+169'` 会被当非法值、过滤被静默丢弃，返回整库。
-3. **`/api/v1/search` 搜的是标签，不是图片**：它的 `entity` 恒为 `"tags"`，
-   传 `entity=`、`query=`、`search=`、`term=` 都无效；图片搜索在 `image_list`。
-4. **`/api/v1/tags` 没有 `limit` 参数**：传 `limit` 会被忽略，每页只认 `per_page`（默认 20，最大 100）。
-   要限制条数用 `per_page`。
-5. **`per_page` 上限是 100**：传 101 或 200 会得到 `422`（接口文档记录的报错是
-   `Input should be less than or equal to 100`）；`page` 从 1 开始。客户端不钳位，参数照发。
-6. **`/tags/{id}/images` 与 `/images?tags={id}` 的 `total` 不一样**：前者会自动跟随别名与子标签、
-   用的是基础图片对象（**没有 `tags` 数组**）；后者是完整图片对象。要算“某标签共有多少图”，
-   以你实际调用的那个接口的 `total` 为准。
-7. **站点限制看 `/api/v1/meta/config`**：`max_search_tags`、`max_search_users`、`max_image_size`、
-   `search_delay_seconds` 等都在这里（客户端不读、不替你限流）。
-8. **没有限流响应头**：接口文档记录的 200/401 响应都不带 `X-RateLimit-*`，站点由 Cloudflare 前置；
-   客户端不做节流、不做退避。
-9. **私有接口不要当公开接口用**：`user_ratings` 只有本人或持 `USER_EDIT_PROFILE` 的版主能看；
-   其余 `/users/me*`、`/images/recommended`、`/images/bookmark/*`、`/privmsgs/*` 等需要登录，
-   本库没有把它们封成方法（见[排除项](shuushuu-contract-notes.md)）。
+1. **筛图只认 tag_id**：`tags`、`exclude_tags`、`missing_tag_types` 收的都是编号串，不是标签名。按名字查只有 `search(q=…)` 与 `tag_list(search=…)` 两个入口。
+2. **`tags` 用英文逗号，不能用 `+`**：`tags=46,169` 是“同时含 46 与 169”（配 `tags_mode='all'`）；写成 `tags='46+169'` 会被当非法值、过滤被静默丢弃，返回整库。
+3. **`/api/v1/search` 搜的是标签，不是图片**：它的 `entity` 恒为 `"tags"`，传 `entity=`、`query=`、`search=`、`term=` 都无效；图片搜索在 `image_list`。
+4. **`/api/v1/tags` 没有 `limit` 参数**：传 `limit` 会被忽略，每页只认 `per_page`（默认 20，最大 100）。要限制条数用 `per_page`。
+5. **`per_page` 上限是 100**：传 101 或 200 会得到 `422`（接口文档记录的报错是 `Input should be less than or equal to 100`）；`page` 从 1 开始。客户端不钳位，参数照发。
+6. **`/tags/{id}/images` 与 `/images?tags={id}` 的 `total` 不一样**：前者会自动跟随别名与子标签、用的是基础图片对象（**没有 `tags` 数组**）；后者是完整图片对象。要算“某标签共有多少图”，以你实际调用的那个接口的 `total` 为准。
+7. **站点限制看 `/api/v1/meta/config`**：`max_search_tags`、`max_search_users`、`max_image_size`、`search_delay_seconds` 等都在这里（客户端不读、不替你限流）。
+8. **没有限流响应头**：接口文档记录的 200/401 响应都不带 `X-RateLimit-*`，站点由 Cloudflare 前置；客户端不做节流、不做退避。
+9. **私有接口不要当公开接口用**：`user_ratings` 只有本人或持 `USER_EDIT_PROFILE` 的版主能看；其余 `/users/me*`、`/images/recommended`、`/images/bookmark/*`、`/privmsgs/*` 等需要登录，本库没有把它们封成方法（见[排除项](shuushuu-contract-notes.md)）。
 
 ## 可运行示例
 
-两个脚本都匿名只读，`--config` 省略时读包内默认配置，`--site` 可覆盖站点名；参数全部来自
-`examples.shuushuu`，脚本不硬编码分页或条数：
+两个脚本都匿名只读，`--config` 省略时读包内默认配置，`--site` 可覆盖站点名；参数全部来自 `examples.shuushuu`，脚本不硬编码分页或条数：
 
 ```bash
 .venv/Scripts/python.exe examples/shuushuu/search_images.py
 .venv/Scripts/python.exe examples/shuushuu/browse_resources.py
 ```
 
-* `search_images.py`：先 `search(q='long hair')` 拿到标签，再按该标签的 `tag_id` 翻 `pages` 指定的页码
-  调 `image_list`，最后对第一页第一张图调用 `image_show`；打印每次的 `method`、`status_code`、`url`
-  与返回的关键字段。
-* `browse_resources.py`：`tag_show(46)`、`comment_list(image_id=1118862, per_page=2)`、
-  `user_list(search='whitekitten', per_page=2)`、`news_list(per_page=1)` 各一次，同样只打印
-  方法、状态码、URL 与少量字段。
+* `search_images.py`：先 `search(q='long hair')` 拿到标签，再按该标签的 `tag_id` 翻 `pages` 指定的页码调 `image_list`，最后对第一页第一张图调用 `image_show`；打印每次的 `method`、`status_code`、`url` 与返回的关键字段。
+* `browse_resources.py`：`tag_show(46)`、`comment_list(image_id=1118862, per_page=2)`、`user_list(search='whitekitten', per_page=2)`、`news_list(per_page=1)` 各一次，同样只打印方法、状态码、URL 与少量字段。
 
-两个脚本都以显式空凭据构造（匿名）。已实际运行：**各 4 次请求、全部 `200`、退出码 `0`、stderr 为空**；
-逐条命令与输出摘要见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
+两个脚本都以显式空凭据构造（匿名）。已实际运行：**各 4 次请求、全部 `200`、退出码 `0`、stderr 为空**；逐条命令与输出摘要见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
 
 ## 边界与未实测
 
-* **本页的请求 URL、参数范围与返回字段名来自官方 OpenAPI 描述（`https://e-shuushuu.net/api/openapi.json`）
-  与随附的接口文档**。真实执行只覆盖 10 个公开读方法（`search`、`tag_list`、`image_list`、`image_show`、
-  `tag_show`、`comment_list`、`image_stats`、`meta_config`、`user_list`、`news_list`，见
-  [验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)），其余方法**没有跑过**；
-  接口文档记录过的事情不等于本库跑过，本页也不把两者混写。
-* **5 个认证方法一次都没执行**：登录、续期、`auth_me`、登出、全部登出都只有接口定义与参数依据；
-  账号锁定、refresh token 轮换、Cookie 行为都未实测；T 记录 `auth_me` 匿名返回401，本次没有调用。
+* 本页的请求 URL、参数范围与返回字段名来自官方 OpenAPI 描述（`https://e-shuushuu.net/api/openapi.json`）与随附的接口文档。真实执行只覆盖 10 个公开读方法（`search`、`tag_list`、`image_list`、`image_show`、`tag_show`、`comment_list`、`image_stats`、`meta_config`、`user_list`、`news_list`，见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)），其余方法**没有跑过**；接口文档记录过的事情不等于本库跑过，本页也不把两者混写。
+* **5 个认证方法一次都没执行**：登录、续期、`auth_me`、登出、全部登出都只有接口定义与参数依据；账号锁定、refresh token 轮换、Cookie 行为都未实测；T 记录 `auth_me` 匿名返回401，本次没有调用。
 * **`user_ratings` 是私有接口**：本人或持 `USER_EDIT_PROFILE` 才可见；本库没有用过凭据实测它。
-* 35 个公开资源读方法中，多数只按 OpenAPI 描述对齐；`status-history` 会按查看者身份隐藏部分字段，
-  其匿名成功响应与身份差异都没有本轮样本，不能把分类当成已测通过。
-* **没有原生方法**：上传、打标签、评分、收藏、评论写入、私信、`/api/v1/admin/*` 管理面、
-  机器学习建议、推荐与书签、横幅与捐赠。JSON 路径可通过 `request()` 显式调用，不会自动发生。
+* 35 个公开资源读方法中，多数只按 OpenAPI 描述对齐；`status-history` 会按查看者身份隐藏部分字段，其匿名成功响应与身份差异都没有本轮样本，不能把分类当成已测通过。
+* **没有原生方法**：上传、打标签、评分、收藏、评论写入、私信、`/api/v1/admin/*` 管理面、机器学习建议、推荐与书签、横幅与捐赠。JSON 路径可通过 `request()` 显式调用，不会自动发生。
 * Atom、图片/头像与随机图跳转不是 JSON；本客户端不解析这些响应，应另用 HTTP 客户端读取媒体。
 
 继续阅读：[方法参考](shuushuu-api.md) · [按目的找方法](shuushuu-capabilities.md) ·

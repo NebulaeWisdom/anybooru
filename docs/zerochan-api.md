@@ -1,15 +1,13 @@
 # Zerochan 方法参考
 
-`entry_list` 按筛选条件返回图片列表；`entry_show` 根据图片编号返回这张图的尺寸、图片地址、来源和标签。
-下面每个 Python 代码块都能独立运行；构造器默认读包内配置，User-Agent 要求与覆盖配置见[客户端用法](zerochan.md)。
+`entry_list` 按筛选条件返回图片列表。`entry_show` 按图片编号返回单张图的尺寸、图片地址、来源和标签。下面每个 Python 代码块都能独立运行。构造器默认读包内配置，User-Agent 要求与覆盖配置见[客户端用法](zerochan.md)。
 
 ## entry_list：列表、过滤与分页
 
-签名：`entry_list(tags=None, strict=False, **params)`。
+`entry_list(tags=None, strict=False, **params)`
 
-你给出页码、每页张数、标签或其它筛选条件，方法返回符合条件的**图片列表**。
-服务器返回 `{"items": [...]}`，你拿到的是其中那个数组。每张图包含图片编号 `id`、宽 `width`、高 `height`、
-缩略图地址 `thumbnail`、来源链接 `source`、主标签名 `tag`、全部标签 `tags`，另有字符串字段 `md5`。
+给什么：标签、页码、每页条数、排序、尺寸、颜色等条件。  
+返回什么：图片列表。服务器原始响应是 `{"items": [...]}`，你拿到的是 `items` 数组。每项字段：`id` 图片编号，`width` 宽，`height` 高，`thumbnail` 缩略图地址，`source` 来源链接，`tag` 主标签名，`tags` 全部标签，`md5` 字符串字段。
 
 ### 参数逐项说明
 
@@ -57,7 +55,7 @@ with Zerochan('zerochan') as client:
     print([(entry['id'], entry['tag']) for entry in tagged_entries])
 ```
 
-**多标签**：传列表，而不是把多个名字塞进一个字符串。
+**多标签**：传列表，不要把多个名字塞进一个字符串。
 
 ```python
 from anybooru import Zerochan
@@ -69,9 +67,7 @@ with Zerochan('zerochan') as client:
     print([(entry['id'], entry['tag'], entry['tags']) for entry in matching_entries])
 ```
 
-**strict**：单标签查询上的开关，意思是“只保留主标签就是这个标签的图片”。
-Python 写 `strict=True`，实际 URL 是 **`strict=`（等号后没有值）**，不是 `strict=true`。
-单标签与 strict 端点均不适用于 **meta 标签**。
+**strict**：单标签查询上的开关，意思是“只保留主标签就是这个标签的图片”。Python 写 `strict=True`，实际 URL 是 **`strict=`（等号后没有值）**，不是 `strict=true`。单标签与 strict 端点均不适用于 **meta 标签**。
 
 ```python
 from anybooru import Zerochan
@@ -126,11 +122,10 @@ with Zerochan('zerochan') as client:
 
 ## entry_show：根据图片编号查询图片信息
 
-给一张图的编号（常叫 **pid**，例如 `3793685`），返回这张图的四种尺寸图片地址、宽高、文件大小、
-来源链接、主标签名和全部标签。这个编号能在列表项的 `id` 字段中找到，也是图片网页地址末尾的数字：
-`https://www.zerochan.net/3793685` 的图片编号就是 `3793685`。
+`entry_show(entry_id)`
 
-方法实际参数名是 `entry_id`：`entry_show(entry_id)`，必填整数，没有默认值。
+给什么：图片编号，常叫 pid，例如 `3793685`。`entry_id` 是必填整数，无默认值。编号可在列表项 `id` 字段找到，也是图片网页地址末尾数字，如 `https://www.zerochan.net/3793685`。  
+返回什么：单张图信息，不再套层。包含四种尺寸图片地址、宽高、文件大小、来源链接、主标签名、全部标签。
 
 ```python
 from anybooru import Zerochan
@@ -156,14 +151,11 @@ with Zerochan('zerochan') as client:
 
 ## request：查看服务器返回的整个 JSON
 
-`request` 接受相对路径和查询参数，始终发送 GET。请求列表时，它返回 `{"items": [...]}` 整个字典；
-`entry_list` 则只返回里面的图片数组。完整例子见[客户端用法](zerochan.md#通用-request保留外层-items)。
-客户端自动把 `json=` 放进 URL，不会在路径后面加 `.json`。
+`request` 接受相对路径和查询参数，只发 GET。请求列表时返回完整字典 `{"items": [...]}`，而 `entry_list` 只返回其中图片数组。客户端自动在 URL 放 `json=`，不会在路径后加 `.json`。完整例子见[客户端用法](zerochan.md#通用-request保留外层-items)。
 
 ## 出错时查看状态码与正文
 
-下面请求全部时间的人气排行；已知这组参数返回 HTTP 500。可以捕获 `AnybooruHTTPError`，
-打印实际地址与服务器原文，不要把错误当作“没有图片”。
+下面请求全部时间的人气排行；已知这组参数返回 HTTP 500。捕获 `AnybooruHTTPError`，打印实际地址与服务器原文，不要把错误当作“没有图片”。
 
 ```python
 from anybooru import Zerochan, AnybooruHTTPError
@@ -180,13 +172,12 @@ with Zerochan('zerochan') as client:
 
 ## 边界与未实测
 
-* `t=0` 虽然在页面中定义为全部时间，实测 `/?l=2&s=fav&t=0&json=` 返回 **500**，
-  正文为不完整 JSON；`AnybooruHTTPError` 保留该正文。其成功路径未实测。页面也提示 `t` 的行为可能调整。
-* 不传 `l` 观察到 **48 张图**，不是页面承诺；服务器只返回 `{"items": [...]}`，没有图片总数、页码或下一页地址。
-* API 页面说明单标签与 strict **不支持 meta 标签**；本库只实现 JSON，不做 XML、写操作或登录。
-  `/<id>` 不带 `json` 的详情地址已观察到 HTML，不能当 API 读取。
-* 官方限流 **60 请求/分钟**，长期超限可能封禁；客户端没有限速逻辑或自动重试。
-* 尺寸分类阈值、颜色算法、详情 `size` 单位没有得到完整确认；square 已有不等宽高样本。
-* 合规用户名 UA、特殊字符标签、strict 多标签、其余组合、空结果、分页边界、缺失条目、限流响应和其它部署未实测。
+- `t=0` 页面定义为全部时间，实测 `/?l=2&s=fav&t=0&json=` 返回 **500**，正文为不完整 JSON；`AnybooruHTTPError` 保留该正文。其成功路径未实测。页面提示 `t` 行为可能调整。
+- 不传 `l` 观察到 **48 张图**，不是页面承诺；服务器只返回 `{"items": [...]}`，没有图片总数、页码或下一页地址。
+- API 页面说明单标签与 strict **不支持 meta 标签**；本库只实现 JSON，不做 XML、写操作或登录。`/<id>` 不带 `json` 的详情地址已观察到 HTML，不能当 API 读取。
+- 官方限流 **60 请求/分钟**，长期超限可能封禁；客户端没有限速逻辑或自动重试。
+- 尺寸分类阈值、颜色算法、详情 `size` 单位未完整确认；square 已有不等宽高样本。
+- 缺失条目已实测：`entry_show` 一个不存在的编号（`/999999999?json=`）返回 **404**，抛 `AnybooruHTTPError`，正文 6 字符、`data` 是字典。
+- 合规用户名 UA、特殊字符标签、strict 多标签、其余组合、空结果、非法参数、分页边界、限流响应和其它部署未实测。
 
 [客户端用法](zerochan.md) · [能力入口](zerochan-capabilities.md) · [出处与差异](zerochan-contract-notes.md) · [实测记录](verification.md)
