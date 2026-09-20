@@ -79,6 +79,10 @@
     "cosine": {
       "url": "https://pic.cosine.ren",
       "revalidate_secret": ""
+    },
+    "nhentai": {
+      "url": "https://nhentai.net",
+      "api_key": ""
     }
   },
   "examples": {
@@ -191,6 +195,18 @@
       "tag_query": {"start": 0, "limit": 2},
       "artist_query": {"platform": "pixiv", "authorid": "54390221", "page": 1, "pageSize": 2},
       "pause_seconds": 1.3
+    },
+    "nhentai": {
+      "site": "nhentai",
+      "pause_seconds": 1.3,
+      "pages": [1, 2],
+      "list_query": {"per_page": 2},
+      "search_query": {"query": "language:english", "sort": "date", "page": 1},
+      "gallery_id": 658856,
+      "tag_type": "language",
+      "tag_slug": "english",
+      "tag_ids": "12227,6346",
+      "comments_query": {"page": 1, "per_page": 2}
     }
   },
   "smoke": {
@@ -254,6 +270,16 @@
       "tag": "GenshinImpact",
       "tag_query": {"start": 0, "limit": 2},
       "missing_id": 999999999
+    },
+    "nhentai": {
+      "site": "nhentai",
+      "list_query": {"per_page": 2},
+      "search_query": {"query": "language:english", "sort": "date", "page": 1},
+      "gallery_id": 658856,
+      "tag_type": "language",
+      "tag_slug": "english",
+      "missing_id": 999999999,
+      "invalid_query": {"page": 0, "per_page": 2}
     }
   },
   "verification": {
