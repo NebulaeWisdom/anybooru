@@ -3,10 +3,10 @@
 ArtStation is a portfolio and community site rather than one of the booru
 engines this package ships for: its public surface is the site's own root
 JSON routes, the ``/api/v2`` community and search routes and one RSS feed,
-so nothing here reuses a booru parameter name or field list. All fifteen
-methods are anonymous ``GET`` reads; the routes and field names below come
-from anonymous responses observed on the day recorded in
-``docs/verification.md`` and describe those samples rather than a schema.
+so nothing here reuses a booru parameter name or field list. Seventeen
+methods cover fifteen GET reads, explicit CSRF preparation and form POST
+search. Response fields describe the anonymous samples recorded in
+``docs/verification.md``, not a schema.
 
 Shared observed facts:
     * Base URL: ``https://www.artstation.com``; ``ArtStation.request``
@@ -43,8 +43,8 @@ Shared observed facts:
     * Out of scope, and reachable only through ``ArtStation.request``: the
       fixed project page ``/projects/{hash}.json`` (403, a Cloudflare
       challenge in the samples), the v2 detail ``/api/v2/community/projects/
-      {id}.json`` (401 ``{"data": null}``), the search POST with its CSRF
-      step, and every write or authenticated route.
+      {id}.json`` (401 ``{"data": null}``), and content-writing or account
+      operations. CSRF preparation and POST search are explicit methods.
 
 Which calls have actually been made against the live site is recorded in
 ``docs/verification.md``; the full per-method parameter and field reference
@@ -62,9 +62,9 @@ from urllib.parse import quote
 class ArtStationApi_Mixin:
     """ArtStation reads, each a thin ``ArtStation.request()`` call.
 
-    Every method here issues ``GET``; none of them fills in a parameter,
-    clamps a value or retries, and the complete per-method parameter and
-    field reference is ``docs/artstation-api.md``.
+    Methods never fill query values, clamp, retry or automatically obtain a
+    token. The per-method parameter and field reference is
+    ``docs/artstation-api.md``.
     """
 
     # ------------------------------------------------------------------
@@ -215,6 +215,31 @@ class ArtStationApi_Mixin:
         """
         return self.request("GET", "api/v2/search/projects.json",
                             params=params)
+
+    def csrf_token(self, **attributes):
+        """Request an anonymous CSRF token with an explicit JSON body.
+
+        POST ``api/v2/csrf_protection/token.json`` returns the complete JSON
+        object containing ``public_csrf_token``. The existing session keeps
+        the server's paired Cookie. Pass the returned token explicitly to
+        ``project_search_post`` on this same client; no token property,
+        login, automatic refresh or search request is created here.
+        """
+        return self.request("POST", "api/v2/csrf_protection/token.json",
+                            data=attributes)
+
+    def project_search_post(self, public_csrf_token, **params):
+        """Search with a form body, including explicit additional_fields.
+
+        POST ``api/v2/search/projects.json`` sends ``params`` through the
+        shared Rails form encoder. ``additional_fields=['assets',
+        'description']`` becomes repeated ``additional_fields[]`` keys.
+        The caller supplies PUBLIC-CSRF-TOKEN and uses the same client that
+        obtained its paired Cookie. No token fetch, retry, refresh, response
+        unwrapping or media download is performed.
+        """
+        return self.request("POST", "api/v2/search/projects.json", form=params,
+                            headers={"PUBLIC-CSRF-TOKEN": public_csrf_token})
 
     def search_filter_fields(self):
         """List the searchable filter fields (``GET .../filter_fields.json``).

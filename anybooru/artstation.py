@@ -3,11 +3,11 @@
 ArtStation is a portfolio and community site, not one of the booru engines
 this package ships for: it has its own root JSON routes, its own ``/api/v2``
 community and search routes and an RSS feed, and this client keeps every
-answer as received. It wraps the fifteen anonymous read routes of
-``ArtStationApi_Mixin`` and never downloads the cover or asset images those
-responses point at. The native methods do not log in, send writes or derive
-credentials; authenticated and write routes have no native wrapper. The
-general ``request`` entry point accepts an explicit method and headers.
+answer as received. It wraps fifteen GET reads plus explicit CSRF preparation
+and form-encoded POST search. No method downloads media, logs in, publishes
+content or automatically obtains a token. Callers pass the returned public
+CSRF token to search using the same client session for its paired Cookie.
+The general ``request`` entry point accepts an explicit method and headers.
 
 Constructor options, the ``request`` entry point, return values and
 ``last_call`` are documented in ``docs/artstation.md``; the per-method
@@ -43,8 +43,8 @@ class ArtStation(_Anybooru, ArtStationApi_Mixin):
         """Return a successful response body as unchanged text."""
         return self._send(url, api_call, request_args, method).text
 
-    def request(self, method, path, *, params=None, data=None, headers=None,
-                response_format="json"):
+    def request(self, method, path, *, params=None, data=None, form=None,
+                headers=None, response_format="json"):
         """Call one site-relative route and return the body it asked for.
 
         ``path`` is resolved under the configured base URL with a leading
@@ -67,15 +67,15 @@ class ArtStation(_Anybooru, ArtStationApi_Mixin):
         gets exactly the string the caller passed; a list arrives as repeated
         ``key[]`` pairs.
 
-        ``data`` is written to the request's JSON body exactly as supplied,
-        ``None`` values included; it is not cleaned, renamed or passed through
-        the query encoder, and no form body is built. The fifteen native
-        methods send no body at all, because the site's write routes are out
-        of scope.
+        ``data`` is sent as JSON unchanged, including internal ``None``.
+        ``form`` is sent as an application/x-www-form-urlencoded body using
+        the shared Rails encoder, including repeated ``key[]`` for arrays.
+        The caller chooses the appropriate body argument; this method does
+        not infer the endpoint's format or convert JSON into a form.
 
-        ``headers`` are sent verbatim for this request and nothing is added to
-        them; there is no credential to derive one from and no authentication
-        header is invented.
+        ``headers`` are per-request values. ``project_search_post`` supplies
+        PUBLIC-CSRF-TOKEN explicitly; the session retains the server's
+        paired Cookie normally. No token is fetched or refreshed here.
 
         ``response_format`` is explicit and never sniffed: ``'json'`` (the
         default) returns the complete decoded JSON body through the shared
@@ -99,6 +99,8 @@ class ArtStation(_Anybooru, ArtStationApi_Mixin):
             request_args["params"] = params
         if data is not None:
             request_args["json"] = data
+        if form is not None:
+            request_args["data"] = form
         if headers:
             request_args["headers"] = headers
         send = {"json": self._request, "xml": self._request_text,
