@@ -2,7 +2,7 @@
 
 ## Danbooru 系站点
 
-Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用户名，API key 作为 Basic 密码。
+Danbooru 引擎用 HTTP Basic 认证：Basic 用户名填站点用户名，Basic 密码填 API key。
 
 凭据来自配置文件的 `sites` 段（见 [configuration.md](configuration.md)）：
 
@@ -18,14 +18,14 @@ Danbooru 引擎的 API 使用 **HTTP Basic** 认证：用户名作为 Basic 用�
 }
 ```
 
-规则很简单：
+规则：
 
-* `username` 与 `api_key` **任一非空**，每个请求就会带上 HTTP Basic 认证头（缺的那一项发空串）；
+* `username` 与 `api_key` **任一非空**，每个请求就带 HTTP Basic 认证头，缺的那一项发空串；
 * **两项都为空**才是纯匿名请求；
-* 不会静默降级：凭据填错时服务端返回 `401`，客户端不会退回匿名；
-* 权限判断完全由服务端完成——本库不做客户端权限检查，也不会因为接口“需要登录”就提前报错。
+* 不静默降级：凭据填错时服务端返回 `401`，客户端不会退回匿名；
+* 权限判断完全由服务端完成，本库不做客户端权限检查，也不会因接口“需要登录”提前报错。
 
-匿名状态下可以正常调用公开只读接口，例如：
+匿名状态下可正常调用公开只读接口：
 
 ```python
 from anybooru import Danbooru
@@ -36,10 +36,9 @@ with Danbooru('danbooru') as client:          # 配置里 username 与 api_key �
     print(posts[0]['id'], posts[0]['rating'], posts[0]['tag_string'])
 ```
 
-写接口会因为服务端返回 `401` / `403` 而失败，错误里保留状态码与响应正文，见 [errors.md](errors.md)。
+写接口会因服务端返回 `401` / `403` 而失败，错误里保留状态码与响应正文，见 [errors.md](errors.md)。
 
-也可以在构造函数里显式覆盖配置文件的凭据。下面这段是**写操作**（发表评论），需要账号与 API key，
-本仓库不带凭据、**未执行、未实测**，只示范参数怎么传：
+构造函数里可显式覆盖配置文件的凭据。下面是**写操作**（发表评论），需要账号与 API key，本仓库不带凭据、**未执行、未实测**，只示范参数怎么传：
 
 ```python
 from anybooru import Danbooru
@@ -54,16 +53,14 @@ with Danbooru('danbooru', username='your-username', api_key='your-api-key') as c
 
 ## Moebooru 系站点
 
-Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是：
+Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段如下：
 
 | 字段 | 值 |
 | :--- | :--- |
 | `login` | 用户名 |
 | `password_hash` | `SHA1(hash_string.format(password))` 的十六进制摘要 |
 
-`GET` / `HEAD` 请求把这两个字段放进**查询串**，其他动词放进**表单体**（客户端按方法自动选择）。
-`hash_string` 是该站点 `help/api` 页面约定的加盐模板（含 `{0}` 占位符），`password` 是明文密码。
-两者都来自配置文件的站点条目：
+`GET` / `HEAD` 请求把这两个字段放进**查询串**，其他动词放进**表单体**，客户端按方法自动选择。`hash_string` 是该站点 `help/api` 页面约定的加盐模板（含 `{0}` 占位符），`password` 是明文密码。两者都来自配置文件的站点条目：
 
 ```json
 {
@@ -79,17 +76,15 @@ Moebooru 引擎不用 HTTP Basic：登录信息随请求一起提交，字段是
 }
 ```
 
-`username` 与 `password` 都留空即可匿名读取；配置凭据后，读请求也带认证字段。
-站点条目的 `hash_string` 为 `null` 时，登录需要显式提供模板。
-服务端还接受 `username` + `api_key`（仅 `json` / `xml` / `zip` 格式）、会话 Cookie 与
-`user[name]` + `user[password]` 明文；本库只实现 `password_hash` 一种。
+* `username` 与 `password` 都留空即可匿名读取；配置凭据后，读请求也带认证字段。
+* 站点条目的 `hash_string` 为 `null` 时，登录需要显式提供模板。
+* 服务端还接受 `username` + `api_key`（仅 `json` / `xml` / `zip` 格式）、会话 Cookie 与 `user[name]` + `user[password]` 明文；本库只实现 `password_hash` 一种。
+
 逐方法权限及上游依据见 [Moebooru 契约审计附注](moebooru-contract-notes.md)。
 
 ## Serika 系站点
 
-Serika 是独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送
-`Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为 **空字符串**，不发送认证头，
-不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
+Serika 是独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，非空时发送 `Authorization: Bearer <key>`；默认配置样例的 `sites.serika.api_key` 为**空字符串**，不发送认证头，不制造占位 key。URL、代理、超时仍来自同一份 `anybooru.json`。
 
 | API 面 | 认证与可用范围 |
 | :--- | :--- |
@@ -98,16 +93,11 @@ Serika 是独立引擎。`Serika` 从 `sites.<站点>.api_key` 读取凭据，�
 | 站内 `/api/*`（方法名带 `internal_` 前缀） | 前端自用、没有版本保证的接口，本库只封匿名可读的那些；不实现浏览器 cookie 登录 |
 | 站内评论/投票/收藏/上传/管理/账号写操作 | 依赖 Serika Accounts 的账号会话或属于写路径，本库不提供；API key 不能当会话用 |
 
-客户端不预判权限、不自动换成站内接口、不在认证失败后退回匿名。服务端按 API key 限流。
-当前 v1 的缺 key、缺权限、超限都返回 `code: UNAUTHORIZED`，HTTP 分别为 `401` / `403` / `429`；
-请结合 `AnybooruHTTPError.http_code`、`.data['code']` 与 `.body` 判断原因。
-逐条权限、限流实现和官方说明差异见 [Serika 契约审计附注](serika-contract-notes.md)，
-可调用能力见 [Serika 能力入口](serika-capabilities.md)。
+客户端不预判权限、不自动换成站内接口、不在认证失败后退回匿名。服务端按 API key 限流。当前 v1 的缺 key、缺权限、超限都返回 `code: UNAUTHORIZED`，HTTP 分别为 `401` / `403` / `429`；请结合 `AnybooruHTTPError.http_code`、`.data['code']` 与 `.body` 判断原因。逐条权限、限流实现和官方说明差异见 [Serika 契约审计附注](serika-contract-notes.md)，可调用能力见 [Serika 能力入口](serika-capabilities.md)。
 
 ## e621ng 系站点
 
-e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danbooru 相同（HTTP Basic），
-但属于另一套引擎：Basic 用户名是登录名，密码是 **API key**。
+e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danbooru 相同（HTTP Basic），但属于另一套引擎：Basic 用户名是登录名，密码是 API key。
 
 | 字段 | 值 |
 | :--- | :--- |
@@ -125,30 +115,20 @@ e621ng 是 e621.net 与 e926.net 共用的 Rails 引擎，认证形态与 Danboo
 
 规则：
 
-* `username` 与 `api_key` **任一非空**，每个请求就带上 Basic 头（缺的那项发空串）；两项都为空才是匿名请求；
+* `username` 与 `api_key` **任一非空**，每个请求就带 Basic 头，缺的那项发空串；两项都为空才是匿名请求；
 * 上游把 Basic 凭据按第一个 `:` 切出 `login` 与 `api_key` 再校验；
-* 客户端**只走 Basic 头**：上游另外接受 `login` + `api_key` 请求参数，那条路径额外要求同源请求才能跳过
-  CSRF，本库不使用；
+* 客户端**只走 Basic 头**：上游另外接受 `login` + `api_key` 请求参数，那条路径额外要求同源请求才能跳过 CSRF，本库不使用；
 * 权限判断完全由服务端完成，客户端不预判、不在认证失败后退回匿名。
 
-本客户端的 16 个常规只读方法允许匿名进入；`related_tag` 与 `related_tag_bulk` 在上游控制器级是
-`member_only`，匿名请求以 `403` 失败，且不会因此降级到别的端点。两个方法的成员成功响应
-仅源码对齐、未实测；`related_tag` 的匿名拒绝已记录在[验证记录](verification.md)。
+本客户端的 16 个常规只读方法允许匿名进入；`related_tag` 与 `related_tag_bulk` 在上游控制器级是 `member_only`，匿名请求以 `403` 失败，且不会因此降级到别的端点。两个方法的成员成功响应仅源码对齐、未实测；`related_tag` 的匿名拒绝已记录在[验证记录](verification.md)。
 
-写请求：e621ng 面**没有原生写方法**。写路由的身份要求由各自控制器决定，不能概括为全部必须登录
-（例如注册只允许未登录用户）。启用 `api_check` 的控制器才对已登录的非 `GET` / `HEAD` 请求做令牌桶
-限流（超限回 `429`，响应头带 `X-Api-Limit`）；用户控制器显式跳过该检查。这些分支仅源码对齐、未实测，
-出处见附注的[写动作边界](e621-contract-notes.md#sec-exclusions)与[限流错误](e621-contract-notes.md#sec-errors)。需要时用通用 `request()` 显式指定方法与路径，
-本库不做自动重试、不替调用者补参数。
+写请求：e621ng 面**没有原生写方法**。写路由的身份要求由各自控制器决定，不能概括为全部必须登录（例如注册只允许未登录用户）。启用 `api_check` 的控制器才对已登录的非 `GET` / `HEAD` 请求做令牌桶限流（超限回 `429`，响应头带 `X-Api-Limit`）；用户控制器显式跳过该检查。这些分支仅源码对齐、未实测，出处见附注的[写动作边界](e621-contract-notes.md#sec-exclusions)与[限流错误](e621-contract-notes.md#sec-errors)。需要时用通用 `request()` 显式指定方法与路径，本库不做自动重试、不替调用者补参数。
 
-`safe_mode` 由服务端决定（请求参数 `safe_mode`、账号设置或站点自己的部署配置），上游仓库默认值是关闭。
-本库不替站点补 `rating` 过滤，e926 那类安全内容站点的实际可见范围以该站配置为准。
+`safe_mode` 由服务端决定（请求参数 `safe_mode`、账号设置或站点自己的部署配置），上游仓库默认值是关闭。本库不替站点补 `rating` 过滤，e926 那类安全内容站点的实际可见范围以该站配置为准。
 
 ## Zerochan：User-Agent 身份标识
 
-`Zerochan` 只提供 GET JSON 读取，不实现 Basic、API key 或账号/cookie 登录。
-站点配置只有 `url`；身份标识来自 `request.user_agent`，也可用构造参数 `user_agent` 显式覆盖。
-Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Zerochan 用户名**，写成配置就是：
+`Zerochan` 只提供 GET JSON 读取，不实现 Basic、API key 或账号/cookie 登录。站点配置只有 `url`；身份标识来自 `request.user_agent`，也可用构造参数 `user_agent` 显式覆盖。Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Zerochan 用户名**，写成配置就是：
 
 ```json
 {
@@ -160,11 +140,7 @@ Zerochan API 文档要求这个头同时包含**项目名和使用者自己的 Z
 }
 ```
 
-包内默认 `Anybooru/0.1.0.dev1` 只有项目标识，**不满足完整要求**；请在自己的配置中补入用户名，
-或对单个客户端覆盖：`Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')`。
-这不是登录认证，也不意味着获得额外权限；匿名请求可能成功，仍有被封禁的风险。
-没有用户名时库不会编造一个，也不会自动申请账号。来源和实测边界见
-[Zerochan 契约审计附注](zerochan-contract-notes.md)与[验证记录](verification.md#zerochan匿名只读实测2026-09-18)。
+包内默认 `Anybooru/0.1.0.dev1` 只有项目标识，**不满足完整要求**；请在自己的配置中补入用户名，或对单个客户端覆盖：`Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')`。这不是登录认证，也不意味着获得额外权限；匿名请求可能成功，仍有被封禁的风险。没有用户名时库不会编造一个，也不会自动申请账号。来源和实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)与[验证记录](verification.md#zerochan匿名只读实测2026-09-18)。
 
 ## Gelbooru 系站点
 
@@ -189,30 +165,21 @@ Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都�
 
 规则：
 
-* 这两项**只加在 dapi 请求上**（`page=dapi`，也就是 `post_list` / `post_deleted` / `tag_list` /
-  `user_list` / `comment_list`），其他请求不带；留空就是匿名；
-* **匿名只能用 `autocomplete`**（已用匿名请求实测 `200`，返回建议数组；`limit` 不决定条数）：站点的 dapi
-  需要账号，5 个方法已逐个实测匿名401、空正文；**账号成功路径仍未实测**；
+* 这两项**只加在 dapi 请求上**（`page=dapi`，也就是 `post_list` / `post_deleted` / `tag_list` / `user_list` / `comment_list`），其他请求不带；留空就是匿名；
+* **匿名只能用 `autocomplete`**（已用匿名请求实测 `200`，返回建议数组；`limit` 不决定条数）：站点的 dapi 需要账号，5 个方法已逐个实测匿名 `401`、空正文；**账号成功路径仍未实测**；
 * 客户端不预判权限、不做参数校验、不拆返回的 JSON，服务端给什么就返回什么。
 
-来源层级（官方 wiki/帮助页与页面脚本，外加真实匿名响应）与未实测项见
-[Gelbooru 契约审计附注](gelbooru-contract-notes.md)；可调用能力见
-[Gelbooru 能力入口](gelbooru-capabilities.md)。
+来源层级（官方 wiki/帮助页与页面脚本，外加真实匿名响应）与未实测项见 [Gelbooru 契约审计附注](gelbooru-contract-notes.md)；可调用能力见 [Gelbooru 能力入口](gelbooru-capabilities.md)。
 
 ## Gelbooru02（TBIB）：没有凭据
 
-`Gelbooru02` 的构造参数没有 `username/api_key/user_id`，不提供内置认证功能；
-站点条目只有 `url`。本轮帖子 JSON/XML、标签与空评论、分页请求
-均为匿名，没有发送凭据。站点账号功能是否有其它认证方式未实测。
+`Gelbooru02` 的构造参数没有 `username` / `api_key` / `user_id`，不提供内置认证功能；站点条目只有 `url`。本轮帖子 JSON/XML、标签与空评论、分页请求均为匿名，没有发送凭据。站点账号功能是否有其它认证方式未实测。
 
-它和 `gelbooru.com` 那套需要账号的 dapi 凭据不是一回事：不要把
-`Gelbooru('gelbooru', api_key=…, user_id=…)` 的写法搬过来。见 [Gelbooru02 用法](gelbooru02.md) 与
-[Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)。
+它和 `gelbooru.com` 那套需要账号的 dapi 凭据不是一回事：不要把 `Gelbooru('gelbooru', api_key=…, user_id=…)` 的写法搬过来。见 [Gelbooru02 用法](gelbooru02.md) 与 [Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)。
 
 ## Shuushuu：默认匿名，显式登录才建立会话
 
-公开图片、标签、评论、用户资料等读取不需要登录。`Shuushuu('shuushuu')` 只创建客户端，不发送任何登录请求。
-`sites.shuushuu` 的 `username/password/access_token` 默认都为 `""`；即使填了用户名和密码也不会自动登录。
+公开图片、标签、评论、用户资料等读取不需要登录。`Shuushuu('shuushuu')` 只创建客户端，不发送任何登录请求。`sites.shuushuu` 的 `username` / `password` / `access_token` 默认都为 `""`；即使填了用户名和密码也不会自动登录。
 
 | 主动选择 | 客户端行为 |
 | :--- | :--- |
@@ -222,15 +189,11 @@ Gelbooru 用该站自己的 `index.php` 接口，凭据形态与前面几家都�
 | 显式 `auth_refresh()` | 使用会话的 `refresh_token` Cookie，保存新的 access token；不在 JSON 里传 refresh token |
 | 显式 `auth_logout()` / `auth_logout_all()` | 请求服务器吊销当前 / 所有 refresh token；成功后清空客户端 token 与 Cookie |
 
-OpenAPI 描述 access token 有效 30 分钟，refresh token 30 天；服务端登出不立即撤销已经签发的 access token。
-登录、个人数据和写权限不是公共读取的前置步骤；`user_ratings` 只允许本人或具有 `USER_EDIT_PROFILE` 的版主，
-不能把“GET”当成匿名权限保证。参数与字面调用见 [Shuushuu 方法参考](shuushuu-api.md)。
+OpenAPI 描述 access token 有效 30 分钟，refresh token 30 天；服务端登出不立即撤销已经签发的 access token。登录、个人数据和写权限不是公共读取的前置步骤；`user_ratings` 只允许本人或具有 `USER_EDIT_PROFILE` 的版主，不能把“GET”当成匿名权限保证。参数与字面调用见 [Shuushuu 方法参考](shuushuu-api.md)。
 
 ## Sakuria：`access_token` 与需要登录的 `/me/*`
 
-`Sakuria` 只有一种凭据：站点条目的 `access_token`（默认 `""`）。非空时给每个请求加
-`Authorization: Bearer <token>`；留空即匿名，不发送任何认证头。没有 `username` / `password` / `api_key` /
-`user_id` 字段，构造签名里也没有用户名。
+`Sakuria` 只有一种凭据：站点条目的 `access_token`（默认 `""`）。非空时给每个请求加 `Authorization: Bearer <token>`；留空即匿名，不发送任何认证头。没有 `username` / `password` / `api_key` / `user_id` 字段，构造签名里也没有用户名。
 
 ```python
 from anybooru import Sakuria
@@ -248,26 +211,14 @@ with Sakuria('sakuria') as client:                    # 不传 access_token：�
 
 * `access_token=''`（显式空串）表示本次客户端匿名，**不读取**配置里的 token；`None`（或不传）才读配置；
 * 非空才加 `Authorization: Bearer <token>`；库不做本地权限判断，也不会在 `401` 后退回匿名；
-* **没有**登录、注册、换取或刷新 token 的方法；这些路由的位置与可达性本轮未复核。
-  token 由使用者自己准备，库不代替获取或续期，也不索要账号密码；
-* `me*` 系列 17 个方法（`me` / `me_capabilities` / `me_bookmarks` / `me_likes` / `me_following` /
-  `me_notifications` / `me_history` / `me_settings` / `me_illusts` / `me_novels` / `me_series` / `me_credits` /
-  `me_plus` / `me_subscription` / `me_favorites` / `me_search_history` / `me_recommend`）**都需要登录**：
-  没有 token 时由服务端拒绝，返回结构**未实测、未知**——库只拼路由、原样返回 JSON，不拆信封。
-  其中只有 `/me/likes` 本轮被请求过（匿名先 426，显式带契约头后 401），其余 16 个连拒绝形态都没有样本。
+* **没有**登录、注册、换取或刷新 token 的方法；这些路由的位置与可达性本轮未复核。token 由使用者自己准备，库不代替获取或续期，也不索要账号密码；
+* `me*` 系列 17 个方法（`me` / `me_capabilities` / `me_bookmarks` / `me_likes` / `me_following` / `me_notifications` / `me_history` / `me_settings` / `me_illusts` / `me_novels` / `me_series` / `me_credits` / `me_plus` / `me_subscription` / `me_favorites` / `me_search_history` / `me_recommend`）**都需要登录**：没有 token 时由服务端拒绝，返回结构**未实测、未知**——库只拼路由、原样返回 JSON，不拆信封。其中只有 `/me/likes` 本轮被请求过（匿名先 `426`，显式带契约头后 `401`），其余 16 个连拒绝形态都没有样本。
 
-本轮实测：`/me/likes` 不带 `x-sakuria-data-contract: 2` 时回 `426`（正文 `{"error":"upgrade_required","requiredDataContract":2}`），
-显式补上该头后变成 `401`（正文 `{"error":"sakuria_session_required"}`）——服务端先看数据契约版本，再查登录。
-本客户端**不隐式发送**这个头：需要时用通用入口显式传，例如
-`client.request('GET', '/me/likes', headers={'x-sakuria-data-contract': '2'})`；`headers` 是 `request()` 的
-关键字参数，原生方法不带隐式头。逐条依据与未实测边界见
-[Sakuria 契约审计附注](sakuria-contract-notes.md)。
+本轮实测：`/me/likes` 不带 `x-sakuria-data-contract: 2` 时回 `426`（正文 `{"error":"upgrade_required","requiredDataContract":2}`），显式补上该头后变成 `401`（正文 `{"error":"sakuria_session_required"}`）——服务端先看数据契约版本，再查登录。本客户端**不隐式发送**这个头：需要时用通用入口显式传，例如 `client.request('GET', '/me/likes', headers={'x-sakuria-data-contract': '2'})`；`headers` 是 `request()` 的关键字参数，原生方法不带隐式头。逐条依据与未实测边界见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。
 
 ## Anime-Pictures：`authorization` 与 `cookie` 原样转发（scheme 未实测）
 
-`AnimePictures` 只有两种凭据：站点条目的 `authorization` 与 `cookie`（都默认 `""`）。非空时按**原值**
-分别作为 `Authorization` 与 `Cookie` 请求头发送——库不加 `Bearer`、不加前缀、不改写、不猜 cookie 名；
-留空即匿名，不发送这两个头。构造签名里没有 `username` / `password` / `api_key` / `user_id`。
+`AnimePictures` 只有两种凭据：站点条目的 `authorization` 与 `cookie`（都默认 `""`）。非空时按**原值**分别作为 `Authorization` 与 `Cookie` 请求头发送——库不加 `Bearer`、不加前缀、不改写、不猜 cookie 名；留空即匿名，不发送这两个头。构造签名里没有 `username` / `password` / `api_key` / `user_id`。
 
 ```python
 from anybooru import AnimePictures
@@ -287,28 +238,16 @@ with AnimePictures('anime_pictures') as client:
 规则：
 
 * `authorization=''` / `cookie=''`（显式空串）表示本次客户端匿名，**不读**配置里的值；`None`（或不传）才读配置；
-* 非空时按原值发送：`authorization='Bearer xyz'`、`authorization='Token xyz'`、`cookie='a=b; c=d'`
-  都是调用方自己决定的串，库不解析、不校验、不补全；
+* 非空时按原值发送：`authorization='Bearer xyz'`、`authorization='Token xyz'`、`cookie='a=b; c=d'` 都是调用方自己决定的串，库不解析、不校验、不补全；
 * 本类不提供登录、注册、换取或刷新方法，也不索要账号密码；token 与 cookie 由使用者自己准备；
 * 权限由服务端判定：客户端不预判能力，也不在 `401` / `403` 后退回匿名；
-* 需要单次覆盖时用通用入口显式传 `headers`（`request(method, path, headers=…)`），原生方法不带隐式头，
-  只有 `image_get(file_url, headers=…)` 单独收一个 `headers`。
+* 需要单次覆盖时用通用入口显式传 `headers`（`request(method, path, headers=…)`），原生方法不带隐式头，只有 `image_get(file_url, headers=…)` 单独收一个 `headers`。
 
-**scheme 未实测**：站点接受哪种 `Authorization` 方案（`Bearer`？某种 token？）、登录态 cookie 的名字、
-`post_create` 需要哪些头，本轮都没有成功样本。观察到的只有匿名侧：`post_tags`
-（`GET /api/v3/posts/{id}/tags`）与 `image_get`（`GET /pictures/get_image/{file_url}`）匿名实测 `403`，
-前者正文是 `{"errormsg":"You not have rights","success":false}`，后者是空正文。
-**匿名 `403` 只说明当前身份不够，不能反推「带上 Cookie 就一定成功」，也不能推断 Cookie 是唯一认证方式。**
-候选输入提到 CORS 预检允许 `authorization` 与 `idempotency-key` 两个头、浏览器登录态 Cookie 名是
-`anime_pictures_jwt`；本轮没有发送过这两个头，也没有独立复核过该 cookie 名。
-证据与未实测范围见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
-[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
+**scheme 未实测**：站点接受哪种 `Authorization` 方案（`Bearer`？某种 token？）、登录态 cookie 的名字、`post_create` 需要哪些头，本轮都没有成功样本。观察到的只有匿名侧：`post_tags`（`GET /api/v3/posts/{id}/tags`）与 `image_get`（`GET /pictures/get_image/{file_url}`）匿名实测 `403`，前者正文是 `{"errormsg":"You not have rights","success":false}`，后者是空正文。**匿名 `403` 只说明当前身份不够，不能反推「带上 Cookie 就一定成功」，也不能推断 Cookie 是唯一认证方式。** 候选输入提到 CORS 预检允许 `authorization` 与 `idempotency-key` 两个头、浏览器登录态 Cookie 名是 `anime_pictures_jwt`；本轮没有发送过这两个头，也没有独立复核过该 cookie 名。证据与未实测范围见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
 
 ## Cosine：匿名为默认，`revalidate_secret` 空串保持匿名
 
-Cosine 的公开读取全部匿名：作品列表与详情、随机、搜索与建议、标签、画师、只读索引进度与 `feed.xml`。
-站点条目只有 `url` 与 `revalidate_secret` 两个字段，没有 `username` / `password` / `api_key` /
-`access_token`，构造签名里也没有这些参数；库不加任何隐式认证头，没有登录入口，失败时也不会退回别的身份。
+Cosine 的公开读取全部匿名：作品列表与详情、随机、搜索与建议、标签、画师、只读索引进度与 `feed.xml`。站点条目只有 `url` 与 `revalidate_secret` 两个字段，没有 `username` / `password` / `api_key` / `access_token`，构造签名里也没有这些参数；库不加任何隐式认证头，没有登录入口，失败时也不会退回别的身份。
 
 ```json
 {
@@ -318,9 +257,7 @@ Cosine 的公开读取全部匿名：作品列表与详情、随机、搜索与�
 }
 ```
 
-`revalidate_secret` 只服务一个方法：`POST /api/artwork/revalidate`，请求体是
-`{"artworkId": <作品编号>, "secret": <密钥>}`，站点那侧的密钥来自它自己的服务端配置。密钥是不是空都不会
-阻止调用，库不先拦、不替换成别的值，也不做重试。
+`revalidate_secret` 只服务一个方法：`POST /api/artwork/revalidate`，请求体是 `{"artworkId": <作品编号>, "secret": <密钥>}`，站点那侧的密钥来自它自己的服务端配置。密钥是不是空都不会阻止调用，库不先拦、不替换成别的值，也不做重试。
 
 ```python
 from anybooru import Cosine
@@ -340,10 +277,8 @@ with Cosine('cosine', revalidate_secret='') as client:
 
 * `revalidate_secret=''`（显式空串）表示本次客户端就用空密钥、**不读取**配置里的值；`None`（或不传）才读配置；
 * 不用 `artwork_revalidate` 时，这个字段不会出现在任何请求上，也不会带别的认证头；
-* `POST /api/artwork/revalidate` 本轮从未调用，成功与拒绝形态都未实测；密钥的真实归属只在站点服务端，
-  本库不申请、不诊断、不代替你轮换；
-* `POST /api/search/admin` 是索引管理入口：`POST` 会初始化 / 重建 / 删除**站点**搜索索引，**本轮绝不执行**；
-  只读的 `search_index_status()`（`GET /api/search/admin`）已取得匿名 `200`；
+* `POST /api/artwork/revalidate` 本轮从未调用，成功与拒绝形态都未实测；密钥的真实归属只在站点服务端，本库不申请、不诊断、不代替你轮换；
+* `POST /api/search/admin` 是索引管理入口：`POST` 会初始化 / 重建 / 删除**站点**搜索索引，**本轮绝不执行**；只读的 `search_index_status()`（`GET /api/search/admin`）已取得匿名 `200`；
 * 本类不提供登录、注册或刷新凭据的方法，也不索要账号密码；
 * 权限由服务端判定，客户端不预判能力、不在 `401` / `403` 后退回匿名。
 
@@ -370,24 +305,12 @@ with Cosine('cosine', revalidate_secret='') as client:
 规则：
 
 * `api_key=''`（显式空串）表示本次客户端匿名，**不读**配置里的 key；`None`（或不传）才读配置；
-* 留空即匿名：请求不带 `Authorization` 头。公开的画廊列表 / 搜索 / 详情 / 标签 / 分类法与 GTS 读方法、
-  评论读、`GET /api/v2/config`、`GET /api/v2/cdn` 与 `GET /api/v2` 都取过匿名 `200` 样本；
-* 非空才加头，库不加 `Bearer`、不加 `Basic`、不改写 key；key 在
-  <https://nhentai.net/user/settings#apikeys> 生成，填进自己的配置文件后**不要提交**；
+* 留空即匿名：请求不带 `Authorization` 头。公开的画廊列表 / 搜索 / 详情 / 标签 / 分类法与 GTS 读方法、评论读、`GET /api/v2/config`、`GET /api/v2/cdn` 与 `GET /api/v2` 都取过匿名 `200` 样本；
+* 非空才加头，库不加 `Bearer`、不加 `Basic`、不改写 key；key 在 <https://nhentai.net/user/settings#apikeys> 生成，填进自己的配置文件后**不要提交**；
 * 客户端不做本地权限判断、不在 `401` 后退回匿名，也不提供登录、注册、换取或刷新凭据的方法；
-* 权限由服务端判定：OpenAPI 把收藏、黑名单、下载 URL 与 `GET /api/v2/user` 标成
-  `Auth: User Token or API Key`——匿名打这 6 个 GET 路由实测统一回 `401` 加
-  `{"error": "Authentication required"}`（`/api/v2/user`、`/api/v2/favorites`、`/api/v2/favorites/random`、
-  `/api/v2/blacklist`、`/api/v2/blacklist/ids`、`/api/v2/galleries/{id}/favorite`）。带 key 的成功路径
-  **本轮没有执行**：构造只按规范支持 `Key` 头，从未使用过凭据。
+* 权限由服务端判定：OpenAPI 把收藏、黑名单、下载 URL 与 `GET /api/v2/user` 标成 `Auth: User Token or API Key`——匿名打这 6 个 GET 路由实测统一回 `401` 加 `{"error": "Authentication required"}`（`/api/v2/user`、`/api/v2/favorites`、`/api/v2/favorites/random`、`/api/v2/blacklist`、`/api/v2/blacklist/ids`、`/api/v2/galleries/{id}/favorite`）。带 key 的成功路径**本轮没有执行**：构造只按规范支持 `Key` 头，从未使用过凭据。
 
-**User Token 不实现**：站点另有一套 `Authorization: User <token>` 的凭据（OpenAPI 的
-`components.securitySchemes` 里叫 `User Token`），本类没有对应构造参数，也不替你获取或续期。
-OpenAPI 把 `user` 与 `auth` 两个分组整体标成 **First-party and internal only**（原文：these endpoints
-“should NOT be used by third-party clients … will be enforced”），并写明唯一例外是
-**`GET /api/v2/user`**。36 个原生方法里只收进了这一个用户端点——`user_me()` 就是 `GET /api/v2/user`，
-它接受 User Token 或 API Key；`/api/v2/auth/*`、`/api/v2/user/keys`、`/api/v2/user/avatar` 等首方与内部路由
-一律不接入。需要自己带 `User` 头时走通用入口显式传 `headers`（调用方给的 `headers` 覆盖配置里的认证头）：
+**User Token 不实现**：站点另有一套 `Authorization: User <token>` 的凭据（OpenAPI 的 `components.securitySchemes` 里叫 `User Token`），本类没有对应构造参数，也不替你获取或续期。OpenAPI 把 `user` 与 `auth` 两个分组整体标成 **First-party and internal only**（原文：these endpoints “should NOT be used by third-party clients … will be enforced”），并写明唯一例外是 **`GET /api/v2/user`**。36 个原生方法里只收进了这一个用户端点——`user_me()` 就是 `GET /api/v2/user`，它接受 User Token 或 API Key；`/api/v2/auth/*`、`/api/v2/user/keys`、`/api/v2/user/avatar` 等首方与内部路由一律不接入。需要自己带 `User` 头时走通用入口显式传 `headers`（调用方给的 `headers` 覆盖配置里的认证头）：
 
 ```python
 from anybooru import Nhentai
@@ -400,22 +323,13 @@ with Nhentai('nhentai', api_key='') as client:
     # client.request('GET', 'api/v2/user', headers={'Authorization': 'User <your-token>'})
 ```
 
-**判断公开性要看描述，不要只看 `security` 列表**：`GET /api/v2/galleries` 这类公开读取在 OpenAPI 里也列了
-`User Token` 与 `API Key` 两项，描述写的却是 “Public (optional User Token or API Key for personalization)”；
-反过来 `GET /api/v2/tags/{tag_type}` 的 `security` 是空数组。两类都取到了匿名 `200` 样本，所以分类依据是
-描述与实测，而不是那个列表。
+**判断公开性要看描述，不要只看 `security` 列表**：`GET /api/v2/galleries` 这类公开读取在 OpenAPI 里也列了 `User Token` 与 `API Key` 两项，描述写的却是 “Public (optional User Token or API Key for personalization)”；反过来 `GET /api/v2/tags/{tag_type}` 的 `security` 是空数组。两类都取到了匿名 `200` 样本，所以分类依据是描述与实测，而不是那个列表。
 
-`GET /api/v2/user` 用 API key 认证时返回的 `email` 是 `null`（OpenAPI 的 `UserMeResponse` 描述：
-“Email hidden for API key auth”）。方法签名、返回字段与排除项见[方法参考](nhentai-api.md)与
-[nhentai 契约审计附注](nhentai-contract-notes.md)。
+`GET /api/v2/user` 用 API key 认证时返回的 `email` 是 `null`（OpenAPI 的 `UserMeResponse` 描述：“Email hidden for API key auth”）。方法签名、返回字段与排除项见[方法参考](nhentai-api.md)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。
 
 ## ArtStation 没有凭据入口
 
-`ArtStation` 只做公开读取：站点条目**只有 `url` 一个字段**，构造签名里没有 `username` / `api_key` /
-`password` / `access_token` / `authorization` / `cookie` 一类的凭据参数，构造时把共享传输的 `username` 置空。
-本类不自动生成认证头，也没有账号登录、注册或刷新会话的方法；唯一的 token 入口是 `csrf_token()`
-（取的是**匿名** CSRF token，见下）。共享会话仍会正常保存站点响应 Cookie，
-不会在 `401` / `403` 后退回匿名或另换一条路径。
+`ArtStation` 只做公开读取：站点条目**只有 `url` 一个字段**，构造签名里没有 `username` / `api_key` / `password` / `access_token` / `authorization` / `cookie` 一类的凭据参数，构造时把共享传输的 `username` 置空。本类不自动生成认证头，也没有账号登录、注册或刷新会话的方法；唯一的 token 入口是 `csrf_token()`（取的是**匿名** CSRF token，见下）。共享会话仍会正常保存站点响应 Cookie，不会在 `401` / `403` 后退回匿名或另换一条路径。
 
 ```json
 {
@@ -437,14 +351,8 @@ with ArtStation('artstation') as client:        # 包内条目只有 url，没�
 
 17 个原生方法里有 2 个 POST，**都不是内容写入**，只用匿名会话：
 
-* `csrf_token(**attributes)` —— POST `api/v2/csrf_protection/token.json`，JSON 请求体就是 `attributes` 本身
-  （配置里的 `csrf_request` 是 `{"create_csrf_token_request": "true"}`，对应
-  `csrf_token(create_csrf_token_request='true')`）。返回体原样给你，里面有 `public_csrf_token`；
-  客户端**不把它存成属性**，配对的 Cookie 由现有的 `requests.Session` 照常保存；库不自动续期、不替你重放。
-* `project_search_post(public_csrf_token, **params)` —— POST `api/v2/search/projects.json`，请求体走共享的
-  Rails 表单编码（`additional_fields=['assets', 'description']` 编码成重复的 `additional_fields[]`），
-  并把 token 的**实参原值**放进 `PUBLIC-CSRF-TOKEN` 请求头。token 是**必填的调用方实参**：
-  库不会自动取 token、不会伪造 Cookie、不会重试，也不做响应改写。
+* `csrf_token(**attributes)` —— POST `api/v2/csrf_protection/token.json`，JSON 请求体就是 `attributes` 本身（配置里的 `csrf_request` 是 `{"create_csrf_token_request": "true"}`，对应 `csrf_token(create_csrf_token_request='true')`）。返回体原样给你，里面有 `public_csrf_token`；客户端**不把它存成属性**，配对的 Cookie 由现有的 `requests.Session` 照常保存；库不自动续期、不替你重放。
+* `project_search_post(public_csrf_token, **params)` —— POST `api/v2/search/projects.json`，请求体走共享的 Rails 表单编码（`additional_fields=['assets', 'description']` 编码成重复的 `additional_fields[]`），并把 token 的**实参原值**放进 `PUBLIC-CSRF-TOKEN` 请求头。token 是**必填的调用方实参**：库不会自动取 token、不会伪造 Cookie、不会重试，也不做响应改写。
 
 两步要用**同一个客户端**：Cookie 在会话里，token 在调用方手里。
 
@@ -464,68 +372,24 @@ with ArtStation('artstation') as client:            # 包内条目只有 url，�
     print(results['total_count'], len(results['data']))
 ```
 
-这不是账号登录：CSRF token 是站点发给匿名会话的请求凭据，与 Danbooru 的 `username` / `api_key`、
-Sakuria 的 `access_token` 都不是一回事。库不收账号密码、不做登录态刷新，失败也不退回别的身份。
+这不是账号登录：CSRF token 是站点发给匿名会话的请求凭据，与 Danbooru 的 `username` / `api_key`、Sakuria 的 `access_token` 都不是一回事。库不收账号密码、不做登录态刷新，失败也不退回别的身份。
 
-本轮实测里，token 请求（JSON 体 `{"create_csrf_token_request": "true"}`，`Content-Type: application/json`）
-回 `200 application/json`，正文是 `{"public_csrf_token": "<88 字符的字符串>"}`，响应里出现的 Cookie 名是
-`PRIVATE-CSRF-TOKEN` 与 `__cf_bm`（值未记录）；随后同一个客户端的表单式搜索也回 `200`，
-正文是 `{"total_count": …, "data": […]}`。
-缺 token、token 失效（候选输入提到 `412`）等拒绝分支没有任何样本，也从未在带账号凭据的情形下试过。
+本轮实测里，token 请求（JSON 体 `{"create_csrf_token_request": "true"}`，`Content-Type: application/json`）回 `200 application/json`，正文是 `{"public_csrf_token": "<88 字符的字符串>"}`，响应里出现的 Cookie 名是 `PRIVATE-CSRF-TOKEN` 与 `__cf_bm`（值未记录）；随后同一个客户端的表单式搜索也回 `200`，正文是 `{"total_count": …, "data": […]}`。缺 token、token 失效（候选输入提到 `412`）等拒绝分支没有任何样本，也从未在带账号凭据的情形下试过。
 
-本轮没有任何**账号凭据**的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；
-`request(headers=...)` 虽可显式传请求头，也不保证认证成功：
+本轮没有任何**账号凭据**的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；`request(headers=...)` 虽可显式传请求头，也不保证认证成功：
 
 | 请求 | 实测 | 能读出什么 |
 | :--- | :--- | :--- |
 | `GET /projects/G1ew2N.json`（固定作品详情） | `403`，正文是 Cloudflare 质询 HTML，响应头带 `Cf-Mitigated: challenge` | 这是**反脚本挑战页**，不是登录要求：既不证明这条路由要账号，也不说明该用哪种凭据 |
 | `GET /api/v2/community/projects/22897630.json`（v2 单作品详情） | `401 application/json`，正文 `{"data":null}` | 拒绝匿名；正文没有 code/message，响应头没有 WWW-Authenticate，无法据此判断凭据方案；带凭据未测 |
 
-这两条路由都没有对应的原生方法，本库也不替它们找替代路径。想试就自己用通用入口显式请求，例如
-`client.request('GET', 'api/v2/community/projects/22897630.json')`，成败由站点决定，见
-[ArtStation 契约附注](artstation-contract-notes.md)。
+这两条路由都没有对应的原生方法，本库也不替它们找替代路径。想试就自己用通用入口显式请求，例如 `client.request('GET', 'api/v2/community/projects/22897630.json')`，成败由站点决定，见 [ArtStation 契约附注](artstation-contract-notes.md)。
 
-本轮 [robots.txt](https://www.artstation.com/robots.txt) 为200文本，包含 `/*/likes`、`/*/following`、
-`/*/followers`、`/*/collections` 等模式；不能把这些模式说成只涉及 HTML、不涉及同前缀的 JSON。
-能匿名读到不等于获得许可，另见 [服务条款](https://www.artstation.com/tos)；本库不会因此改走备用路径。
+本轮 [robots.txt](https://www.artstation.com/robots.txt) 为 `200` 文本，包含 `/*/likes`、`/*/following`、`/*/followers`、`/*/collections` 等模式；不能把这些模式说成只涉及 HTML、不涉及同前缀的 JSON。能匿名读到不等于获得许可，另见 [服务条款](https://www.artstation.com/tos)；本库不会因此改走备用路径。
 
 ## 边界与未实测
 
-已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，
-12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。
-Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD
-`7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要
-该站账号，已实测匿名拒绝为401、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。
-Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。
-Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。
-其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。
-Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 426，
-带 `x-sakuria-data-contract: 2` 后为 401 `sakuria_session_required`），17 个成功返回结构一律未知；
-带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、
-10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见
-[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与
-[Sakuria 契约审计附注](sakuria-contract-notes.md)。
-Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与
-`post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），
-`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，
-其余按候选输入封装；逐条见
-[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与
-[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。
-Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）
-本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见
-[验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
-nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），
-`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，
-后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与
-`POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流
-（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与
-[nhentai 契约审计附注](nhentai-contract-notes.md)。
-ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST
-（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。
-`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 403 挑战与 v2 详情的 401 `{"data":null}`
-也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。
-逐条见[验证记录](verification.md)与
-[ArtStation 契约审计附注](artstation-contract-notes.md)。
+已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要该站账号，已实测匿名拒绝为 `401`、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 `426`，带 `x-sakuria-data-contract: 2` 后为 `401` `sakuria_session_required`），17 个成功返回结构一律未知；带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与 `post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，其余按候选输入封装；逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与 [Cosine 契约审计附注](cosine-contract-notes.md)。nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 `403` 挑战与 v2 详情的 `401` `{"data":null}` 也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
 
