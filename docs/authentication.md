@@ -353,7 +353,8 @@ with Cosine('cosine', revalidate_secret='') as client:
 
 `ArtStation` 只做公开读取：站点条目**只有 `url` 一个字段**，构造签名里没有 `username` / `api_key` /
 `password` / `access_token` / `authorization` / `cookie` 一类的凭据参数，构造时把共享传输的 `username` 置空。
-本类不自动生成认证头，也没有登录、注册、换 token 的方法；共享会话仍会正常保存站点响应 Cookie，
+本类不自动生成认证头，也没有账号登录、注册或刷新会话的方法；唯一的 token 入口是 `csrf_token()`
+（取的是**匿名** CSRF token，见下）。共享会话仍会正常保存站点响应 Cookie，
 不会在 `401` / `403` 后退回匿名或另换一条路径。
 
 ```json
@@ -372,7 +373,47 @@ with ArtStation('artstation') as client:        # 包内条目只有 url，没�
     print(client.project_list(page=1, per_page=2)['total_count'])   # 匿名读公开作品列表
 ```
 
-本轮没有任何带凭据的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；
+### 匿名 CSRF 与表单式 POST 搜索
+
+17 个原生方法里有 2 个 POST，**都不是内容写入**，只用匿名会话：
+
+* `csrf_token(**attributes)` —— POST `api/v2/csrf_protection/token.json`，JSON 请求体就是 `attributes` 本身
+  （配置里的 `csrf_request` 是 `{"create_csrf_token_request": "true"}`，对应
+  `csrf_token(create_csrf_token_request='true')`）。返回体原样给你，里面有 `public_csrf_token`；
+  客户端**不把它存成属性**，配对的 Cookie 由现有的 `requests.Session` 照常保存；库不自动续期、不替你重放。
+* `project_search_post(public_csrf_token, **params)` —— POST `api/v2/search/projects.json`，请求体走共享的
+  Rails 表单编码（`additional_fields=['assets', 'description']` 编码成重复的 `additional_fields[]`），
+  并把 token 的**实参原值**放进 `PUBLIC-CSRF-TOKEN` 请求头。token 是**必填的调用方实参**：
+  库不会自动取 token、不会伪造 Cookie、不会重试，也不做响应改写。
+
+两步要用**同一个客户端**：Cookie 在会话里，token 在调用方手里。
+
+```python
+from anybooru import ArtStation
+
+with ArtStation('artstation') as client:            # 包内条目只有 url，没有账号凭据
+    csrf = client.csrf_token(create_csrf_token_request='true')
+    # POST https://www.artstation.com/api/v2/csrf_protection/token.json
+    # JSON 体：{"create_csrf_token_request": "true"}；返回体里有 public_csrf_token
+    results = client.project_search_post(csrf['public_csrf_token'],
+                                        query='cat', page=1, per_page=3, sorting='relevance',
+                                        additional_fields=['assets', 'description'])
+    # POST https://www.artstation.com/api/v2/search/projects.json
+    # 表单体：query=cat&page=1&per_page=3&sorting=relevance&additional_fields[]=assets&additional_fields[]=description
+    # 请求头：PUBLIC-CSRF-TOKEN: <上面拿到的 token>
+    print(results['total_count'], len(results['data']))
+```
+
+这不是账号登录：CSRF token 是站点发给匿名会话的请求凭据，与 Danbooru 的 `username` / `api_key`、
+Sakuria 的 `access_token` 都不是一回事。库不收账号密码、不做登录态刷新，失败也不退回别的身份。
+
+本轮实测里，token 请求（JSON 体 `{"create_csrf_token_request": "true"}`，`Content-Type: application/json`）
+回 `200 application/json`，正文是 `{"public_csrf_token": "<88 字符的字符串>"}`，响应里出现的 Cookie 名是
+`PRIVATE-CSRF-TOKEN` 与 `__cf_bm`（值未记录）；随后同一个客户端的表单式搜索也回 `200`，
+正文是 `{"total_count": …, "data": […]}`。
+缺 token、token 失效（候选输入提到 `412`）等拒绝分支没有任何样本，也从未在带账号凭据的情形下试过。
+
+本轮没有任何**账号凭据**的成功样本，也没有证据说明站点接受哪种凭据。下列两种访问拒绝不能当认证方案；
 `request(headers=...)` 虽可显式传请求头，也不保证认证成功：
 
 | 请求 | 实测 | 能读出什么 |
@@ -413,10 +454,11 @@ Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cook
 Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）
 本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见
 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
-ArtStation 本轮没有验证凭据方案：构造没有凭据参数，15 个原生方法都是匿名 GET，没有原生写方法、
-登录或换 token 入口。指定详情的403挑战与v2详情的401 data:null，只是两条路径的匿名访问拒绝；
-它们不能说明站点接受哪种凭据、带凭据会返回什么，
-一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与
+ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST
+（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。
+`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 403 挑战与 v2 详情的 401 `{"data":null}`
+也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。
+逐条见[验证记录](verification.md)与
 [ArtStation 契约审计附注](artstation-contract-notes.md)。
 
 ## 相关文档
