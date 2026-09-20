@@ -2,9 +2,11 @@
 
 把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。
 照着现有代码抄比照本文写更快——可运行的完整样板是 `anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py`
-+ `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md` 这一套；最近一次的完整样板是 Cosine 那一套
-（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），
-含四种返回外壳与两个写入口的处理。
++ `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md` 这一套；最近一次的完整样板是 Nhentai 那一套
+（`anybooru/nhentai.py` + `anybooru/api_nhentai.py` + `test/nhentai.py` + `examples/nhentai/` + `docs/nhentai*.md`），
+依据是站点自带 OpenAPI 加匿名实测响应（引用 JSON Pointer 与 `operationId`，没有服务端行号可写）；
+前一次是 Cosine 那一套（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` +
+`examples/cosine/` + `docs/cosine*.md`），含四种返回外壳与两个写入口的处理。
 
 ## 0. 先判断：已有家族，还是要新家族
 
@@ -13,11 +15,18 @@
   `anybooru/anybooru.json` 的 `sites` 段；家族与站点对照看 [index.md](index.md)。
 - **新家族**：先定三个名字，后面所有产物都用它——类名与模块名（`Gelbooru02` → `anybooru/gelbooru02.py`、
   `anybooru/api_gelbooru02.py`）、配置里的站点键（`tbib`）、文档前缀（`docs/gelbooru02*.md`）；Cosine 的对应三项是
-  `Cosine` / `anybooru/cosine.py` + `anybooru/api_cosine.py`、站点键 `cosine`、`docs/cosine*.md`。
+  `Cosine` / `anybooru/cosine.py` + `anybooru/api_cosine.py`、站点键 `cosine`、`docs/cosine*.md`；
+  Nhentai 的是 `Nhentai` / `anybooru/nhentai.py` + `anybooru/api_nhentai.py`、站点键 `nhentai`、`docs/nhentai*.md`。
 - 有上游引擎源码的家族（`danbooru/`、`moebooru/`、`Serika.art/`、`e621ng/`）：以路由与控制器的**文件 + 行号**
   为第一依据。没有本地服务端源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu）：以站点官方 API 页面、
   自带 OpenAPI、帮助页加**真实响应**为依据；Cosine 也属这一档，它的站点前端代码在公开仓库里，只按需只读
   个别文件当线索（不 clone、不写行号），公开结论仍须由匿名响应证实。依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
+- 站点自带官方 OpenAPI 是这一档里最强的一种依据：先按它把路径、参数与响应 schema 定下来，
+  再用匿名响应逐条核实，两者冲突时照实写冲突，不要按 schema 猜。Nhentai 就是这么做的
+  （`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）：引用条目写 JSON Pointer 与 `operationId`
+  （例如 `#/paths/~1api~1v2~1galleries/get`、`get_all_galleries_api_v2_galleries_get`），**没有服务端行号可写**；
+  实测与 schema 的两处出入（非法 `page` / 超上限 `per_page` 记作 `422` 而实测 `400`、标签列表 `sort=name`
+  才有 `alphabet`）都写进方法参考与契约附注，见 [nhentai-contract-notes.md](nhentai-contract-notes.md)。
 - Sakuria 连官方 API 页面与 OpenAPI 都没有，证据等级更弱：只把本轮匿名响应支持的结论写成契约，
   输入文档作为候选；未复测项集中标明，矛盾见 [sakuria-contract-notes.md](sakuria-contract-notes.md)。
 - Anime-Pictures 的官方手册页存在但被 Cloudflare 质询挡下，没有可用的 OpenAPI 或服务端源码。
@@ -34,7 +43,14 @@
 - 每条记录四样东西：**真实 URL、HTTP 状态码、`Content-Type`（哪怕它与正文格式不符）、正文首层结构与字段名**。
 - 必查：列表、详情、分页参数与语义（页码还是游标）、每页上限、匿名可用性、需要凭据的端点、错误路径
   （不存在的 id、越界页码）。
+- 记录越界响应本身，不把 HTTP 200 当成有效页码：深页可能返回尾部的一页（Nhentai 的 `page=100000&per_page=25` 样本为24条），
+  所以不要写“返回空/短页就是到底”这类通用终止条件；`total` / `num_pages` 常是快照，也别拿
+  `ceil(total/per_page)` 当公式去推。
 - 站点自述的上限与实测冲突时写“未证实”，**不要**在客户端里做钳位。
+- 站点自带 OpenAPI 时，先照它把要封装的路径、参数与响应 schema 抄下来（引用写 JSON Pointer 与 `operationId`），
+  **再逐条发匿名请求核实**：schema 与实测不一致的地方照实写进 `docs/<family>-api.md` 与
+  `docs/<family>-contract-notes.md`，客户端既不按 schema 做本地校验，也不按实测改参数。
+  依据条目同样要覆盖权限：OpenAPI 的 `**Auth:**` 行说明每条路由是否匿名可用，别只看路径名称猜。
 - 302 / 500 / 空正文 / `Content-Type` 与正文不一致这类怪行为照实写进 `docs/<family>-api.md` 与
   `docs/<family>-contract-notes.md`；代码不特判、不重试、不降级。
 - 探测脚本与原始响应是一次性产物：放仓库忽略的临时目录，不要提交。
@@ -75,7 +91,8 @@
 - `docs/<family>.md`：这个类怎么用（构造、认证、`request()`、返回值、`last_call`、常见坑），不列全量方法。
 - `docs/<family>-api.md`：每个方法的参数、路由、真实返回字段或 XML 属性、可直接抄的示例。
 - `docs/<family>-capabilities.md`：「我要做什么 → 用哪个方法」，加一行式完整方法索引。
-- `docs/<family>-contract-notes.md`：依据出处（上游文件 + 行号，或 API 页面 / 帮助页 / OpenAPI 条目）、
+- `docs/<family>-contract-notes.md`：依据出处（上游文件 + 行号，或 API 页面 / 帮助页 / OpenAPI 条目；
+  自带 OpenAPI 的家族写 JSON Pointer 与 `operationId`，没有行号可写）、
   权限分支、排除项、文档与实现的矛盾。
 
 ## 6. 导航与元数据
@@ -93,6 +110,8 @@
 - 公开记录写进 `docs/verification.md` 的新小节，标题带家族 / 站点与日期；跑不了的（要账号、要写权限）
   照实标「未实测」，不要伪称跑过。
 - 「只对过源码或文档、没真跑」的结论与「真跑过」的分开列，边界与未实测项集中写在该节里。
+- 区分**路由级证据**与**方法级证据**：直接发 HTTP 请求只能证明站点侧的路径、参数、状态码与字段，
+  不能写成“某个 Python 方法跑过”；方法与示例脚本没执行就照实标未实测，两者不要混称。
 - 对外内容不得出现本机信息：代理地址与出口 IP、绝对路径、临时目录与证据文件名、维护者解释器路径、
   本机网络过程细节，一律写成中性表述。
 
