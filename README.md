@@ -1,14 +1,15 @@
-# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation 图站 API 客户端
+# Anybooru - Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / e-shuushuu / Gelbooru 0.2 / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation / Wallhaven 图站 API 客户端
 
 [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://raw.githubusercontent.com/NebulaeWisdom/anybooru/master/LICENSE)
 
-**Anybooru** 是访问十三类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
+**Anybooru** 是访问十四类图站 API 的 Python 客户端：Danbooru 系（`danbooru.donmai.us`、
 `safebooru.donmai.us`）、Moebooru 系（`yande.re`、`konachan.com`、`sakugabooru.com`）、
 Serika（`serika.art` 与同引擎自托管实例）、e621ng（`e621.net`、`e926.net`）、Zerochan（`zerochan.net`）
 、Gelbooru（`gelbooru.com`）、e-shuushuu（`e-shuushuu.net`）、Gelbooru 0.2（TBIB，`tbib.org`）、
 Sakuria（Pixiv 第三方镜像）、Anime-Pictures（`anime-pictures.net`，自研 `api/v3` 接口）、
-Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhentai.net`，站点自带的 `.net` API v2）
-与 ArtStation（`artstation.com`，公开作品集、只读搜索与 RSS 订阅源）。
+Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhentai.net`，站点自带的 `.net` API v2）、
+ArtStation（`artstation.com`，公开作品集、只读搜索与 RSS 订阅源）与 Wallhaven（`wallhaven.cc`，
+站点自带的 API v1）。
 
 它不做跨引擎的统一图库模型：每个家族的方法只包装**该引擎自己**的路由，参数按该引擎的规则编码，
 服务端返回的字段原样交给你，字段差异不隐藏。使用时**先选与你的站点匹配的客户端，再按任务查方法**；
@@ -19,7 +20,7 @@ Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhenta
 - 许可：**MIT License**，见 [LICENSE](LICENSE)
 - 上游：[LuqueDaniel/pybooru](https://github.com/LuqueDaniel/pybooru)（最后一次发版是 2020 年的 4.2.2）。
   本仓库重写了客户端（Danbooru 面 227 个方法、Moebooru 面 90 个方法）并新增 Serika、e621ng、Zerochan、
-  Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十一个家族，
+  Gelbooru、e-shuushuu、Gelbooru 0.2、Sakuria、Anime-Pictures、Cosine、Nhentai、ArtStation 与 Wallhaven 十二个家族，
   重构了配置、传输与错误处理；仓库原名 `pybooru`，现名 `anybooru`，版本号从 `0.1.0.dev1` 重新起算。
   除 changelog 保留的历史记录外，**行为与上游不再一致**，用法以本仓库文档为准。
 
@@ -42,9 +43,10 @@ Cosine（`pic.cosine.ren`，自研 API 的 Next.js 图站）、Nhentai（`nhenta
 | Cosine：`client.image_list(page=1, pageSize=2)` | `GET https://pic.cosine.ren/api/list?page=1&pageSize=2` | 站内作品列表；方法原样返回 `{"images": [...], "total": N}`，不剥层。每项 `id` 是站内自增编号，上游编号在 `pid`；`rawurl` / `thumburl` 是地址。列表样本里 `size` 是 `null`、`guest` 是 `false`（只代表这批样本，不推广成恒值） |
 | Nhentai：`client.gallery_list(per_page=2)` | `GET https://nhentai.net/api/v2/galleries?per_page=2` | 完整信封：`result` 是作品数组，另有 `num_pages` / `per_page` / `total`；每项有 `id`、`media_id`、`num_pages`、`num_favorites`、`thumbnail` 与 `thumbnail_width` / `thumbnail_height`、`tag_ids`（标签编号数组）、`blacklisted`。`gallery_show(id, include='related')` 是另一套详情对象（`cover` / `thumbnail` 带宽高、`pages`、`tags`、`scanlator`、`upload_date`）；方法不拆层 |
 | ArtStation：`client.project_list(page=1, per_page=2)` | `GET https://www.artstation.com/projects.json?page=1&per_page=2` | 公开作品列表；方法原样返回 `{"data": [...], "total_count": N}`，不剥 `data` 层。条目样本含 `id`、`hash_id`、`title`、`permalink`、`cover`、`assets_count` 与 `tag_list`。**用户作品列表是另一套条目字段**：`user_projects` 的条目没有 `user` / `views_count`，不要跨路由照抄字段清单 |
+| Wallhaven：`client.wallpaper_search(q='nature')` | `GET https://wallhaven.cc/api/v1/search?q=nature` | 完整信封：`data` 是壁纸数组，`meta` 有 `current_page` / `last_page` / `per_page`（文档写每页固定 24）/ `total` / `query` / `seed`；每项有 `id`（如 `pom5lj`，字段值举例）、`path` 原图地址、`thumbs` 的 `large` / `original` / `small`、`resolution` / `file_size` / `purity` / `category`。相似标签是 `q='like:<壁纸编号>'`、用户上传是 `q='@<用户名>'`，都写在官方 `q` 里，没有单独的 `/similar` 或 `/user` 路由 |
 
 表中标注的实测结果来自 [docs/verification.md](docs/verification.md) 的既有记录，不是对站点当前状态的保证。
-十三个家族的引擎来路、契约依据与未实测边界见 [docs/index.md](docs/index.md) 与各家族的契约附注。
+十四个家族的引擎来路、契约依据与未实测边界见 [docs/index.md](docs/index.md) 与各家族的契约附注。
 
 ## 运行要求
 
@@ -67,7 +69,7 @@ python -m venv .venv
 
 ## 第一次调用
 
-下面两段都可以整字复制执行（匿名只读，默认站点来自包内配置）。其余十一个家族的第一次调用
+下面两段都可以整字复制执行（匿名只读，默认站点来自包内配置）。其余十二个家族的第一次调用
 （XML 原文、Bearer token、四种返回外壳等）见对应家族的 `docs/<family>.md`。
 
 ### Danbooru 系站点
@@ -122,7 +124,7 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 `config_file` 指到的文件不存在时直接抛 `FileNotFoundError`，不会回落到默认文件或内置站点；
 当前工作目录里的同名文件**不会**被自动读取；没有任何环境变量注入。
 
-包内文件的开头长这样（`sites` 段一共 17 个条目，下面列出部分站点；完整文件与逐键说明见
+包内文件的开头长这样（`sites` 段一共 18 个条目，下面列出部分站点；完整文件与逐键说明见
 [docs/configuration.md](docs/configuration.md)）：
 
 ```json
@@ -143,7 +145,8 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
     "anime_pictures": { "url": "https://api.anime-pictures.net/api/v3", "authorization": "", "cookie": "" },
     "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" },
     "nhentai": { "url": "https://nhentai.net", "api_key": "" },
-    "artstation": { "url": "https://www.artstation.com" }
+    "artstation": { "url": "https://www.artstation.com" },
+    "wallhaven": { "url": "https://wallhaven.cc", "apikey": "" }
   }
 }
 ```
@@ -151,7 +154,7 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 - 用命名站点：`site_name` 是 `sites` 段的键，例如 `Danbooru('danbooru')`、`Moebooru('yandere')`、
   `Zerochan('zerochan')`、`Gelbooru('gelbooru')`、`Gelbooru02('tbib')`、`Shuushuu('shuushuu')`、
   `Sakuria('sakuria')`、`AnimePictures('anime_pictures')`、`Cosine('cosine')`、`Nhentai('nhentai')`、
-  `ArtStation('artstation')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，显式构造参数优先。
+  `ArtStation('artstation')`、`Wallhaven('wallhaven')`；条目里的 `url`、凭据与 `api_version` 按同名字段读入，显式构造参数优先。
 - 用清单外的站点：直接给 `site_url=`，例如 `Moebooru(site_url='https://example.org',
   api_version='1.13.0+update.3')`、`E621(site_url='https://e926.net')`。`sites` 段是**样例 / 起始清单，
   不是支持边界**。
@@ -170,7 +173,7 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 
 | 文档 | 内容 |
 | :--- | :--- |
-| [docs/index.md](docs/index.md) | 导航：想做什么 → 读哪份；十三个家族怎么选 |
+| [docs/index.md](docs/index.md) | 导航：想做什么 → 读哪份；十四个家族怎么选 |
 | [docs/installation.md](docs/installation.md) | 安装、Python 与 requests 版本、配置文件放在哪、发行状态 |
 | [docs/configuration.md](docs/configuration.md) | `anybooru.json` 完整样例、`config_file` 覆盖、`sites` 段语义与引擎判别 |
 | [docs/authentication.md](docs/authentication.md) | 各家族的认证形态：HTTP Basic、密码哈希、Bearer、查询凭据、按次传入的 CSRF token |
@@ -197,10 +200,11 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 | Cosine | [cosine.md](docs/cosine.md) | [cosine-api.md](docs/cosine-api.md) | [cosine-capabilities.md](docs/cosine-capabilities.md) | [cosine-contract-notes.md](docs/cosine-contract-notes.md) |
 | Nhentai | [nhentai.md](docs/nhentai.md) | [nhentai-api.md](docs/nhentai-api.md) | [nhentai-capabilities.md](docs/nhentai-capabilities.md) | [nhentai-contract-notes.md](docs/nhentai-contract-notes.md) |
 | ArtStation | [artstation.md](docs/artstation.md) | [artstation-api.md](docs/artstation-api.md) | [artstation-capabilities.md](docs/artstation-capabilities.md) | [artstation-contract-notes.md](docs/artstation-contract-notes.md) |
+| Wallhaven | [wallhaven.md](docs/wallhaven.md) | [wallhaven-api.md](docs/wallhaven-api.md) | [wallhaven-capabilities.md](docs/wallhaven-capabilities.md) | [wallhaven-contract-notes.md](docs/wallhaven-contract-notes.md) |
 
 ## 可运行示例
 
-`examples/` 下共 35 个脚本，按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认
+`examples/` 下共 37 个脚本，按家族分目录，全部支持 `--config` 与 `--site`；省略 `--config` 就读包内默认
 配置，站点名与参数（标签、页码、条数、间隔）取自配置的 `examples.<家族>` 段，脚本里不硬编码站点与分页。
 
 | 目录 | 脚本 |
@@ -218,6 +222,7 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 | `examples/cosine/` | `list_images.py`（配置的两页 `image_list` 与两个 `offset` 的搜索）、`browse_resources.py`（作品详情、标签筛图、画师作品与 `infoOnly=True` 的画师资料）——两个匿名只读脚本，不下载媒体 |
 | `examples/nhentai/` | `list_galleries.py`（配置的两页 `gallery_list` 与一次 `search`）、`browse_resources.py`（作品详情、标签详情、多标签编号查询、作品评论与站点配置）——两个匿名只读脚本，不下载媒体 |
 | `examples/artstation/` | `list_projects.py`（配置的两页全站作品列表与两页过滤搜索）、`browse_resources.py`（用户资料、专辑作品、随机作品与作品评论）——两个匿名只读脚本，不调用被站点挡下的详情路由 |
+| `examples/wallhaven/` | `list_wallpapers.py`（配置的两页 `wallpaper_search` 与一次 `wallpaper_show`，打印真实 URL、状态与分页字段）、`browse_resources.py`（标签详情、按标签编号的搜索 `q='id:1'`、用户公开合集列表与合集内壁纸）——两个匿名只读脚本，不下载媒体 |
 
 ```bash
 .venv/Scripts/python.exe examples/danbooru/list_posts.py
@@ -233,6 +238,7 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 .venv/Scripts/python.exe examples/cosine/list_images.py
 .venv/Scripts/python.exe examples/nhentai/list_galleries.py
 .venv/Scripts/python.exe examples/artstation/list_projects.py
+.venv/Scripts/python.exe examples/wallhaven/list_wallpapers.py
 ```
 
 其余目录与脚本同理：`.venv/Scripts/python.exe examples/<family>/<script>.py`（Linux / macOS 用
@@ -242,9 +248,9 @@ with Nhentai('nhentai') as client:                 # 包内 nhentai 条目的 ap
 ## 轻量匿名冒烟检查
 
 安装本包后，可单独运行 `test/<站点>.py`，快速检查导入、配置与客户端构造，以及少量 API 的字段类型、
-列表条数、分页、详情编号和预期错误。文件名对应 `sites` 段 17 个条目：`serika`、`danbooru`、`safebooru`、
+列表条数、分页、详情编号和预期错误。文件名对应 `sites` 段 18 个条目：`serika`、`danbooru`、`safebooru`、
 `konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`shuushuu`、`tbib`、
-`sakuria`、`anime_pictures`、`cosine`、`nhentai`、`artstation`。
+`sakuria`、`anime_pictures`、`cosine`、`nhentai`、`artstation`、`wallhaven`。
 
 ```bash
 python test/danbooru.py
@@ -256,23 +262,25 @@ python test/anime_pictures.py --config <你的配置文件>
 python test/cosine.py --config <你的配置文件>
 python test/nhentai.py --config <你的配置文件>
 python test/artstation.py --config <你的配置文件>
+python test/wallhaven.py --config <你的配置文件>
 ```
 
 全部匿名、只发 GET，不需要账号，脚本显式禁用配置中的凭据；不登录、不写入、不下载媒体、
 不重试、不跟随重定向、不切换站点。每站最多 10 次请求：Shuushuu、Sakuria、Cosine、Anime-Pictures、
-Nhentai 与 ArtStation 最多 10 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，其余各最多 4 次；
+Nhentai 与 ArtStation 最多 10 次，Wallhaven 最多 8 次、Serika 最多 5 次、Gelbooru 与 TBIB 最多 6 次，其余各最多 4 次；
 前置列表失败时跳过依赖的详情 / 翻页，不补发请求。两次请求之间按配置暂停：通用 `smoke.pause_seconds=1.2`，
 Shuushuu 用 `smoke.shuushuu.pause_seconds=2.1`，Sakuria 用 `smoke.sakuria.pause_seconds=1.2`，
 Anime-Pictures 用 `smoke.anime_pictures.pause_seconds=1.3`，Cosine 用 `smoke.cosine.pause_seconds=1.3`；
 Nhentai 没有自己的 `pause_seconds`，用通用的 `smoke.pause_seconds=1.2`，
-ArtStation 用 `smoke.artstation.pause_seconds=1.3`。不依赖测试框架，不在 CI 自动运行。
+ArtStation 用 `smoke.artstation.pause_seconds=1.3`；Wallhaven 用 `smoke.wallhaven.pause_seconds=1.4`，
+且**在每次请求前**都暂停（包括第一次请求）。不依赖测试框架，不在 CI 自动运行。
 
 每条检查输出 `PASS` / `FAIL`、真实 URL、HTTP 状态或异常及关键字段 / 条数，最后汇总实际尝试次数；
 退出码 `0` 表示本次全部符合预期，`1` 表示失败或漂移。Gelbooru 五个 dapi 的匿名 `401` 空正文是
 **预期拒绝**，不是失败；Anime-Pictures 的缺失帖子 `410` 与非法路径段 `400`（正文是 `text/plain`、
 `AnybooruHTTPError.data` 为 `None`）、Cosine 查缺失作品的 `404`、Nhentai 查缺失作品的 `404` 与非法
 `page`（例如 `page=0`）的 `400`、ArtStation 的缺失用户名 `404`（`text/plain` 空正文）与非法搜索参数的
-`400` 同样是**预期拒绝**，不是失败；网络失败也不会伪装成站点变化。这里不是全 API 覆盖或长期可用性保证。
+`400`、Wallhaven 查缺失壁纸的 `404`（JSON `{"error":"Nothing here"}`）同样是**预期拒绝**，不是失败；网络失败也不会伪装成站点变化。这里不是全 API 覆盖或长期可用性保证。
 
 省略 `--config` 时读包内默认配置（不含代理）；若所在网络需要代理，必须用 `--config` 指向自己的完整
 配置。复制最新版 `anybooru/anybooru.json`，保留其中的 `smoke` 段，仅调整自己的 `request` 设置；
