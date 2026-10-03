@@ -1,6 +1,6 @@
 # 接入一个新图站（新家族）
 
-把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。照着现有代码抄更快。可运行的完整样板是 gelbooru02 那一套（`anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py` + `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md`）。最近一次完整样板是 Nhentai 那一套（`anybooru/nhentai.py` + `anybooru/api_nhentai.py` + `test/nhentai.py` + `examples/nhentai/` + `docs/nhentai*.md`），依据是站点自带 OpenAPI 加匿名实测响应。前一次是 Cosine 那一套（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），含四种返回外壳与两个写入口的处理。
+把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。照着现有代码抄更快。可运行的完整样板是 gelbooru02 那一套（`anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py` + `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md`）。最近一次完整样板是 Wallhaven 那一套（`anybooru/wallhaven.py` + `anybooru/api_wallhaven.py` + `test/wallhaven.py` + `examples/wallhaven/` + `docs/wallhaven*.md`），依据是官方 API v1 页面加匿名实测响应，7 个只读 GET 方法、返回完整 JSON 信封。前一次是 Nhentai 那一套（`anybooru/nhentai.py` + `anybooru/api_nhentai.py` + `test/nhentai.py` + `examples/nhentai/` + `docs/nhentai*.md`），依据是站点自带 OpenAPI 加匿名实测响应。再前一次是 Cosine 那一套（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），含四种返回外壳与两个写入口的处理。
 
 ## 0. 先判断：已有家族，还是要新家族
 
@@ -14,11 +14,12 @@
 - 文档前缀：`docs/gelbooru02*.md`。
 
 Cosine 对应三项：`Cosine` / `anybooru/cosine.py` + `anybooru/api_cosine.py`、站点键 `cosine`、`docs/cosine*.md`。  
-Nhentai 对应三项：`Nhentai` / `anybooru/nhentai.py` + `anybooru/api_nhentai.py`、站点键 `nhentai`、`docs/nhentai*.md`。
+Nhentai 对应三项：`Nhentai` / `anybooru/nhentai.py` + `anybooru/api_nhentai.py`、站点键 `nhentai`、`docs/nhentai*.md`。  
+Wallhaven 对应三项：`Wallhaven` / `anybooru/wallhaven.py` + `anybooru/api_wallhaven.py`、站点键 `wallhaven`、`docs/wallhaven*.md`。
 
 依据分级：
 - 有上游引擎源码的家族（`danbooru/`、`moebooru/`、`Serika.art/`、`e621ng/`）：以路由与控制器的**文件 + 行号**为第一依据。
-- 没有本地服务端源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu）：以站点官方 API 页面、自带 OpenAPI、帮助页加**真实响应**为依据。
+- 没有本地服务端源码的（Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Wallhaven）：以站点官方 API 页面、自带 OpenAPI、帮助页加**真实响应**为依据。
 - Cosine：站点前端代码在公开仓库里，只按需只读个别文件当线索（不 clone、不写行号），公开结论仍须由匿名响应证实。
 - 依据等级图例见 [gelbooru-api.md](gelbooru-api.md) 开头。
 
@@ -31,6 +32,8 @@ Anime-Pictures 的官方手册页存在但被 Cloudflare 质询挡下，没有�
 Cosine 与它们同档：自研 Next.js + Prisma + Meilisearch API，站点前端仓库公开但本轮只按需只读个别文件（不 clone、不写行号），候选输入是待验证资料而不是契约。
 
 ArtStation 使用站点自己的根级 JSON、`/api/v2` 与 RSS，不套 booru 模型；本轮未取得官方 API 规范或服务端源码，只凭匿名响应核对。`/openapi.json` 返回 200 HTML Explore 页，并不是规范；个别详情路径 403 挑战或 401 不能外推成全站不可用，也不能据此发明认证方式。
+
+Wallhaven 有可读的官方 API v1 页面（https://wallhaven.cc/help/api），但没有 OpenAPI 或服务端源码：依据是官方页面的标题与锚点（`#wallpapers` / `#search` / `#tags` / `#user-settings` / `#limits` / `#auth`）加匿名只读响应。它把全部读取面收在 7 条只读 GET 路由上。**相似标签与用户上传不是独立路由**，而是 `q='like:<壁纸编号>'` 与 `q='@<用户名>'` 两种查询写法——官方页面的 `/w/{id}/similar` 与 `/user` 实测 `404`；别家引擎有 `/similar` 或 `/user`，不等于这家也有，不要照抄血缘经验造方法（`like:` 搜索实测被 Cloudflare 质询挡下，只按页面写法记录，不做绕行）。它的搜索参数 `categories` / `purity` 是三位字符串掩码，不是布尔；本人合集与 `settings` 需要 API key（匿名 `settings` 是 `401`、匿名本人合集是 `404`），他人**公开**合集与合集内壁纸匿名可读（实测 `collections/{username}` 与 `collections/{username}/{id}` 均 `200`）。
 
 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
@@ -125,4 +128,5 @@ ArtStation 使用站点自己的根级 JSON、`/api/v2` 与 RSS，不套 booru �
 - Anime-Pictures 的未实测项与输入矛盾见 [anime-pictures-contract-notes.md](anime-pictures-contract-notes.md)。
 - Cosine 的未实测项与输入矛盾见 [cosine-contract-notes.md](cosine-contract-notes.md)。
 - ArtStation 的证据与输入资料差异见 [artstation-contract-notes.md](artstation-contract-notes.md)。
+- Wallhaven 的官方 API 页面条目、7 条只读路由与未实测项见 [wallhaven-contract-notes.md](wallhaven-contract-notes.md)。
 - 要账号、要写权限的跑不了的照实标「未实测」，不要伪称跑过。
