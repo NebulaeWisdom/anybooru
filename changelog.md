@@ -11,6 +11,56 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Wallhaven 第十四家族
+
+- 新增 `Wallhaven`、`anybooru/wallhaven.py` 与 `anybooru/api_wallhaven.py`。站点 `wallhaven.cc` 自带 API v1（站点根
+  `https://wallhaven.cc`，接口根是 `https://wallhaven.cc/api/v1`），**不是** booru 引擎：全部读取面收在 7 条只读
+  路由上——搜索 `api/v1/search`、壁纸详情 `api/v1/w/{id}`、标签详情 `api/v1/tag/{id}`、用户设置
+  `api/v1/settings`、本人合集 `api/v1/collections`、他人公开合集 `api/v1/collections/{username}`、合集内壁纸
+  `api/v1/collections/{username}/{id}`，不套用其它家族的路由、参数名与字段。
+- 原生 API 固定 **7 个方法，全部是 `GET`**：`wallpaper_search(**params)`、`wallpaper_show(wallpaper_id, **params)`、
+  `tag_show(tag_id, **params)`、`user_settings(**params)`、`collection_list(**params)`、
+  `user_collections(username, **params)` 与 `collection_wallpapers(username, collection_id, **params)`。
+  资源编号与用户名逐段按 `quote(str(value), safe='')` 转义；查询参数 `**params` 原样交给共享编码器（`None` 丢弃，
+  列表式取值请用逗号串）。没有本地校验、默认查询、重试、钳位或字段改名，也没有写方法。
+- 返回完整 JSON 信封，一个外层都不拆：搜索是 `{"data": […], "meta": {…}}`（`meta` 有 `current_page` /
+  `last_page` / `per_page` / `total` / `query` / `seed`），壁纸详情与标签是 `{"data": {…}}`，合集列表是
+  `{"data": [{"id", "label", "views", "public", "count"}]}`。方法不剥 `data` 层、不做 JSON/文本嗅探。
+- **相似标签与用户上传没有独立路由**：相似用 `wallpaper_search(q='like:pom5lj')`、用户上传用
+  `wallpaper_search(q='@LewisMweir13')`，是本类提供的唯一写法；`/w/{id}/similar` 与 `/user` 实测 `404`，别家引擎的
+  `/similar`、`/user` 血缘不能套过来，本库不为它们造方法。
+- 构造器与 Nhentai 同形，凭据字段名为 `apikey`：`Wallhaven(site_name=None, site_url=None, apikey=None,
+  proxies=None, *, config_file=None, timeout=None, user_agent=None)`。`site_url` 是站点根 `https://wallhaven.cc`
+  而不是 API 根；`apikey` 为 `None` 时读 `sites.<key>.apikey`，显式空串表示本次固定匿名、不读配置，非空时作为查询
+  参数 `apikey=` 随请求发送。没有登录、注册或令牌刷新。官方也支持 `X-API-Key:` 头，需要时由调用方通过
+  `request(headers=…)` 显式传入，客户端不会同时发两种形态。
+- `request(method, path, *, params=None, headers=None)`：`path` 去掉前导 `/` 后拼在站点根上，原生方法自带
+  `api/v1` 前缀；返回共享传输解析后的完整 JSON，调用方传的 `headers` 原样发送，不自动附加两种凭据形态。
+- `wallpaper_search` 的查询参数为官方页面的 12 个：`q` / `categories` / `purity` / `sorting` / `order` /
+  `topRange` / `atleast` / `resolutions` / `ratios` / `colors` / `page` / `seed`。`categories` 与 `purity` 是三位
+  字符串掩码（默认 `111` / `100`），不是 Python 布尔；`sorting` 取 `date_added`（默认）/ `relevance` / `random` /
+  `views` / `favorites` / `toplist`，`order` 取 `desc`（默认）/ `asc`，`topRange` 取 `1d` / `3d` / `1w` / `1M`（默认）/
+  `3M` / `6M` / `1y` 且只在 `sorting=toplist` 下有意义；`page` 1 起步，官方页面写每页固定 24 条；带 `apikey` 时
+  站点按该账号的浏览设置与默认过滤执行搜索。
+- 凭据与权限边界如实保留：默认匿名只读公开内容；匿名 `settings` 返回 `401` 加 `{"error":"Unauthorized"}`，匿名
+  本人合集返回 `404` 加 `{"error":"Nothing here"}`（不是 `401`），两者分开记录；他人公开合集与合集内壁纸匿名
+  `200`。NSFW 壁纸需要有效 API key（匿名带 NSFW 的 `purity` 样本为空）。认证成功、私有合集、带凭据 NSFW、
+  `X-API-Key` 头形态均未实测。
+- 官方页面写限流 45 次/分钟、超限 `429`；客户端不内置限速。`sorting=random` 的 `seed` 官方声称可跨页避免重复，
+  跨页实测返回的 `seed` 与传入值不一致，本库只原样传递、不改写，也不承诺去重。非法 `sorting`、非法 `page` 一类
+  边界按实测写进方法参考与契约附注，客户端不钳位、不补默认值。
+- 配置新增 `sites.wallhaven`（`url` 加空的 `apikey`）、`examples.wallhaven`、`smoke.wallhaven`；新增两个匿名示例
+  （`examples/wallhaven/list_wallpapers.py` 三次调用、`examples/wallhaven/browse_resources.py` 四次调用，各打印真实
+  URL、状态与返回字段，不下载媒体）与 8 次以内、每次请求前暂停（含第一次）的 `test/wallhaven.py`。
+- 本轮**未取得 OpenAPI 或服务端源码**，依据是官方 API v1 页面（`https://wallhaven.cc/help/api`，实测 `200` 加
+  `text/html`）的标题与锚点（`#wallpapers` / `#search` / `#tags` / `#user-settings` / `#limits` / `#auth`；合集一节
+  复用 `#user-settings` 锚点、另有 `User Collections` 标题）加匿名只读响应。7 条路由都发过匿名请求（本人合集与
+  `settings` 只有匿名 `404` / `401` 的路由级样本）；`@用户名` 上传搜索有 `200` 样本，`q='like:<壁纸编号>'` 相似
+  搜索实测被 Cloudflare 质询挡下（`403` HTML），没有成功样本、也不绕行；方法级执行范围、全部匿名 URL/状态与
+  未实测项以[验证记录](docs/verification.md)为准，依据与排除项见 [契约附注](docs/wallhaven-contract-notes.md)。
+- README、`docs/index.md`、`docs/installation.md`、`docs/migration.md`、CONTRIBUTING 与 `setup.cfg` 的家族表述与导航
+  同步为十四个家族。
+
 ### ArtStation 第十三家族
 
 - 新增 `ArtStation`、`anybooru/artstation.py` 与 `anybooru/api_artstation.py`。站点是公开作品集站点，**不是**
