@@ -8,7 +8,7 @@
 | 运行时依赖 | [requests](https://requests.readthedocs.io/) >= 2.26（安装时自动拉取） |
 | 标准库依赖 | `json`、`os`（读取默认配置文件），无其他第三方依赖 |
 
-本库不读环境变量，也不会去当前工作目录或用户目录搜索配置文件：所有可调参数都在一份 JSON 里显式声明。默认读随包安装的 `anybooru/anybooru.json`，里面有 17 个站点条目：`serika`、`danbooru`、`safebooru`、`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`tbib`、`shuushuu`、`sakuria`、`anime_pictures`、`cosine`、`nhentai`、`artstation`，以及 `request` / `sites` / `examples` / `smoke` / `verification` 五段。改法见 [configuration.md](configuration.md)。
+本库不读环境变量，也不会去当前工作目录或用户目录搜索配置文件：所有可调参数都在一份 JSON 里显式声明。默认读随包安装的 `anybooru/anybooru.json`，里面有 18 个站点条目：`serika`、`danbooru`、`safebooru`、`konachan`、`yandere`、`sakugabooru`、`e621`、`e926`、`zerochan`、`gelbooru`、`tbib`、`shuushuu`、`sakuria`、`anime_pictures`、`cosine`、`nhentai`、`artstation`、`wallhaven`，以及 `request` / `sites` / `examples` / `smoke` / `verification` 五段。改法见 [configuration.md](configuration.md)。
 
 ## 从源码安装（当前开发版）
 
@@ -78,10 +78,10 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:
 
 | 路径 | 说明 |
 | :--- | :--- |
-| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` / `gelbooru` / `gelbooru02` / `shuushuu` / `sakuria` / `anime_pictures` / `cosine` / `nhentai` / `artstation` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
+| `anybooru/` | 包源码：`danbooru` / `moebooru` / `serika` / `e621` / `zerochan` / `gelbooru` / `gelbooru02` / `shuushuu` / `sakuria` / `anime_pictures` / `cosine` / `nhentai` / `artstation` / `wallhaven` 各有客户端模块与 `api_<family>.py` 方法模块，`anybooru.py` 为共享核心 |
 | `anybooru/resources.py` | 包内默认配置的路径 `DEFAULT_CONFIG_FILE`，以及把 Python 参数编成 Rails 查询串的 `encode_params` |
 | `anybooru/exceptions.py` | 三个公开异常 `AnybooruError` / `AnybooruHTTPError` / `AnybooruAPIError`，见 [errors.md](errors.md) |
-| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（17 个站点条目）、`examples`、`smoke`、`verification` |
+| `anybooru/anybooru.json` | 随包默认配置：`request`（超时、代理、User-Agent）、`sites`（18 个站点条目）、`examples`、`smoke`、`verification` |
 | `docs/` | 中文 Markdown 文档（本文件所在处） |
 | `examples/` | 各家族的匿名只读示例脚本，参数取自配置的 `examples` 段 |
 | 上游引擎仓库 | 可选的只读参考，不属于发布包；版本与源码入口见各家族的契约审计附注 |
@@ -100,7 +100,7 @@ git clone https://github.com/e621ng/e621ng.git
 
 ## 边界与未实测
 
-Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 都没有可供核对的本地上游**服务端**源码。
+Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai、ArtStation 与 Wallhaven 都没有可供核对的本地上游**服务端**源码。
 
 - Zerochan 的依据是官方 API 页面快照与实际响应。
 - Gelbooru 是官方 wiki/帮助页、站点脚本与实际响应。
@@ -111,5 +111,6 @@ Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures
 - Cosine 的站点前端代码在公开仓库里，本轮只按需只读了个别文件当线索（不 clone、不写行号），公开结论以匿名只读响应与 [Cosine 契约附注](cosine-contract-notes.md) 为准。
 - Nhentai 有站点自带的 OpenAPI（`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）当路径、参数与响应 schema 的依据，引用按 JSON Pointer 与 `operationId`（不是服务端行号），公开结论再由匿名只读响应核对，排除项见 [Nhentai 契约审计附注](nhentai-contract-notes.md)。
 - ArtStation 本轮未取得官方 API 文档页或 OpenAPI，依据同样只有匿名只读响应；本类只覆盖公开作品集路由与一个 RSS 订阅源，成功字段按探测响应写，样本之外的取值不得当成返回值承诺。
+- Wallhaven 没有本地上游服务端源码，也没有 OpenAPI；依据是官方 API v1 页面（`https://wallhaven.cc/help/api`）加匿名只读响应，引用按页面标题与锚点而不是行号。全部 7 个原生方法都是匿名可调的只读 GET，带 `apikey` 才能读到的 `settings`、私有合集与 NSFW 搜索不在匿名实测范围内。
 
-九者都不从其他引擎推断。出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)、[Gelbooru 契约审计附注](gelbooru-contract-notes.md)、[Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)、[Shuushuu 契约审计附注](shuushuu-contract-notes.md)、[Sakuria 契约审计附注](sakuria-contract-notes.md)、[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)、[Cosine 契约附注](cosine-contract-notes.md)、[Nhentai 契约审计附注](nhentai-contract-notes.md) 与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
+十者都不从其他引擎推断。出处与未实测边界见 [Zerochan 契约审计附注](zerochan-contract-notes.md)、[Gelbooru 契约审计附注](gelbooru-contract-notes.md)、[Gelbooru02 契约审计附注](gelbooru02-contract-notes.md)、[Shuushuu 契约审计附注](shuushuu-contract-notes.md)、[Sakuria 契约审计附注](sakuria-contract-notes.md)、[Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)、[Cosine 契约附注](cosine-contract-notes.md)、[Nhentai 契约审计附注](nhentai-contract-notes.md)、[ArtStation 契约审计附注](artstation-contract-notes.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
