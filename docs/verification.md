@@ -2058,3 +2058,138 @@ SUMMARY artstation | requests=10 | passed=10 failed=0
   缺失/过期token、其它POST参数边界、固定详情成功路径仍未验证。
 - 其它家族的脚本、媒体/CDN与权限分支、本轮未列参数组合没有运行；不由这36请求保证全站或全部方法长期可用。
 - 未跑formatter、lint、构建、安装包、CI或项目测试套件，未新增测试；上面的清单/导入检查与六脚本即本次执行范围。
+
+
+## Wallhaven：匿名只读实测（2026-10-03）
+
+### 范围、计数与结论
+
+- 官方页面 `GET https://wallhaven.cc/help/api` 返回 **200**、`text/html; charset=UTF-8`，API v1 的七条 GET 路径均有匿名响应证据。客户端采用独立 `Wallhaven` 家族；方法表与权限依据见[方法参考](wallhaven-api.md)和[契约附注](wallhaven-contract-notes.md)。
+- **路由级证据：50 次 GET = 36×200、9×404、1×401、1×400、1×500、2×403**。其中一条是官方 HTML 页面，其余 49 条是 API 路径；它们证明站点响应，不等于 Python 方法已经执行。
+- **脚本级证据：27 次 GET = 25×200、2×404**，包括初版冒烟 8 次、列表示例 3 次、初版浏览示例 4 次，以及修正后的冒烟 8 次和浏览示例 4 次。每个冒烟进程只有 8 次请求，没有借补跑增加方法覆盖。
+- **本节合计 77 次匿名 GET = 61×200、11×404、1×401、1×400、1×500、2×403**。所有请求串行、请求前暂停至少 1.4 秒；不跟随跳转、不重试 HTTP 请求、不登录、不发写请求、不下载图片。
+- 最终冒烟 **`SUMMARY wallhaven | requests=8 | passed=8 failed=0`**，退出 **0**；两个示例最终均退出 **0**。五个公开 Python 方法实际成功执行：`wallpaper_search`、`wallpaper_show`、`tag_show`、`user_collections`、`collection_wallpapers`。`user_settings` 与 `collection_list` 只有直接路由的匿名拒绝证据，两个 Python 方法及带 key 成功路径均未实测。
+
+### 路由级逐条证据
+
+下表的编号只用于引用本节响应，不是调用次数上限或站点编号。JSON 响应首层、条数与 `meta` 均来自当次响应；统计总量会随站点变化。
+
+- 搜索摘要 `/data/0` 的实际字段：`id,url,short_url,views,favorites,source,purity,category,dimension_x,dimension_y,resolution,ratio,file_size,file_type,created_at,colors,path,thumbs`；`thumbs` 有 `large,original,small`。详情增加 `uploader`（`username,group,avatar`）和 `tags`。头像键为 `200px,128px,32px,20px`。
+- 标签 `/data`（详情的 `/data/tags/0` 同形）有 `id,name,alias,category_id,category,purity,created_at`。集合列表项有 `id,label,views,public,count`。
+- 搜索 `/meta` 有 `current_page,last_page,per_page,total,query,seed`；集合内容 `/meta` 只有前四个键，没有 `query` 或 `seed`。客户端完整返回正文，不补键、不拆 `data`。
+
+| # / 请求 | 真实 URL | HTTP / Content-Type | 首层与关键返回 |
+| :--- | :--- | :--- | :--- |
+| 1 / official-api | `https://wallhaven.cc/help/api` | 200 / `text/html; charset=UTF-8` | HTML：API v1 Documentation，含七条 GET 路径、搜索参数、认证、权限、限流说明。 |
+| 2 / search-default | `https://wallhaven.cc/api/v1/search` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","8g8pgk"]` |
+| 3 / wallpaper-show | `https://wallhaven.cc/api/v1/w/94x38z` | 404 / `application/json` | 首层 `error`；`{"error":"Nothing here"}` |
+| 4 / candidate-similar | `https://wallhaven.cc/api/v1/w/94x38z/similar` | 404 / `application/json` | 首层 `error`；`{"error":"Not Found"}` |
+| 5 / tag-show | `https://wallhaven.cc/api/v1/tag/1` | 200 / `application/json` | 首层 `data`；data字段=`id,name,alias,category_id,category,purity,created_at` |
+| 6 / settings-anonymous | `https://wallhaven.cc/api/v1/settings` | 401 / `application/json` | 首层 `error`；`{"error":"Unauthorized"}` |
+| 7 / own-collections-anonymous | `https://wallhaven.cc/api/v1/collections` | 404 / `application/json` | 首层 `error`；`{"error":"Nothing here"}` |
+| 8 / candidate-user | `https://wallhaven.cc/api/v1/user` | 404 / `application/json` | 首层 `error`；`{"error":"Not Found"}` |
+| 9 / missing-wallpaper | `https://wallhaven.cc/api/v1/w/000000` | 404 / `application/json` | 首层 `error`；`{"error":"Nothing here"}` |
+| 10 / missing-tag | `https://wallhaven.cc/api/v1/tag/0` | 404 / `application/json` | 首层 `error`；`{"error":"Nothing here"}` |
+| 11 / search-q | `https://wallhaven.cc/api/v1/search?q=nature` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":3058,"per_page":24,"total":73383,"query":"nature","seed":null}`；首个编号=`["2166q9","2166jg","jellyw"]` |
+| 12 / search-categories | `https://wallhaven.cc/api/v1/search?categories=100` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":14068,"per_page":24,"total":337624,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","8g8pgk"]` |
+| 13 / search-purity | `https://wallhaven.cc/api/v1/search?purity=110` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":25997,"per_page":24,"total":623918,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","8g8pgk"]` |
+| 14 / search-nsfw-anonymous | `https://wallhaven.cc/api/v1/search?purity=001` | 200 / `application/json` | 首层 `data,meta`；data=0；meta=`{"current_page":1,"last_page":1,"per_page":24,"total":0,"query":null,"seed":null}`；首个编号=`[]` |
+| 15 / search-relevance | `https://wallhaven.cc/api/v1/search?q=nature&sorting=relevance` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":3058,"per_page":24,"total":73383,"query":"nature","seed":null}`；首个编号=`["zxqkdy","g7lzv7","1jymd9"]` |
+| 16 / search-random-seed | `https://wallhaven.cc/api/v1/search?sorting=random&seed=abc123&page=1` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":"wPpR1H"}`；首个编号=`["739rqo","45ox71","md7zey"]` |
+| 17 / search-random-page-two | `https://wallhaven.cc/api/v1/search?sorting=random&seed=abc123&page=2` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":2,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":"vMFVjx"}`；首个编号=`["lm9x1l","3qrx66","yjv22x"]` |
+| 18 / search-views-ascending | `https://wallhaven.cc/api/v1/search?sorting=views&order=asc` | 200 / `application/json` | 首层 `data,meta`；data=2；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1"]` |
+| 19 / search-favorites | `https://wallhaven.cc/api/v1/search?sorting=favorites` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`["9mjoy1","281d5y","rdwjj7"]` |
+| 20 / search-toplist-range | `https://wallhaven.cc/api/v1/search?sorting=toplist&topRange=1w` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":21,"per_page":24,"total":483,"query":null,"seed":null}`；首个编号=`["lyg25p","lygjml","pom79j"]` |
+| 21 / search-atleast | `https://wallhaven.cc/api/v1/search?atleast=1920x1080` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":16173,"per_page":24,"total":388133,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","8g8pgk"]` |
+| 22 / search-resolutions | `https://wallhaven.cc/api/v1/search?resolutions=1920x1080%2C1920x1200` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":6324,"per_page":24,"total":151776,"query":null,"seed":null}`；首个编号=`["8g8p3k","zpvv1y","qrppwr"]` |
+| 23 / search-ratios | `https://wallhaven.cc/api/v1/search?ratios=16x9%2C16x10` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":11210,"per_page":24,"total":269019,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","6le7dq"]` |
+| 24 / search-colors | `https://wallhaven.cc/api/v1/search?colors=660000` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":1625,"per_page":24,"total":38986,"query":null,"seed":null}`；首个编号=`["mlorz1","w53wer","d8v26m"]` |
+| 25 / search-page-two | `https://wallhaven.cc/api/v1/search?page=2` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":2,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`["qrppwr","1qoo71","jellmp"]` |
+| 26 / search-page-beyond | `https://wallhaven.cc/api/v1/search?page=1000000` | 400 / `application/json` | 首层 `error`；`{"error":"Bad Request"}` |
+| 27 / search-page-zero | `https://wallhaven.cc/api/v1/search?page=0` | 500 / `text/html; charset=UTF-8` | HTML 错误页（It broke）；不是有效的第 0 页。 |
+| 28 / search-page-invalid | `https://wallhaven.cc/api/v1/search?page=abc` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","8g8pgk"]` |
+| 29 / search-sorting-invalid | `https://wallhaven.cc/api/v1/search?sorting=not-a-sort` | 200 / `application/json` | 首层 `data,meta`；data=0；meta=`{"current_page":1,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":null}`；首个编号=`[]` |
+| 30 / search-categories-invalid | `https://wallhaven.cc/api/v1/search?categories=abc` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":26086,"per_page":24,"total":626058,"query":null,"seed":null}`；首个编号=`["pom5lj","mlorz1","5yp6y9"]` |
+| 31 / search-exact-tag | `https://wallhaven.cc/api/v1/search?q=id%3A1` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":4878,"per_page":24,"total":117056,"query":{"id":1,"tag":"anime"},"seed":null}`；首个编号=`["k8jr91","8g8pxo","zpvv1y"]` |
+| 32 / search-similar-tags | `https://wallhaven.cc/api/v1/search?q=like%3A94x38z` | 403 / `text/html; charset=UTF-8` | HTML Cloudflare “Just a moment...” 质询页；没有成功 JSON 数据。 |
+| 33 / search-filetype | `https://wallhaven.cc/api/v1/search?q=type%3Apng` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":4829,"per_page":24,"total":115883,"query":"","seed":null}`；首个编号=`["w53wer","d8v26m","6le7dq"]` |
+| 34 / search-combined-tags | `https://wallhaven.cc/api/v1/search?q=%2Bnature+-anime` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":1520,"per_page":24,"total":36460,"query":"+nature -anime","seed":null}`；首个编号=`["2166q9","jellyw","vp22dm"]` |
+| 35 / current-wallpaper | `https://wallhaven.cc/api/v1/w/pom5lj` | 200 / `application/json` | 首层 `data`；data字段=`id,url,short_url,uploader,views,favorites,source,purity,category,dimension_x,dimension_y,resolution,ratio,file_size,file_type,created_at,colors,path,thumbs,tags` |
+| 36 / current-candidate-similar | `https://wallhaven.cc/api/v1/w/pom5lj/similar` | 404 / `application/json` | 首层 `error`；`{"error":"Not Found"}` |
+| 37 / current-similar-search | `https://wallhaven.cc/api/v1/search?q=like%3Apom5lj` | 403 / `text/html; charset=UTF-8` | HTML Cloudflare “Just a moment...” 质询页；没有成功 JSON 数据。 |
+| 38 / public-user-collections | `https://wallhaven.cc/api/v1/collections/LewisMweir13` | 200 / `application/json` | 首层 `data`；data=0；前项=`[]` |
+| 39 / candidate-user-profile | `https://wallhaven.cc/api/v1/user/LewisMweir13` | 404 / `application/json` | 首层 `error`；`{"error":"Not Found"}` |
+| 40 / user-uploads-search | `https://wallhaven.cc/api/v1/search?q=%40LewisMweir13` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":2,"per_page":24,"total":46,"query":"","seed":null}`；首个编号=`["pom5lj","mlorz1","7jxx63"]` |
+| 41 / returned-seed-page-two | `https://wallhaven.cc/api/v1/search?sorting=random&seed=wPpR1H&page=2` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":2,"last_page":20890,"per_page":24,"total":501359,"query":null,"seed":"Ec2tSv"}`；首个编号=`["yq57rl","j8v5qp","qzrorr"]` |
+| 42 / popular-wallpaper | `https://wallhaven.cc/api/v1/w/9mjoy1` | 200 / `application/json` | 首层 `data`；data字段=`id,url,short_url,uploader,views,favorites,source,purity,category,dimension_x,dimension_y,resolution,ratio,file_size,file_type,created_at,colors,path,thumbs,tags` |
+| 43 / public-collections-rootkit | `https://wallhaven.cc/api/v1/collections/rootkit` | 200 / `application/json` | 首层 `data`；data=0；前项=`[]` |
+| 44 / toplist-wallpaper | `https://wallhaven.cc/api/v1/w/lyg25p` | 200 / `application/json` | 首层 `data`；data字段=`id,url,short_url,uploader,views,favorites,source,purity,category,dimension_x,dimension_y,resolution,ratio,file_size,file_type,created_at,colors,path,thumbs,tags` |
+| 45 / second-popular-wallpaper | `https://wallhaven.cc/api/v1/w/281d5y` | 200 / `application/json` | 首层 `data`；data字段=`id,url,short_url,uploader,views,favorites,source,purity,category,dimension_x,dimension_y,resolution,ratio,file_size,file_type,created_at,colors,path,thumbs,tags` |
+| 46 / public-collections-thor | `https://wallhaven.cc/api/v1/collections/ThorRagnarok` | 200 / `application/json` | 首层 `data`；data=3；前项=`[{"id":274175,"label":"Default","views":37584,"public":1,"count":537},{"id":400286,"label":"SFW - Women","views":80396,"public":1,"count":1703},{"id":384565,"label":"ArtD","views":52695,"public":1,"count":1757}]` |
+| 47 / public-collections-estlin | `https://wallhaven.cc/api/v1/collections/EstlinLuna` | 200 / `application/json` | 首层 `data`；data=10；前项=`[{"id":681898,"label":"本命","views":2638,"public":1,"count":3614},{"id":1246161,"label":"TEMPLARLS","views":348,"public":1,"count":4},{"id":911587,"label":"sakimichan","views":505,"public":1,"count":1}]` |
+| 48 / collection-wallpapers | `https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":1,"last_page":23,"per_page":24,"total":537}`；首个编号=`["po86ve","rq2mzq","1p3lvw"]` |
+| 49 / collection-page-two | `https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175?purity=100&page=2` | 200 / `application/json` | 首层 `data,meta`；data=24；meta=`{"current_page":2,"last_page":23,"per_page":24,"total":537}`；首个编号=`["135v7g","xlroxz","2evd36"]` |
+| 50 / collection-missing | `https://wallhaven.cc/api/v1/collections/ThorRagnarok/0` | 404 / `application/json` | 首层 `error`；`{"error":"Nothing here"}` |
+
+### 与官方描述对照后保留的边界
+
+1. 官方 `#search` 的 12 个参数全部有实际请求：`q,categories,purity,sorting,order,topRange,atleast,resolutions,ratios,colors,page,seed`。只覆盖表内具体取值，不等于枚举的每种组合都已测。匿名默认页与普通列表最多观察到 24 项，官方也写 24 项/页。
+2. `page=1000000` 是 **400 JSON**，`page=0` 是 **500 HTML**，`page=abc` 虽为 **200** 却回显 `current_page=1`。非法 `sorting=not-a-sort` 返回 `data=[]`，仍有正数 `total` 与 `last_page`；`sorting=views&order=asc` 只回 2 项，但 `total=501359,per_page=24,last_page=20890`。短页、空页或 HTTP 200 都不能单独证明页码有效或已到末页。
+3. 官方写 `seed` 可保持随机翻页不重复，但这批样本传 `abc123` 的两页分别返回 `wPpR1H` / `vMFVjx`；传第一条返回的 `wPpR1H` 到第 2 页又返回 `Ec2tSv`。本次不能证实该承诺，不把样本外推成所有请求必定如此，也不在客户端换种子或回退。
+4. 官方的相似方式是 `q=like:<wallpaper_id>`，这次两条查询都为 **403 HTML** 质询；独立候选 `/w/<id>/similar` 为 **404 Not Found**。用户上传用 `q=@LewisMweir13` 得到 **200**、`total=46`、`meta.query=""`；候选 `/user` 与 `/user/LewisMweir13` 为 **404 Not Found**。这里只排除这些候选为本轮可用独立路由，不据此声称所有未公开路由不存在。
+5. 官方页中的旧壁纸 `94x38z` 实际 **404 Nothing here**，当前 `pom5lj` **200**、3840×2160、4 个标签。`tag/1` 为 `anime`。匿名自己的 `/collections` 是 **404 Nothing here**，不是 `/settings` 的 **401 Unauthorized**；公开用户集合与集合内容则匿名 **200**。匿名 `purity=001` 为 **200**、空列表和 `total=0`，不能当成 NSFW 权限成功。
+6. 官方 `#limits` 的 **45 请求/分钟**与响应头 `X-RateLimit-Limit: 45` 一致，但没有触发或验证 429 阈值；没有自动限流器、重试器或绕过质询的代码。
+
+### 实际脚本命令、初版问题与修正结果
+
+下面用中性配置路径表示运行配置；三个脚本均显式匿名，查询值从 `smoke.wallhaven` / `examples.wallhaven` 读取。
+
+```bash
+python -X utf8 test/wallhaven.py --config my-anybooru.json
+python -X utf8 examples/wallhaven/list_wallpapers.py --config my-anybooru.json
+python -X utf8 examples/wallhaven/browse_resources.py --config my-anybooru.json
+```
+
+| 执行 | UTC 时间 | 请求 / HTTP | 退出码与结果 |
+| :--- | :--- | :--- | :--- |
+| 初版冒烟 | 2026-10-03T06:03:09.383052+00:00 至 2026-10-03T06:03:26.642162+00:00 | 8 / 7×200 + 预期404 | 1；`SUMMARY wallhaven  /  requests=8  /  passed=6 failed=2` |
+| 列表示例 | 2026-10-03T06:03:28.043625+00:00 至 2026-10-03T06:03:34.726857+00:00 | 3 / 3×200 | 0；`输出真实状态与字段；stderr 为空` |
+| 初版浏览示例 | 2026-10-03T06:03:36.128528+00:00 至 2026-10-03T06:03:45.347225+00:00 | 4 / 4×200 | 0；`输出真实状态与字段；stderr 为空` |
+| 修正后冒烟 | 2026-10-03T06:07:30.451937+00:00 至 2026-10-03T06:07:47.962676+00:00 | 8 / 7×200 + 预期404 | 0；`SUMMARY wallhaven  /  requests=8  /  passed=8 failed=0` |
+| 修正后浏览示例 | 2026-10-03T06:07:49.363946+00:00 至 2026-10-03T06:07:56.957282+00:00 | 4 / 4×200 | 0；`输出真实状态与字段；stderr 为空` |
+
+初版问题不是站点返回失败，不能删去或改记“首次全通过”：
+
+- 初版冒烟的详情/标签校验错误地把 `{"data": {...}}` 当成内部对象，两个 **200** 被报作 `ValueError: missing field id`，所以 8 次请求为 `passed=6 failed=2`、退出 1。修正校验在 `data` 内读字段，客户端仍保留完整 JSON；同时纠正类别校验的查询键为 `categories`，不再遗漏该过滤检查。
+- 初版原生路径参数方法漏传 `**params`，实际集合请求地址缺少配置的 `purity=100&page=1`。已统一修正 `wallpaper_show`、`tag_show`、`user_collections`、`collection_wallpapers` 的参数传递；最终冒烟和浏览输出都包含真实集合查询串。
+- 初版浏览示例虽然退出 0，但壁纸对象的 `url` 覆盖了输出中的实际 API 请求 `url`，那一行不能作为 API URL 证据。修正为 `wallpaper_url` 保存壁纸页面地址，顶层 `url` 保留 `last_call`。最终输出同时包含两者。列表示例不受影响，没有补跑。
+
+### 最终方法级逐条证据
+
+所有成功行的 Content-Type 均为 `application/json`，预期 404 同样为 JSON；下面列出最终冒烟 8 条、列表 3 条、修正后浏览 4 条。它们是实际 Python 方法执行结果，与上面的直接路由证据分开计数。
+
+| 脚本 / 调用 | 实际请求 URL | HTTP | 关键返回与检查 |
+| :--- | :--- | :--- | :--- |
+| 冒烟 / wallpaper_search page 1 | `https://wallhaven.cc/api/v1/search?page=1&q=nature&categories=100&purity=100&sorting=date_added&order=desc` | HTTP 200 application/json | data:list,meta:dict / page=1 last_page=2796 per_page=24 total=67096 wallpapers=24 first=2166q9 purity=sfw category=general resolution=3840x2604 views=536 favorites=9 file_size=2347508 colors=5 query_echo_matches |
+| 冒烟 / wallpaper_search page 2 | `https://wallhaven.cc/api/v1/search?page=2&q=nature&categories=100&purity=100&sorting=date_added&order=desc` | HTTP 200 application/json | data:list,meta:dict / page=2 last_page=2796 per_page=24 total=67096 wallpapers=24 first=7jxlg3 purity=sfw category=general resolution=3840x1600 views=1367 favorites=22 file_size=6705784 colors=5 query_echo_matches |
+| 冒烟 / wallpaper_search configured exact tag | `https://wallhaven.cc/api/v1/search?q=id%3A1&purity=100` | HTTP 200 application/json | data:list,meta:dict / page=1 last_page=4878 per_page=24 total=117056 wallpapers=24 first=k8jr91 purity=sfw category=anime resolution=5610x4130 views=109 favorites=5 file_size=20408445 colors=5 exact_tag_id=1 |
+| 冒烟 / wallpaper_show configured id | `https://wallhaven.cc/api/v1/w/pom5lj` | HTTP 200 application/json | id:str,url:str,short_url:str,views:int,favorites:int,source:str,purity:str,category:str,dimension_x:int,dimension_y:int,resolution:str,ratio:str,file_size:int,file_type:str,created_at:str,colors:list,path:str,thumbs:dict,uploader:dict,tags:list / id=pom5lj uploader_group=User uploader_username_chars=12 avatar_keys=['128px', '200px', '20px', '32px'] purity=sfw category=general resolution=3840x2160 views=5 favorites=0 tags=4 tag_categories=['Countries', 'Fictional Characters', 'Games', 'Technology'] colors=5 thumbs_keys=['large', 'original', 'small'] |
+| 冒烟 / tag_show configured id | `https://wallhaven.cc/api/v1/tag/1` | HTTP 200 application/json | id:int,name:str,alias:str,category_id:int,category:str,purity:str,created_at:str / id=1 category=Anime & Manga purity=sfw name_chars=5 alias_chars=20 category_id=1 |
+| 冒烟 / user_collections configured user | `https://wallhaven.cc/api/v1/collections/ThorRagnarok` | HTTP 200 application/json | data:list / collections=3 public=[1, 1, 1] counts=[537, 1703, 1757] |
+| 冒烟 / collection_wallpapers configured collection | `https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175?purity=100&page=1` | HTTP 200 application/json | data:list,meta:dict / page=1 last_page=23 per_page=24 total=537 wallpapers=24 first=po86ve purity=sfw category=general resolution=3840x2160 views=4580 favorites=63 file_size=13669196 colors=5 |
+| 冒烟 / wallpaper_show missing id | `https://wallhaven.cc/api/v1/w/000000` | HTTP 404 AnybooruHTTPError (expected) | data=dict error='Nothing here' body_chars=24 content_type='application/json' last_call=HTTP 404 https://wallhaven.cc/api/v1/w/000000 |
+| 列表示例 / wallpaper_search | `https://wallhaven.cc/api/v1/search?page=1&q=nature&categories=100&purity=100&sorting=date_added&order=desc` | 200 | `{"count":24,"current_page":1,"last_page":2796,"per_page":24,"total":67096,"query":"nature","seed":null,"meta_keys":["current_page","last_page","per_page","query","seed","total"],"first_ids":["2166q9","2166jg","jellyw"]}` |
+| 列表示例 / wallpaper_search | `https://wallhaven.cc/api/v1/search?page=2&q=nature&categories=100&purity=100&sorting=date_added&order=desc` | 200 | `{"count":24,"current_page":2,"last_page":2796,"per_page":24,"total":67096,"query":"nature","seed":null,"meta_keys":["current_page","last_page","per_page","query","seed","total"],"first_ids":["7jxlg3","jelymp","yqk2yl"]}` |
+| 列表示例 / wallpaper_search | `https://wallhaven.cc/api/v1/search?q=id%3A1&purity=100` | 200 | `{"count":24,"current_page":1,"last_page":4878,"per_page":24,"total":117056,"query":{"id":1,"tag":"anime"},"seed":null,"meta_keys":["current_page","last_page","per_page","query","seed","total"],"first_ids":["k8jr91","8g8pxo","zpvv1y"]}` |
+| 浏览示例 / wallpaper_show | `https://wallhaven.cc/api/v1/w/pom5lj` | 200 | `{"id":"pom5lj","resolution":"3840x2160","category":"general","wallpaper_url":"https://wallhaven.cc/w/pom5lj","tags_count":4,"uploader":"LewisMweir13"}` |
+| 浏览示例 / tag_show | `https://wallhaven.cc/api/v1/tag/1` | 200 | `{"id":1,"name":"anime","category":"Anime & Manga"}` |
+| 浏览示例 / user_collections | `https://wallhaven.cc/api/v1/collections/ThorRagnarok` | 200 | `{"count":3,"requested_username":"ThorRagnarok","first_ids":[274175,400286,384565]}` |
+| 浏览示例 / collection_wallpapers | `https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175?purity=100&page=1` | 200 | `{"count":24,"current_page":1,"last_page":23,"per_page":24,"total":537,"meta_keys":["current_page","last_page","per_page","total"],"requested_username":"ThorRagnarok","requested_collection_id":274175,"first_ids":["po86ve","rq2mzq","1p3lvw"]}` |
+
+### 边界与未实测
+
+- 无 API key：`user_settings` / `collection_list` 的凭据成功、自己的私有集合、NSFW 详情与搜索、配置 key 和 `X-API-Key` 请求头的认证成功、失效/错误 key 分支均未执行。实现对齐官方页面，没有索要或生成凭据。
+- 相似 `q=like:` 只有 403 质询响应，成功结果未实测。随机 seed 不重复承诺、完整参数枚举/组合、精确最大页码/所有末页、其它用户的权限差异及其它部署均未证实。
+- 方法级未调用 `user_settings`、`collection_list`。路径参数的通用查询传递已经修正；最终集合请求实际携带 `purity`/`page`，其余路径参数方法的自定义查询与凭据覆盖分支未额外发请求。
+- 媒体/CDN/头像 URL 只读取字符串，没有下载或可用性验证；没有账号操作、写请求、质询求解、429 压测。
+- 未运行项目测试套件、mock、CI、构建、formatter 或 lint；行为证据仅为上述匿名只读请求与轻量冒烟/示例，不外推到其它家族。
