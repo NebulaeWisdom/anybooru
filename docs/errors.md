@@ -80,7 +80,7 @@ Danbooru 引擎的 JSON 错误体形如：
 
 ## 状态码
 
-本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见 [e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数与限流错误，不能套用其他家族的状态码；缺失条目已有 `/999999999?json=` 回 `404` 的样本（`AnybooruHTTPError.data` 是字典、正文 6 字符），见 [验证记录](verification.md#轻量匿名冒烟脚本十站单轮执行2026-09-18)；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、`AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。nhentai 的错误样本也只覆盖本轮试过的路径；它的错误正文都是 JSON（`{"error": …}`），但参数校验失败的**真实状态码与正文字段名和 OpenAPI 里那张 `422` schema 对不上**（实测是 `400` 加 `error` / `details`），见下节。ArtStation 的错误样本同样只覆盖本轮试过的路径；它的 `400` 正文有两种 JSON 形状（`{"data": "…"}` 与 `{"message": …, "code": …}`），另有一类**空正文**的 `400` / `404`，而未知路径还会回 `200` + HTML，见下节。
+本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见 [e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数与限流错误，不能套用其他家族的状态码；缺失条目已有 `/999999999?json=` 回 `404` 的样本（`AnybooruHTTPError.data` 是字典、正文 6 字符），见 [验证记录](verification.md#轻量匿名冒烟脚本十站单轮执行2026-09-18)；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、`AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。nhentai 的错误样本也只覆盖本轮试过的路径；它的错误正文都是 JSON（`{"error": …}`），但参数校验失败的**真实状态码与正文字段名和 OpenAPI 里那张 `422` schema 对不上**（实测是 `400` 加 `error` / `details`），见下节。ArtStation 的错误样本同样只覆盖本轮试过的路径；它的 `400` 正文有两种 JSON 形状（`{"data": "…"}` 与 `{"message": …, "code": …}`），另有一类**空正文**的 `400` / `404`，而未知路径还会回 `200` + HTML，见下节。Wallhaven 的错误样本同样只覆盖本轮试过的路径；原生路由的错误正文是单字段 JSON `{"error": …}`，但 `page=0` 的 `500` 是站点自己的 HTML 错误页、相似搜索的 `403` 是 Cloudflare 质询页，见下节。
 
 ### Danbooru 引擎
 
@@ -282,6 +282,52 @@ with ArtStation('artstation') as client:
 
 另有一条容易踩的：**不存在的路径也可能回 `200` + HTML**。本轮 `GET /openapi.json` 与 `GET /no-such-route-xyz-123` 都回 `200`、`Content-Type: text/html`，正文是站点的 `ArtStation - Explore` 页面。所以「状态码是 2xx」不等于「拿到了 API 数据」：JSON 出口遇到这种正文时按共享规则抛 `AnybooruAPIError`；想拿到这层 HTML 必须显式要求文本出口（`request('GET', 'no-such-route-xyz-123', response_format='html')`），客户端不做格式嗅探。反过来，`feed(sorting='latest')` 内部固定 XML 格式，返回 RSS 原文（`200`、`Content-Type: application/rss+xml`），客户端直接给 `.text`，不会因为正文不是 JSON 而抛异常。本轮只试过这两条未知路径，不能推广成所有未知路径都回200；账号认证样本仍未取得，匿名CSRF两步另列。
 
+### Wallhaven
+
+Wallhaven 的原生路由都是 `GET`，错误正文基本是单字段 JSON：`{"error": "<字符串>"}`，字段名是 `error`。`AnybooruHTTPError.data` 是 `{"error": …}` 字典；唯一的纯文本例外是 `page=0` 的 `500`（站点自己的 HTML 错误页），以及 `q=like:<id>` 这条相似搜索被 Cloudflare 质询挡下时的 `403` HTML。`last_call` 在抛异常前就已写入，出错时也能读到那次请求的 URL 与状态码。
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **页码越界**：`GET https://wallhaven.cc/api/v1/search?page=1000000` 回 `application/json`、正文 `{"error": "Bad Request"}` |
+| `401` | **没有账号的账号级读取**：`GET https://wallhaven.cc/api/v1/settings` 匿名回 `application/json`、正文 `{"error": "Unauthorized"}`。官方 [Rate Limiting and Errors](https://wallhaven.cc/help/api#limits) 一节写明：访问 NSFW 壁纸而无 key 或 key 无效、以及任何别的无效 key 用法，都是 `401` |
+| `404` | **资源或账号不存在**：`GET https://wallhaven.cc/api/v1/w/000000`（不存在的壁纸）与 `GET https://wallhaven.cc/api/v1/tag/0`（不存在的标签）回 `{"error": "Nothing here"}`；`GET https://wallhaven.cc/api/v1/collections` 匿名读「自己的合集」也是 `{"error": "Nothing here"}`（**不是 `401`**）；合集不存在时 `GET https://wallhaven.cc/api/v1/collections/ThorRagnarok/0` 同样是 `{"error": "Nothing here"}`；`GET https://wallhaven.cc/api/v1/w/94x38z/similar`、`GET https://wallhaven.cc/api/v1/user` 与 `GET https://wallhaven.cc/api/v1/user/LewisMweir13` 回 `{"error": "Not Found"}`——这三条取样路径不在官方列的 7 条路由里，`404` 只说明这几条不存在，不能证明站点没有其它未列出的路由 |
+| `403` | **相似搜索被反脚本质询**：`GET https://wallhaven.cc/api/v1/search?q=like%3A94x38z` 回 `403`、`Content-Type: text/html; charset=UTF-8`、响应头带 `Cf-Mitigated: challenge`，正文是 Cloudflare 的 `Just a moment...` 质询页，不是权限 JSON。原生方法不绕过、不重试、不换路由 |
+| `429` | 官方 [Rate Limiting and Errors](https://wallhaven.cc/help/api#limits) 一节写 API 限制 45 次/分钟，超限回 `429 Too many requests`；每个响应都带 `X-RateLimit-Limit: 45` 与 `X-RateLimit-Remaining` 头。**本轮没有触发过限流**，这一条是文档值，阈值未实测 |
+| `500` | **`page=0`**：`GET https://wallhaven.cc/api/v1/search?page=0` 回 `500`、`Content-Type: text/html; charset=UTF-8`，正文是站点的 `It broke` 错误页面。正文不是 JSON，所以 `.data` 是 `None`，正文在 `.body` 里 |
+
+`200` 也可能是「参数没被采纳」或「结果为空」：`page=abc` 被当成第一页（`meta.current_page=1`），非法 `sorting` 回空 `data` 但保留正数 `total` / `last_page`，匿名 `purity=001` 回 `data=[]` / `total=0`。这些都不是错误，本库不把它们换成异常；边界见[分页](pagination.md#wallhaven-的分页)。`w/94x38z` 这类官方页面里的示例编号现已回 `404`，工作样本是 `w/pom5lj`。
+
+```python
+from anybooru import Wallhaven, AnybooruHTTPError
+
+with Wallhaven('wallhaven') as client:                       # 包内 apikey 是空串，本次匿名
+    try:
+        client.wallpaper_show('000000')                      # 不存在的壁纸编号
+    except AnybooruHTTPError as error:
+        print(error.http_code)                               # 404
+        print(error.data['error'])                           # Nothing here
+        print(error.url)                                     # https://wallhaven.cc/api/v1/w/000000
+
+    try:
+        client.wallpaper_search(page=1000000)                # 越界页码
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['error'])          # 400 Bad Request
+
+    try:
+        client.wallpaper_search(page=0)                      # 0 页
+    except AnybooruHTTPError as error:
+        print(error.http_code)                               # 500
+        print(error.data)                                    # None：正文是 HTML 错误页，不是 JSON
+
+    try:
+        client.user_settings()                               # 账号设置，匿名读
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['error'])          # 401 Unauthorized
+        print(error.data['error'])                           # Unauthorized
+```
+
+`wallpaper_show` / `tag_show` 的路径段由客户端用 `quote(str(value), safe='')` 编码；ID 本身不校验，编号不存在就走到站点自己的 `404`。状态与正文见 [方法参考](wallhaven-api.md)，官方口径与逐条 URL 见 [验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -289,6 +335,7 @@ with ArtStation('artstation') as client:
 - `429` 与 `5xx` 由调用者自己决定等待多久、重试几次；
 - Danbooru 在被限流的请求上会返回 `X-Rate-Limit` 响应头（JSON，含 `action`、`rate`、`burst`、`limits` 等字段），通过 `AnybooruHTTPError.response.headers` 读取。
 - nhentai 把请求预算按端点写进 OpenAPI（例如匿名 `GET /api/v2/galleries` `15/1min per IP`、`GET /api/v2/galleries/popular` `8/1min per IP`），超限按文档是 `429`；库不做客户端限速、不读也不缓存任何配额信息，连续翻页要自己控制节奏。
+- Wallhaven 每个响应都带 `X-RateLimit-Limit: 45` 与 `X-RateLimit-Remaining` 头，官方 "Rate Limiting and Errors" 一节写限制 45 次/分钟、超限 `429`；库不客户端限速、不读也不缓存配额，配额信息可从 `AnybooruHTTPError.response.headers` 或 `last_call['headers']` 读。随包示例与冒烟脚本用配置里的 `pause_seconds` 自己在请求之间等。
 
 ## 边界与未实测
 
@@ -298,6 +345,7 @@ Anime-Pictures 的错误路径同样只跑了有界样本：90 次匿名 GET 里
 Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探测只在缺失作品、参数非法与页码越界上取得 `400` / `404` / `500` 样本；两个 POST（`artwork_revalidate`、`search_index_admin`）从未调用，`401` / `403` / `429` 都没有样本，未知参数是否被忽略也没有证据。逐条见 [验证记录](verification.md#cosine匿名只读实测2026-09-20)与[Cosine 契约审计附注](cosine-contract-notes.md)。
 nhentai 的错误路径同样是有界样本：61 次匿名 GET 里出现的非 2xx 只有 `400` / `401` / `403` / `404` 四类，其中 `403` 只出现在站点旧一代 `/api/...` 路径上（纯文本指向 v2 文档，不是原生方法会走的路径）；`429`、`503` 与任何带凭据的失败形态都没有样本，写方法的拒绝形态（收藏、黑名单、下载 URL）与 PoW / CAPTCHA 分支一律未实测。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20) 与 [nhentai 契约审计附注](nhentai-contract-notes.md)。
 ArtStation 的错误路径同样只跑了有界样本：两批匿名探测共 37 次请求，其中非 2xx 12 个（`400` 九个、`401` / `403` / `404` 各一）、其余 25 个是 `200`；另有一段独立的 `POST` 跟进（匿名 CSRF token 与表单式搜索各取到一次 `200`，失败分支没有样本）。`429`、`5xx` 与带账号凭据的路径都没有样本，`per_page` 只试过四条 GET 路由的几个取值，`POST` 侧只试过 `per_page=3`，未知路径回 `200` + HTML 也只试过两条路径，不能推广成全站行为。逐条见[验证记录](verification.md) 与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
+Wallhaven 的错误路径同样只跑了有界样本：非 2xx 只有 `400`（越界页码）、`401`（匿名读设置）、`404`（不存在的壁纸 / 标签、匿名读自己的合集、不在官方 7 条路由里的 `/similar` 与 `/user` 取样路径、不存在的合集）、`500`（`page=0` 的 HTML 错误页）与 `403`（相似搜索的 Cloudflare 质询页）；`429` 从未触发，非法 key 与 NSFW 的 `401` 只有官方口径、本仓库没有 key 可测，上表不是全集。逐条见[验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
 
 ## 相关文档
 
