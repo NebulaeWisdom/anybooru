@@ -153,7 +153,7 @@ class WallhavenApi_Mixin:
         similar route; use ``wallpaper_search(q='like:<wallpaper_id>')``.
         """
         return self.request("GET", "api/v1/w/{}".format(
-            quote(str(wallpaper_id), safe="")))
+            quote(str(wallpaper_id), safe="")), params=params)
 
     # ------------------------------------------------------------------
     # Tags
@@ -172,7 +172,7 @@ class WallhavenApi_Mixin:
         ``purity`` and ``created_at``.
         """
         return self.request("GET", "api/v1/tag/{}".format(
-            quote(str(tag_id), safe="")))
+            quote(str(tag_id), safe="")), params=params)
 
     # ------------------------------------------------------------------
     # User settings
@@ -226,7 +226,7 @@ class WallhavenApi_Mixin:
         ``collection_list``.
         """
         return self.request("GET", "api/v1/collections/{}".format(
-            quote(str(username), safe="")))
+            quote(str(username), safe="")), params=params)
 
     def collection_wallpapers(self, username, collection_id, **params):
         """List a collection's wallpapers
@@ -247,4 +247,4 @@ class WallhavenApi_Mixin:
         """
         return self.request("GET", "api/v1/collections/{}/{}".format(
             quote(str(username), safe=""),
-            quote(str(collection_id), safe="")))
+            quote(str(collection_id), safe="")), params=params)

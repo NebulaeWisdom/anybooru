@@ -31,11 +31,15 @@ class Wallhaven(_Anybooru, WallhavenApi_Mixin):
     The API page also accepts the key as an ``X-API-Key`` header. This class
     never sends both forms at once: the query value is the configured one,
     and a caller who prefers the header passes it through ``headers`` on the
-    call it wants. There is no login, token exchange or key management here;
-    a missing or rejected key just gets the site's own 401, and an NSFW
-    wallpaper stays unreachable without a valid key because the client grants
-    no purity bit of its own. The constructor sends no request, so building a
-    client cannot fail on a credential.
+    call it wants. There is no login, token exchange or key management here.
+    A missing or rejected key gets whatever the site answers for that route
+    -- 401 ``{"error": "Unauthorized"}`` for an NSFW wallpaper or an invalid
+    key, but 404 ``{"error": "Nothing here"}`` for the key-scoped
+    own-collections listing, which is scoped to the key's owner rather than
+    merely guarded by it -- and an NSFW wallpaper stays unreachable without a
+    valid key because the client grants no purity bit of its own. The
+    constructor sends no request, so building a client cannot fail on a
+    credential.
 
     The site documents a limit of 45 calls per minute and answers 429 beyond
     it. This class does not throttle, retry or spread calls out: pacing is
