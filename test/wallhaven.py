@@ -2,11 +2,10 @@
 
 Eight read-only GETs against the Wallhaven JSON API (``https://wallhaven.cc``,
 ``api/v1``), every value taken from ``smoke.wallhaven``; the page numbers and
-the pause come from that section, falling back to the root ``smoke`` section
-for the same keys. In order: two ``api/v1/search`` pages for the configured
-query, one ``api/v1/search`` for the configured exact-tag query, one
-``api/v1/w/{wallpaper_id}`` detail, one ``api/v1/tag/{tag_id}``, one
-``api/v1/collections/{username}``, one
+the pause come from that section. In order: two ``api/v1/search`` pages for
+the configured query, one ``api/v1/search`` for the configured exact-tag
+query, one ``api/v1/w/{wallpaper_id}`` detail, one ``api/v1/tag/{tag_id}``,
+one ``api/v1/collections/{username}``, one
 ``api/v1/collections/{username}/{collection_id}``, and a missing wallpaper id.
 
 Search and collection wallpapers share one envelope -- ``{"data": [...],
@@ -105,16 +104,16 @@ def nullable(value, expected):
     return seen
 
 
-def mask_matches(value, params, key, bits):
+def mask_matches(value, params, field, param_key, bits):
     """Every entry's value must sit inside the configured three-flag mask."""
-    mask = (params or {}).get(key)
+    mask = (params or {}).get(param_key)
     if mask is None:
         return
     require(type(mask) is str and len(mask) == 3,
-            f'{key}: expected three flags, got {mask!r}')
+            f'{param_key}: expected three flags, got {mask!r}')
     allowed = {bits[index] for index, flag in enumerate(mask) if flag == '1'}
-    require(value[key] in allowed,
-            f"{key}={value[key]!r} outside the configured mask {mask!r}")
+    require(value[field] in allowed,
+            f"{field}={value[field]!r} outside the configured mask {mask!r}")
 
 
 def wallpaper_item(value, params=None):
@@ -123,8 +122,8 @@ def wallpaper_item(value, params=None):
     fields(value['thumbs'], THUMB_FIELDS)
     for color in value['colors']:
         require(type(color) is str, f'color: got {type(color).__name__}')
-    mask_matches(value, params, 'purity', PURITY_BITS)
-    mask_matches(value, params, 'category', CATEGORY_BITS)
+    mask_matches(value, params, 'purity', 'purity', PURITY_BITS)
+    mask_matches(value, params, 'category', 'categories', CATEGORY_BITS)
     return detail
 
 
@@ -183,37 +182,41 @@ def exact_tag_page(value, tag_id, params):
 
 
 def wallpaper_detail(value, wallpaper_id):
-    """Check the detail object; uploader and media addresses stay unprinted."""
-    detail = fields(value, DETAIL_FIELDS)
-    require(value['id'] == wallpaper_id,
-            f"wallpaper id={value['id']!r}, requested {wallpaper_id!r}")
-    fields(value['thumbs'], THUMB_FIELDS)
-    fields(value['uploader'], UPLOADER_FIELDS)
-    fields(value['uploader']['avatar'], AVATAR_FIELDS)
-    for color in value['colors']:
+    """Check the wrapped detail object; media addresses stay unprinted."""
+    fields(value, {'data': dict})
+    data = value['data']
+    detail = fields(data, DETAIL_FIELDS)
+    require(data['id'] == wallpaper_id,
+            f"wallpaper id={data['id']!r}, requested {wallpaper_id!r}")
+    fields(data['thumbs'], THUMB_FIELDS)
+    fields(data['uploader'], UPLOADER_FIELDS)
+    fields(data['uploader']['avatar'], AVATAR_FIELDS)
+    for color in data['colors']:
         require(type(color) is str, f'color: got {type(color).__name__}')
-    for tag in value['tags']:
+    for tag in data['tags']:
         fields(tag, TAG_FIELDS)
-    return (f"{detail} | id={value['id']} "
-            f"uploader_group={value['uploader']['group']} "
-            f"uploader_username_chars={len(value['uploader']['username'])} "
-            f"avatar_keys={sorted(value['uploader']['avatar'])} "
-            f"purity={value['purity']} category={value['category']} "
-            f"resolution={value['dimension_x']}x{value['dimension_y']} "
-            f"views={value['views']} favorites={value['favorites']} "
-            f"tags={len(value['tags'])} "
-            f"tag_categories={sorted({tag['category'] for tag in value['tags']})} "
-            f"colors={len(value['colors'])} thumbs_keys={sorted(value['thumbs'])}")
+    return (f"{detail} | id={data['id']} "
+            f"uploader_group={data['uploader']['group']} "
+            f"uploader_username_chars={len(data['uploader']['username'])} "
+            f"avatar_keys={sorted(data['uploader']['avatar'])} "
+            f"purity={data['purity']} category={data['category']} "
+            f"resolution={data['dimension_x']}x{data['dimension_y']} "
+            f"views={data['views']} favorites={data['favorites']} "
+            f"tags={len(data['tags'])} "
+            f"tag_categories={sorted({tag['category'] for tag in data['tags']})} "
+            f"colors={len(data['colors'])} thumbs_keys={sorted(data['thumbs'])}")
 
 
 def tag_detail(value, tag_id):
-    """Check one tag object; its name and alias stay unprinted."""
-    detail = fields(value, TAG_FIELDS)
-    require(value['id'] == tag_id,
-            f"tag id={value['id']!r}, requested {tag_id!r}")
-    return (f"{detail} | id={value['id']} category={value['category']} "
-            f"purity={value['purity']} name_chars={len(value['name'])} "
-            f"alias_chars={len(value['alias'])} category_id={value['category_id']}")
+    """Check the wrapped tag object; its name and alias stay unprinted."""
+    fields(value, {'data': dict})
+    data = value['data']
+    detail = fields(data, TAG_FIELDS)
+    require(data['id'] == tag_id,
+            f"tag id={data['id']!r}, requested {tag_id!r}")
+    return (f"{detail} | id={data['id']} category={data['category']} "
+            f"purity={data['purity']} name_chars={len(data['name'])} "
+            f"alias_chars={len(data['alias'])} category_id={data['category_id']}")
 
 
 def collections(value):
@@ -349,8 +352,6 @@ def main():
 
         smoke = load_config(args.config)['smoke']
         settings = dict(smoke['wallhaven'])
-        for key in ('pages', 'pause_seconds'):
-            settings.setdefault(key, smoke[key])
         client = Wallhaven(settings['site'], apikey='', config_file=args.config)
     except Exception as error:
         print(f'FAIL setup | - | no HTTP | {type(error).__name__}: {error}')
