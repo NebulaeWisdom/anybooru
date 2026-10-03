@@ -4,9 +4,9 @@
 
 页码和每页数量原样发给服务端：不裁剪、不改写、不补默认值。服务端默认值与上限见各家族小节。一次调用就是一次请求；不自动翻页，没有生成器，也没有内部循环。失败不自动重试，被限流也不例外。
 
-返回的就是服务端那一页。有的家族直接给数组；有的包在 `{"posts": [...]}`、`{"items": [...]}` 或 `{"data": [...], "total_count": …}` 里；nhentai 是 `{"result": [...]}`。具体形状见各节。
+返回的就是服务端那一页。有的家族直接给数组；有的包在 `{"posts": [...]}`、`{"items": [...]}` 或 `{"data": [...], "total_count": …}` 里；Wallhaven 的列表是 `{"data": [...], "meta": {…}}`，翻页信息在 `meta`；nhentai 是 `{"result": [...]}`。具体形状见各节。
 
-十三个家族的页码参数名不一样：
+十四个家族的页码参数名不一样：
 
 | 家族 / 方法 | 分页输入 |
 | :--- | :--- |
@@ -27,6 +27,7 @@
 | nhentai 画廊、标签、分类法与 GTS 列表 | `page`（1 起） / `per_page` |
 | nhentai `gallery_suggestions` / `gts_new_tags` / `tag_search` | `limit`（取几条，不是页码） |
 | ArtStation 列表路由，含 `project_search_post` 这个只读 POST 搜索 | `page`（1 起） / `per_page`，服务端硬性检查 |
+| Wallhaven `wallpaper_search`（以及文档同形的合集壁纸列表） | `page`（1 起）；每页固定 24 条，没有 `per_page` |
 
 ```python
 from anybooru import Danbooru
@@ -558,6 +559,55 @@ POST 条目比 GET 搜索多两个字段：`description`（正文文本）与 `a
 
 参数细节见 [方法参考](artstation-api.md)，错误形态见 [错误处理](errors.md#artstation)，逐条 URL 与响应正文见 [验证记录](verification.md#artstation匿名只读实测2026-09-20)。
 
+## Wallhaven 的分页
+
+Wallhaven 列表只有 `page` 一个分页参数，从 `1` 起；每页固定 24 条（官方 API 页面 [`#search`](https://wallhaven.cc/help/api#search) 一节写 "Listings are limited to 24 results per page"，实测 `meta.per_page` 是 24）。没有 `per_page` / `limit`：客户端不补每页条数，也不拿 `total` 替你算末页。
+
+`wallpaper_search(**params)` 原样返回完整信封 `{"data": [壁纸摘要…], "meta": {…}}`，摘要字段与详情字段见 [方法参考](wallhaven-api.md)。搜索列表的 `meta` 有六个字段；`collection_wallpapers` 的 `meta` 只有前四个（没有 `query` 与 `seed`）：
+
+| 字段 | 含义与样本 |
+| :--- | :--- |
+| `current_page` | 本次返回的页码；非法页会被归到 `1` |
+| `last_page` | 该查询的最后一页，随过滤条件变化；无过滤样本是 `20890` |
+| `per_page` | 每页条数，样本是 `24` |
+| `total` | 匹配总数（不是本页条数）；无过滤样本是 `501359` |
+| `query` | 搜索词；没有词是 `null`；`q='id:1'` 这种精确标签查询给对象 `{"id": 1, "tag": "anime"}` |
+| `seed` | `sorting='random'` 时回传的六位种子，其它排序是 `null` |
+
+`wallpaper_show` / `tag_show` / `user_settings` / `collection_list` / `user_collections` 都没有分页参数。`collection_wallpapers(username, collection_id)` 是分页列表：`GET https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175` 回 `200`、`data` 24 条与 `meta`；加 `?purity=100&page=2` 取第 2 页，该次 `meta.current_page` 回显 `2`，`last_page=23`、`total=537`、`per_page=24`。`collection_id` 取自 `user_collections` 列表项的 `id`（不是 `label`）；合集不存在时（`GET .../collections/ThorRagnarok/0`）回 `404` `{"error": "Nothing here"}`。
+
+翻页只能手动把 `page` 加 1，并且不能用「这一页不满」「这一页是空的」当停止条件：
+
+| 输入 | 实测 |
+| :--- | :--- |
+| `page=1` / `page=2` | `200`；`meta.current_page` 分别回显 `1` / `2` |
+| `page=abc` | `200`，`meta.current_page` 是 `1`：非数字被当成第一页，不报错 |
+| `page=1000000` | `400`，JSON `{"error": "Bad Request"}` |
+| `page=0` | `500`，`Content-Type` 是 `text/html; charset=UTF-8`，正文是站点的 `It broke` 错误页，不是 JSON |
+| `sorting=views&order=asc` | `200`，`data` 只有 2 条，而 `meta.per_page=24`、`total=501359`、`last_page=20890`：**短页不是没有下一页的证明** |
+| `sorting=not-a-sort` | `200`，`data` 是空数组，但 `meta.total=501359`、`last_page=20890` 仍是正数：**空数组更不能当成已经翻完** |
+| `purity=001`（全 NSFW）、匿名 | `200`，`data=[]`、`total=0`、`last_page=1`：匿名没有 NSFW 授权，这不是「这个筛选条件没有结果」 |
+
+`seed` 不能当稳定游标。官方页面写 `sorting='random'` 会产生一个可跨页传递的种子，用来「确保取得新一页时不重复」；实测并不是这样：`sorting=random&seed=abc123&page=1` 回 `meta.seed=wPpR1H`，同一参数换 `page=2` 回 `vMFVjx`（两页不同）；把第 1 页回的 `wPpR1H` 显式传给 `page=2`，回的是 `Ec2tSv`。也就是说站点不会保留你传的种子，**没有任何证据表明随机结果无重复**。客户端不重写 `seed`、不去重，也不替你判重复；要连续取随机页就自己按 `id` 去重。
+
+```python
+from anybooru import Wallhaven
+
+with Wallhaven('wallhaven') as client:                       # 包内 apikey 是空串，本次匿名
+    # GET https://wallhaven.cc/api/v1/search?categories=111&purity=100&sorting=date_added&page=1
+    first_page = client.wallpaper_search(categories='111', purity='100', sorting='date_added', page=1)
+    meta = first_page['meta']
+    print(meta['current_page'], meta['last_page'], meta['per_page'], meta['total'])   # 1 20890 24 501359（当天快照）
+    for wallpaper in first_page['data']:
+        print(wallpaper['id'], wallpaper['resolution'], wallpaper['path'])
+
+    # GET https://wallhaven.cc/api/v1/search?categories=111&purity=100&sorting=date_added&page=2
+    second_page = client.wallpaper_search(categories='111', purity='100', sorting='date_added', page=2)
+    print([wallpaper['id'] for wallpaper in second_page['data']])
+```
+
+参数与返回字段见 [方法参考](wallhaven-api.md)，`400` / `500` / 非法页的正文见 [错误处理](errors.md#wallhaven)，逐条 URL 与响应见 [验证记录](verification.md)。
+
 ## 边界与未实测
 
 - 通用：所有家族的服务端默认值、上限、返回形状都以当次响应为准。本库不裁剪、不补默认值、不自动翻页、不自动重试。
@@ -571,6 +621,7 @@ POST 条目比 GET 搜索多两个字段：`description`（正文文本）与 `a
 - Cosine：非数字页码与别的取值组合没有完整样本，所以客户端不钳位、不补默认值、也不替你判末页。`sortBy` 取不认识的值也回 `200`，但样本不能证明它生效。
 - nhentai：`tag_search` 本轮未调用（`POST`）。`per_page` 在 `tag_list`、`taxonomy_resolved` 上不保证被采纳。“没报错”不等于“参数生效”。`alphabet` 只在 `sort=name` 的样本里出现。
 - ArtStation：`project_comments` 的分页参数本轮没有实测。`per_page` 在 `1` 与 `50` 之间、`3` 与 `75` 之间没有细分；用户作品在第 2 页与第 9999 页之间没有细分；`channel_projects` 的 `page` 取值、`user_following` 的深页、非数字的 `page` / `per_page` 都没有样本。`project_search_post` 只试过 `per_page=3`；`filters` 与其它嵌套表单形态、缺 token / token 失效等分支都没有样本，只能算候选。`feed` 只试过 `sorting='latest'`。
+- Wallhaven：每页 24 条与 `meta` 的六个字段来自官方 API 页面加匿名样本；非数字 `page`、`page=0`、`page=1000000`、非法 `sorting` 这几条只代表试过的值，不能推广成整站行为。合集壁纸列表的 `meta` 只有 `current_page` / `last_page` / `per_page` / `total` 四个字段，没有 `query` 与 `seed`，只取得 `ThorRagnarok/274175` 一个合集的两页样本。`seed` 的跨页传递与「无重复」承诺在本轮样本里不成立，本库不据此去重也不改写 `seed`。
 
 ## 相关文档
 

@@ -1,6 +1,6 @@
 # Anybooru 文档
 
-Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 十三类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
+Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru、Gelbooru02（TBIB）、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai、ArtStation 与 Wallhaven 十四类图站 API 的 Python 客户端。先选与你的站点匹配的客户端，再按任务查方法；本库不自动识别引擎。
 
 不知道自己的站点属于哪一类？先看[怎么判断一个站点该用哪个类](configuration.md#怎么判断一个站点该用哪个类)（看路径与响应形状），再进对应家族的「三行上手」跑通第一个请求。
 
@@ -32,6 +32,7 @@ Anybooru 是访问 Danbooru、Moebooru、Serika、e621ng、Zerochan、Gelbooru�
 | Cosine（pic.cosine.ren，自研 API、非 booru 引擎） | [三行上手](cosine.md) | [13 个原生方法](cosine-api.md) | [按任务找方法](cosine-capabilities.md) | [匿名响应与上游文件](cosine-contract-notes.md) |
 | Nhentai（nhentai.net，站点自带的 `.net` API v2） | [三行上手](nhentai.md) | [36 个原生方法](nhentai-api.md) | [按任务找方法](nhentai-capabilities.md) | [OpenAPI 条目与实测依据](nhentai-contract-notes.md) |
 | ArtStation（artstation.com，公开作品集、只读搜索与 RSS 订阅源） | [三行上手](artstation.md) | [17 个原生方法](artstation-api.md) | [按任务找方法](artstation-capabilities.md) | [匿名响应与排除项](artstation-contract-notes.md) |
+| Wallhaven（wallhaven.cc，站点自带的 API v1） | [三行上手](wallhaven.md) | [7 个原生方法](wallhaven-api.md) | [按任务找方法](wallhaven-capabilities.md) | [API 页面与实测依据](wallhaven-contract-notes.md) |
 
 **两家 Gelbooru 不是同一套接口**，选类前先看清是哪一家：
 
@@ -63,16 +64,18 @@ Nhentai（`nhentai.net`）使用独立的 `/api/v2/galleries`、`/search`、`/ta
 
 ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎：本类覆盖它的公开作品集 JSON 路由（`projects.json`、随机作品、用户与用户作品/关注、`api/v2/search/projects.json` 与可搜索字段、`api/v2/community/` 下的专辑、频道、作品评论与探索最新）、只读搜索与一个 RSS 订阅源（`artwork.rss`），共 17 个原生方法 = 15 个 `GET` + 2 个 `POST`，其中 16 个返回 JSON、`feed()` 返回 RSS 原文。两个 POST 都**不是内容写入**：`csrf_token()` 按调用方给的属性取公开 CSRF token（返回体里的 `public_csrf_token`，站点会话 Cookie 由会话自然保存），`project_search_post()` 是同一个搜索的只读 POST 形态，token 由调用方每次传入；本库不自动获取、不续期、不重放、不重试、不落盘。本轮**未取得官方 API 文档页、OpenAPI 或服务端源码**，依据只有匿名只读响应实测；指定作品 `/projects/G1ew2N.json` 被站点质询挡下（`403`，HTML），v2 的单作品 `/api/v2/community/projects/{id}.json` 匿名返回 `401`，所以本类**没有封装** `project_show`，也没有指向随机或搜索的自动替代路径。`/openapi.json` 返回 Explore HTML，200 不证明 API 存在。本类没有凭据字段或内容写入方法，不下载或改写媒体地址，见[契约附注](artstation-contract-notes.md)。
 
+Wallhaven（`wallhaven.cc`）是站点自带的 API v1，不是 booru 引擎：全部读取面收在 7 条只读 `GET` 路由上——搜索 `api/v1/search`、壁纸详情 `api/v1/w/{id}`、标签详情 `api/v1/tag/{id}`、用户设置 `api/v1/settings`、本人合集 `api/v1/collections`、他人公开合集 `api/v1/collections/{username}`、合集内壁纸 `api/v1/collections/{username}/{id}`，返回完整 JSON 信封（搜索是 `{"data":[…],"meta":{…}}`，壁纸详情与标签是 `{"data":{…}}`，合集列表是 `{"data":[…]}`）。相似标签用 `q='like:<壁纸编号>'`，用户上传用 `q='@<用户名>'`，没有单独的 `similar` 或 `user` 路由；`/w/{id}/similar` 与 `/user` 实测 `404`。认证靠 `apikey` 查询参数（官方也支持 `X-API-Key` 头），匿名读公开内容，NSFW 与本人私有合集会因缺少或无效 key 被拒（匿名 `settings` 是 `401`、本人合集是 `404`）。依据是官方 API v1 页面（https://wallhaven.cc/help/api）加匿名只读响应，没有 OpenAPI 或服务端源码，见[契约附注](wallhaven-contract-notes.md)。
+
 不能按“Danbooru-style”这类血缘名称选客户端：e621ng 与 Danbooru 都提供复数 `posts` 路径、都用 HTTP Basic，但返回的 JSON 结构完全不同。判断方法见[配置：怎么选类](configuration.md#怎么判断一个站点该用哪个类)。
 
-## 十三个家族共用的用法
+## 十四个家族共用的用法
 
 | 文档 | 什么时候看 |
 | :--- | :--- |
 | [安装](installation.md) | Python 与依赖要求、源码安装步骤、装完怎么验证、包内文件都在哪 |
 | [配置](configuration.md) | 默认读哪份 JSON、怎么换一份自己的、`sites` 每个字段什么意思、`examples` 各键对应哪个调用、代理与超时写在哪 |
-| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token、Anime-Pictures 原样转发 `Authorization` / `Cookie`、Cosine 默认匿名且 `revalidate_secret` 留空、Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>`、ArtStation 站点条目无凭据字段且公开 CSRF token 按次传入 |
-| [分页](pagination.md) | 十三个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000、Nhentai 的 `page`/`per_page` 与 `total` 是快照 |
+| [认证](authentication.md) | Danbooru/e621ng 用 HTTP Basic、Moebooru 用 password_hash、Serika 用 Bearer key、Gelbooru dapi 用 api_key + user_id、Gelbooru02 无凭据、Zerochan 无认证、Shuushuu 显式登录、Sakuria 只接收已有 Bearer token、Anime-Pictures 原样转发 `Authorization` / `Cookie`、Cosine 默认匿名且 `revalidate_secret` 留空、Nhentai 默认匿名且 `api_key` 非空时发 `Authorization: Key <key>`、ArtStation 站点条目无凭据字段且公开 CSRF token 按次传入、Wallhaven 默认匿名且 `apikey` 非空时作为查询参数 `apikey=` 发送（官方也支持 `X-API-Key` 头，要显式走 `request()` 的 headers） |
+| [分页](pagination.md) | 十四个家族各自的页码参数、每页条数、游标形式，以及 Sakuria 的重复结果与不可靠总数、Anime-Pictures 的 0 起步 `page`、Cosine 的 `pageSize` / `limit`+`offset` 与搜索 `total` 被夹到 1000、Nhentai 的 `page`/`per_page` 与 `total` 是快照、Wallhaven 的 `page` 1 起步且文档写每页固定 24 条 |
 | [错误处理](errors.md) | 三个异常类各自什么时候抛、HTTP 错误带哪些字段、各引擎的状态码含义、为什么不自动重试 |
 | [迁移](migration.md) | 从 Pybooru 4.x 改名/换参数/换返回值的逐方法对照表 |
 
@@ -80,14 +83,14 @@ ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎�
 
 1. **显式配置**：默认读随包安装的 `anybooru/anybooru.json`，`config_file` 指向别的文件时读那一份；不读环境变量、不搜索当前工作目录、没有内置站点后备。构造函数的站点名就是配置 `sites` 段里的键名。
 
-2. **通用入口与原生方法**：十三个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
+2. **通用入口与原生方法**：十四个客户端都有 `request()`，原生方法只是把参数拼好再调它。能传什么参数、有没有权限，全由服务端决定；客户端不预判能力，也不拦下你不认识的搜索字段。
 
 3. **返回什么就给你什么**：不自动翻页、不重试、不换别的接口重来；HTTP 非 2xx 时抛异常并保留状态码和正文。
    有些方法会替你剥掉一层外层对象：
    - Serika 官方 v1 返回 `{"success":true,"data":{…},"meta":{…}}` 时返回 `data` 里的内容、把 `meta` 放进 `client.last_call['meta']`。
    - e621ng 的列表返回 `{"posts":[… ]}` 时给你数组、详情返回 `{"post":{…}}` 时给你对象，而 `v2=true` 或带 `only=` 的请求服务端本来就不套这层，客户端也不拆。
    - Zerochan 的列表返回 `{"items":[… ]}` 时给你数组，详情路径直接是条目对象。
-   - Gelbooru、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai 与 ArtStation 一个外层都不拆，服务端给什么就返回什么。Cosine 的四种外壳原样返回：superjson 的 `{"json":…,"meta":…}`、`{"images":…,"total":…}`、`{"success":true,"data":…}` 与裸数组；`image_random` 在 `count=1` 时 superjson 里的 `json` 是**对象**、`count≥2` 时才是数组。Nhentai 的作品列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，`gallery_popular` 是裸作品数组、`tag_show` 是裸标签对象、`blacklist_ids` 是整数数组。ArtStation 的 `project_list` 也把 `{"data":…,"total_count":…}` 原样返回。
+   - Gelbooru、Shuushuu、Sakuria、Anime-Pictures、Cosine、Nhentai、ArtStation 与 Wallhaven 一个外层都不拆，服务端给什么就返回什么。Cosine 的四种外壳原样返回：superjson 的 `{"json":…,"meta":…}`、`{"images":…,"total":…}`、`{"success":true,"data":…}` 与裸数组；`image_random` 在 `count=1` 时 superjson 里的 `json` 是**对象**、`count≥2` 时才是数组。Nhentai 的作品列表是 `{"result": […], "num_pages": …, "per_page": …, "total": …}`，`gallery_popular` 是裸作品数组、`tag_show` 是裸标签对象、`blacklist_ids` 是整数数组。ArtStation 的 `project_list` 也把 `{"data":…,"total_count":…}` 原样返回。Wallhaven 的搜索是 `{"data":[…],"meta":{…}}`、壁纸详情与标签是 `{"data":{…}}`、合集列表是 `{"data":[…]}`，方法都原样返回。
    - Gelbooru02 的 XML 方法给你**服务端原文**（含 XML 声明、根元素属性与全部空白，不解析、不转换、不裁剪）。
    返回内容的完整原貌、以及哪些方法不拆，见各家族方法参考。
 
@@ -103,16 +106,18 @@ ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎�
    - Cosine：参数走共享编码：`None` 丢弃、布尔发成小写、数组按 Rails 重复键；`path` 去掉前导 `/` 后拼在站点根上，`data` 按 JSON 原样发送。分页用站点自己的键（`page`/`pageSize`、`limit`/`offset`、`start`/`limit`），`response_format='xml'` 时 `feed()` 走 `.text` 返回完整 RSS 原文，不做 JSON 嗅探。
    - Nhentai：原生路径带完整 `api/v2` 前缀，配置填写站点根；查询与 JSON 正文的写法见[客户端用法](nhentai.md)，不同端点的页码与条数差异见[分页](pagination.md#nhentai-的分页)。
    - ArtStation：路径标识符（用户名、评论路径中的作品编号）按 `quote(str(value), safe='')` 编码；专辑/频道编号是查询参数。相对路由去前导 `/` 后拼在站点根上；`filters` 要调用者明确给 JSON 字符串。
+   - Wallhaven：查询键原样转发（`q` / `categories` / `purity` / `sorting` / `order` / `topRange` / `atleast` / `resolutions` / `ratios` / `colors` / `page` / `seed`）；`categories` 与 `purity` 是三位字符串掩码（如 `111` / `100`），不是 Python 布尔；`q` 里写 `@用户名` 与 `like:<壁纸编号>`，没有独立的用户或相似路由。
 
 5. **解析与 POST 约定**：`request()` 显式选择 `json` 解析或 `xml`/`html` 原文，除此之外才抛 `KeyError`；`feed()` 固定用 `xml`，不看 `Content-Type` 嗅探格式。只读搜索 POST 走共享编码器编出的 Rails 表单（`form=`，`data` 仍是 JSON 正文），公开 CSRF token 由调用方每次通过 `PUBLIC-CSRF-TOKEN` 头传入，客户端不自动取 token 也不替调用方选正文形态。
 
 ## 边界与未实测
 
-- 源码家族 Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注）。Zerochan、Gelbooru、Gelbooru02 与 Shuushuu 依据站点页面、脚本、帮助页或 OpenAPI 加真实响应。
+- 源码家族 Danbooru / Moebooru / Serika / e621ng 对齐各自固定版本的上游源码（文件与行号见对应附注）。Zerochan、Gelbooru、Gelbooru02、Shuushuu 与 Wallhaven 依据站点页面、脚本、帮助页或官方 API 页面加真实响应。
 - Cosine 没有本地上游服务端源码，站点前端源码在公开仓库里，本轮只按需只读了个别文件当线索（不 clone、不写行号），公开结论以匿名只读响应为准。
 - Sakuria 没有上述正式来源，仅有匿名实测。Anime-Pictures 同样没有可读到的官方手册页、OpenAPI 或服务端源码，依据只是匿名响应加候选输入资料。
 - Nhentai 没有本地上游服务端源码，依据是站点自带的 OpenAPI（`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0）加匿名只读响应，引用按 JSON Pointer 与 `operationId` 而不是行号。
 - ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码，依据同样只有匿名只读响应实测。未复核的资料说法集中标明。
+- Wallhaven 没有本地上游服务端源码，也没有 OpenAPI；依据是官方 API v1 页面（https://wallhaven.cc/help/api）加匿名只读响应，引用按页面标题与锚点（`#wallpapers` / `#search` / `#tags` / `#user-settings` / `#limits` / `#auth`）而不是行号。
 - 任何一种依据都不是对下游站点的保证。
 - 已经真实执行过的匿名读取：
   - Danbooru：12 次成功与 3 次预期错误。
@@ -130,6 +135,7 @@ ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎�
     - `csrf_token()` 返回 `200` 加 `application/json`，正文顶层只有 `public_csrf_token`（字符串），响应里的会话 Cookie（`PRIVATE-CSRF-TOKEN`）由会话自然保存、值不落盘。
     - `project_search_post()` 返回 `200`，请求是 `application/x-www-form-urlencoded`（`additional_fields[]` 编成重复键），外壳仍是 `{"total_count":…,"data":[…]}`，本次 3 条结果的条目都带 `assets` 与 `description`（`assets` 里既有图片也有 video 条目）。
   - 缺 token、过期 token、其它 `filters` 形状与 `412` 一类 POST 边界仍未实测。
+  - Wallhaven：官方 7 条只读路由都发过匿名请求——搜索、壁纸详情（`pom5lj`）、标签详情（`tag/1`）、匿名本人合集、用户公开合集与合集内壁纸、匿名 `settings`；`@用户名` 上传搜索有 `200` 样本，`q='like:<壁纸编号>'` 相似搜索实测被 Cloudflare 质询挡下（`403` HTML）。`/w/{id}/similar` 与 `/user` 实测 `404`。
   - 各家族示例脚本的实跑情况见同一份[验证记录](verification.md)。
 - 只有源码或站点文档依据、没有成功响应记录的部分：
   - 所有需要登录或 API key 的写路径。
@@ -140,6 +146,7 @@ ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎�
   - Anime-Pictures 的 `post_create`（没发过 POST）、带 Cookie 的 `post_tags` 与 `image_get`、媒体地址的成功返回。
   - Cosine 的两个 POST：`artwork_revalidate` 需要站点密钥、`search_index_admin` 会改站点索引，本轮都没有调用。
   - Nhentai 的 4 个 POST 与 1 个 DELETE（`favorite_add` / `favorite_remove` / `gallery_download` / `blacklist_update`，以及**不需要认证**的 `tag_search`）。
+  - Wallhaven 带 API key 的 `settings` 与私有合集、带凭据的 NSFW / 浏览设置搜索、`X-API-Key` 头形态，以及官方写的限流 45 次/分钟与 `429`（阈值未触发验证）；本人合集 `collection_list` 与 `user_settings` 两个方法只有匿名 `404` / `401` 的路由级样本，未通过原生方法执行。
   - 旧版 web 路由与 `PUT` / `PATCH` / `DELETE`。
   - 方法存在不等于成功路径测过。
 - 只读范围并不相同：
@@ -147,6 +154,7 @@ ArtStation（`artstation.com`）是公开作品集站点，不是 booru 引擎�
   - Zerochan 的 API 本身只读，且只提供 JSON（不实现 `xml`），文档要求的 User-Agent 里含项目名与 Zerochan 用户名是站点约定，本库照配置原样发送、不校验、不代填。
   - Gelbooru 面同样没有写方法，使用 `page=dapi` 与 `page=autocomplete2` 两个 JSON 入口；`page=tags/post/wiki` 等 HTML 浏览页面不封装为 JSON 方法，也不抓取解析。
   - Gelbooru02（TBIB）只有 4 个只读方法、没有写方法也没有账号接口。帖子的 JSON 与 XML 字段并不一致（JSON 没有 `file_url` / `sample_url` / `preview_url`，XML 有且 `rating` 用单字母 `s`），它不替你构造媒体地址；`post_deleted` 在 TBIB 上是 `500` 加不完整 XML，客户端照原样抛 `AnybooruHTTPError`，不降级、不重试；`tag` / `comment` 只会返回 XML 文本（`json=1` 也一样），XML 也不解析成字典。
+  - Wallhaven 的 7 个原生方法全部是只读 GET，没有写方法，`request()` 也没有请求体入口；带 `apikey` 时官方按该账号的浏览设置与过滤执行搜索，匿名只能看到公开内容，NSFW 需要有效 key。
 - Shuushuu 默认匿名；公开图片、标签、评论、用户资料等读取不要求账号，但个人资料和管理 GET 不在此列。登录、刷新、登出及账号写操作未实测；本次匿名冒烟与示例的实际范围见[验证记录](verification.md#shuushuu-匿名只读实测2026-09-19)。
 - Sakuria 提供 27 个公共资源 GET 与 17 个账号 GET。账号方法只接收已有 token，成功返回结构未实测；不实现登录、刷新或媒体下载。匿名执行范围与资料矛盾见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)。
 - Anime-Pictures 的 13 个原生方法里有 12 个只读 GET 和 1 个 POST（`post_create`）；`post_tags` 与 `image_get`（`/pictures/get_image/{file_url}`，原样返回 `bytes`）也是读请求但需要身份，匿名实测 `403`。本类不提供登录、注册或刷新方法，也不索要账号密码；本家族唯一的字节读取方法是 `image_get`，其余 CDN 地址只写在文档里。匿名执行范围、输入资料矛盾与未实测项见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与[契约附注](anime-pictures-contract-notes.md)。
