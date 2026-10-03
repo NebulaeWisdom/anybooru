@@ -387,9 +387,49 @@ with ArtStation('artstation') as client:            # 包内条目只有 url，�
 
 本轮 [robots.txt](https://www.artstation.com/robots.txt) 为 `200` 文本，包含 `/*/likes`、`/*/following`、`/*/followers`、`/*/collections` 等模式；不能把这些模式说成只涉及 HTML、不涉及同前缀的 JSON。能匿名读到不等于获得许可，另见 [服务条款](https://www.artstation.com/tos)；本库不会因此改走备用路径。
 
+## Wallhaven：`apikey` 查询参数，或显式 `X-API-Key` 头
+
+`Wallhaven` 只有一种凭据：站点条目的 `apikey`。
+
+| 字段 | 值 |
+| :--- | :--- |
+| 自动发送的位置 | 查询参数 `apikey=<API KEY>` |
+| 配置位置 | `sites.<站点>.apikey` |
+| 官方另外接受的形态 | 请求头 `X-API-Key: <API KEY>`；本类不自动发送，需要时用通用入口显式传 |
+
+```json
+{
+  "sites": {
+    "wallhaven": { "url": "https://wallhaven.cc", "apikey": "" }
+  }
+}
+```
+
+规则：
+
+* `apikey=None`（或不传）读 `sites.<站点>.apikey`；显式 `apikey=''` 表示本次匿名，**不读**配置里的 key；非空才把 key 作为每次请求的 `apikey` 查询值发送；
+* key 合并进查询参数后再压上本次调用自己的 `params`，所以 `wallpaper_search(apikey='')` 这一类显式空串能让单次调用回到匿名，其它查询键不受影响；
+* 官方 API 页面 [`#auth`](https://wallhaven.cc/help/api#auth) 一节给两种带法：URL 查询值 `?apikey=<API KEY>`，或请求头 `X-API-Key: <API KEY>`。本类只自动发查询参数那一种，**不会同时发两种**；要用头就自己走通用出口，例如 `client.request('GET', 'api/v1/settings', headers={'X-API-Key': '<your-api-key>'})`——`headers` 是 `request()` 的关键字参数，七个原生方法都不带隐式头；
+* key 在站点账号设置页生成，可随时重新生成；填进自己的配置文件后**不要提交**。本仓库没有凭据、也不索要，下面所有需要有效 key 的成功路径都**未实测**；
+* 客户端不做本地权限判断、不在 `401` 后退回匿名，也不提供登录、注册、换取或刷新凭据的方法。
+
+匿名可用与需要 key 的实测对照（都是匿名样本，串行、每项一次）：
+
+| 调用 | 匿名实测 | 读得出什么 |
+| :--- | :--- | :--- |
+| `wallpaper_search(...)` | `200` | 公开列表。`purity=001`（只留 NSFW）匿名回 `200` 但 `data=[]`、`total=0`：匿名拿不到 NSFW，不能把空数组读成「这个筛选没有结果」 |
+| `wallpaper_show('pom5lj')` | `200` | 公开 SFW 详情，带 `uploader` 与 `tags`。官方页面说明 NSFW 壁纸对访客封锁，无 key 或无有效 key 回 `401` |
+| `tag_show(1)` | `200` | `{"data": {"id": 1, "name": "anime", …}}` |
+| `user_collections('ThorRagnarok')` | `200` | 只列该账号的公开合集：`{"data": [{"id": 274175, "label": "Default", "views": 37584, "public": 1, "count": 537}, …]}`；另一个账号 `LewisMweir13` 回 `{"data": []}` |
+| `collection_wallpapers(username, collection_id)` | `200` | 公开合集可匿名读：`GET https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175` 回 `data` 24 条与 `meta`（`total=537`、`last_page=23`、`per_page=24`），`?purity=100&page=2` 取第 2 页；`collection_id` 从 `user_collections` 的 `id` 取。合集不存在（同路由换成 `/0`）回 404 `{"error": "Nothing here"}`。官方页面说私有合集要本人 key，别人只看到公开部分 |
+| `user_settings(...)` | `401` | `{"error": "Unauthorized"}`：该路由按定义就是「当前账号的设置」，无 key 没有账号（官方 [`#limits`](https://wallhaven.cc/help/api#limits) 也写无效 key 一律 `401`） |
+| `collection_list(...)`（自己的合集） | `404` | `{"error": "Nothing here"}`，**不是 `401`**：无 key 时服务端没有「当前账号」，按找不到处理；有 key 才回自己的全部合集（含私有） |
+
+**未实测清单**：带有效 key 的任何成功响应、`X-API-Key` 头这条路径、私有合集与自己的合集列表的登录态返回、NSFW 壁纸的成功读取。上表的匿名 `401` / `404` 只是当前身份的拒绝形态，不能反推「带上 key 一定成功」，也不说明服务端把两种带法当成同一件事。状态码与正文见 [错误处理](errors.md#wallhaven)，官方依据与样本见 [方法参考](wallhaven-api.md)。
+
 ## 边界与未实测
 
-已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要该站账号，已实测匿名拒绝为 `401`、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 `426`，带 `x-sakuria-data-contract: 2` 后为 `401` `sakuria_session_required`），17 个成功返回结构一律未知；带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与 `post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，其余按候选输入封装；逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与 [Cosine 契约审计附注](cosine-contract-notes.md)。nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 `403` 挑战与 v2 详情的 `401` `{"data":null}` 也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
+已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要该站账号，已实测匿名拒绝为 `401`、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 `426`，带 `x-sakuria-data-contract: 2` 后为 `401` `sakuria_session_required`），17 个成功返回结构一律未知；带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与 `post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，其余按候选输入封装；逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与 [Cosine 契约审计附注](cosine-contract-notes.md)。nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 `403` 挑战与 v2 详情的 `401` `{"data":null}` 也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与 [ArtStation 契约审计附注](artstation-contract-notes.md)。Wallhaven 同样没有凭据样本：`apikey` 查询值与 `X-API-Key` 头两种带法只按官方 API 页面 "Authentication" 一节封装，从未发送过任何 key，`user_settings`、自己的 `collection_list`、私有合集与 NSFW 壁纸的成功响应一律未实测；匿名侧只取得 `200`（搜索 / 详情 / 标签 / 用户公开合集）与 `401` / `404` 两种拒绝形态，它们不能反推带 key 的结果。逐条见[验证记录](verification.md)与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
 
 ## 相关文档
 
