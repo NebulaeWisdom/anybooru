@@ -11,6 +11,48 @@
 以本地上游引擎源码（`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`）为依据的整体重构。
 **破坏性变更**，迁移步骤见 [docs/migration.md](docs/migration.md)。
 
+### Pixiv 第十五家族
+
+- 新增 `Pixiv`、`anybooru/pixiv.py` 与 `anybooru/api_pixiv.py`。站点 `pixiv.net` **不是** booru 引擎，而且有
+  **两个域名不同的面**：网页端 `https://www.pixiv.net`（前端自用的 `ajax/*` 与 `ranking.php?format=json`）
+  与官方 App API `https://app-api.pixiv.net`（`/v1`、`/v2`）。两套根都放进 `sites.pixiv`（`url` 与 `app_url`），
+  由 `request(..., api='web'|'app')` 显式选择，不拆成两个家族，也不按路径嗅探选根；`path` 按 `urljoin` 拼在
+  选中的根上，App 面的绝对 `next_url` 游标由调用方自己传入。共 **140 个原生方法**（web 面 81 = 65 个 `GET` + 16 个 `POST`，
+  app 面 59 = 53 个 `GET` + 6 个 `POST`；合计 118 `GET` + 22 `POST`）。
+- 原生方法名统一加 `web_` / `app_` 前缀，防止两面同名冲突；`Pixiv.request()` 的默认 `api='web'`。网页端已
+  核实可用并封装读取面的代表路由：插画详情 `ajax/illust/{id}`、插画页列表 `ajax/illust/{id}/pages`、用户资料
+  `ajax/user/{id}` 与 `ajax/user/{id}/profile/all`、排行榜 `ranking.php?mode=...&format=json`、搜索
+  `ajax/search/artworks/{word}`，例如 `web_illust_show(149040133)`、
+  `web_search_artworks('cat', p=1, order='date_d', mode='all', s_mode='s_tag', type='all')`、
+  `web_ranking(mode='daily', p=1)`。查询参数原样转发，路径段按 `quote(str(value), safe='')` 转义；没有本地校验、
+  默认分页、自动翻页或字段改名。
+- **两面的完整 JSON 都原样返回，一个外层都不拆**：网页端信封是 `{"error": false, "message": "", "body": {…}}`
+  （插画详情在 `body` 里，例如 `body.illustId` / `body.title` / `body.urls` 的 `mini` / `thumb` / `small` /
+  `regular` / `original` / `body.tags.tags` / `body.width` / `body.height` / `body.pageCount`），排行榜是另一套以
+  `contents` 为顶层数组的外壳（每项有 `title` / `tags` / `url` / `illust_id` / `user_id` / `rank` / `rating_count` /
+  `view_count`），App 面的 `illusts` / `next_url` 也不剥。**HTTP 200 而正文 `error` 为 `true` 时同样当数据返回，
+  不伪造 HTTP 异常**。
+- 凭据三项都默认为空串，只在显式传入时发送：`cookie`（网页端可选，非空时作为 `Cookie` 头）、`csrf_token`
+  （网页端写路由用）、`access_token`（App 面非空时发 `Authorization: Bearer <access_token>`）。构造函数同形：
+  `Pixiv(site_name=None, site_url=None, cookie=None, access_token=None, proxies=None, *, app_url=None,
+  csrf_token=None, config_file=None, timeout=None, user_agent=None)`。`None` 且给了 `site_name` 时读包内配置，
+  显式空串表示本次固定匿名、不读配置。**不实现 OAuth 登录 / PKCE / 令牌刷新 / 自动取 Cookie**；App 面也
+  **不伪造** `User-Agent` / `x-client-time` / `x-client-hash`，公共 `User-Agent` 按配置原样发送。
+- 网页端匿名只读有真实样本：插画详情（`ajax/illust/149040133`，`200`）、插画页列表
+  （`ajax/illust/149040133/pages`，`200`）、用户资料（`ajax/user/27517?full=1` 与 `ajax/user/27517/profile/all`，
+  `200`）、排行榜（`ranking.php?mode=daily&p=1&format=json`，`200`）与搜索（`ajax/search/artworks/cat`，`200`）；
+  错误路径实测：不存在的插画 `ajax/illust/59580629` 是 `404`、非法 id `ajax/illust/0` 是 `400`、越界排行榜页
+  `ranking.php?mode=daily&p=10000&format=json` 是 `404`。App 面不带凭据请求 `app-api.pixiv.net/v1/illust/detail`
+  是 `400`，**App 面成功路径未实测**。
+- 配置新增 `sites.pixiv`（`url` 加 `app_url` 与三个空的凭据字段）、`examples.pixiv`、`smoke.pixiv`；新增两个匿名
+  示例（`examples/pixiv/list_artworks.py`、`examples/pixiv/browse_resources.py`，只走网页端、打印真实 URL、状态与
+  返回字段，不调用 App 面、不下载媒体）与 10 次以内的 `test/pixiv.py`，并同步 README、`docs/index.md`、
+  `docs/installation.md`、`docs/migration.md`、CONTRIBUTING、`setup.cfg` 的家族表述与计数。
+- 本轮**未取得本地上游服务端源码，也未取得完整的官方公开 API 规范**：网页端依据是匿名只读响应，App 面依据
+  是公开客户端源码（第二依据，不是服务端契约）。两面依据分级、权限分支与排除项见
+  [契约附注](docs/pixiv-contract-notes.md)，逐条真实 URL、状态码与未实测项见[验证记录](docs/verification.md)。
+  本轮未发写请求、未下载媒体、未用任何凭据，也未做 OAuth。
+
 ### Wallhaven 第十四家族
 
 - 新增 `Wallhaven`、`anybooru/wallhaven.py` 与 `anybooru/api_wallhaven.py`。站点 `wallhaven.cc` 自带 API v1（站点根
