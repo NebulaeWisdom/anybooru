@@ -20,7 +20,8 @@ four community sources, none of them a server specification: W
 (``daydreamer-json/pixiv-ajax-api-docs``, whose author marks it stale) and S
 (a community novel-endpoint reference); ``showcase_article`` follows P
 (``pixivpy3/aapi.py``). The app methods follow P (``pixivpy3/aapi.py`` and its
-models) and the ZipFile capture of the Android client. Where a route has an
+models), the ZipFile capture of the Android client and the gallery-dl client
+source. Where a route has an
 observed status or field it is quoted as such; where a body comes only from a
 source it is described, never claimed as verified. A source that does not
 guarantee a write's response fields is not given invented ones. The graded
@@ -1866,6 +1867,28 @@ class PixivApi_Mixin:
         return self.request("GET", "v1/illust/comment/replies", api="app",
                             params=dict(params, comment_id=comment_id))
 
+    def app_illust_comments_v3(self, illust_id, **params):
+        """List one illustration's comments from the v3 route
+        (``GET v3/illust/comments``).
+
+        ``illust_id`` is sent as ``illust_id``; ``params`` carries the
+        ``next_url`` cursor fields the caller takes from a previous response
+        (the source's first call sends only ``illust_id``, so no cursor
+        default is invented). This named v3 route is the current gallery-dl
+        client's, distinct from ``app_illust_comments`` (v1); neither is an
+        alias of the other.
+
+        Response ``{"comments": [...], "next_url": "..."}``, from the
+        gallery-dl source; needs the token. An anonymous first-call
+        observation is pending, so the success body is described from the
+        source and not verified here.
+
+        Example:
+            ``client.app_illust_comments_v3('149040133')``
+        """
+        return self.request("GET", "v3/illust/comments", api="app",
+                            params=dict(params, illust_id=illust_id))
+
     def app_illust_related(self, illust_id, **params):
         """List illustrations related to one (``GET v2/illust/related``).
 
@@ -1932,6 +1955,28 @@ class PixivApi_Mixin:
             ``client.app_illust_new(content_type='illust')``
         """
         return self.request("GET", "v1/illust/new", api="app", params=params)
+
+    def app_illust_series(self, illust_series_id, **params):
+        """Read one illustration series (``GET v1/illust/series``).
+
+        ``illust_series_id`` is the series number, sent as the
+        ``illust_series_id`` query value -- this route's own key, which is not
+        ``series_id``. ``params`` carries ``offset`` as given.
+
+        Response ``{"illusts": [...], "next_url": "...",
+        "illust_series_detail": {"title": ..., "caption": ...,
+        "series_work_count": ...}}``, from the gallery-dl client source; needs
+        the token. A live anonymous read of
+        ``?illust_series_id=257832&offset=0`` answered HTTP 400 with the OAuth
+        ``invalid_request`` error, so the success body is described from the
+        source and not verified here.
+
+        Example:
+            ``client.app_illust_series('257832')``
+        """
+        return self.request("GET", "v1/illust/series", api="app",
+                            params=dict(params,
+                                        illust_series_id=illust_series_id))
 
     def app_ugoira_metadata(self, illust_id, **params):
         """Read a ugoira illustration's frame data (``GET v1/ugoira/metadata``).
