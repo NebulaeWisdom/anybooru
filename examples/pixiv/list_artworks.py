@@ -10,7 +10,9 @@ pixiv 的 web 前端接口在 ``https://www.pixiv.net`` 下：搜索走 ``/ajax/
    → ``GET https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=all``，
    返回 ``{"error": false, "body": {...}}``——注意**没有** ``message`` 键（详情、用户那几条路由才有）。
    ``body["illustManga"]`` 是 ``{"data": [...], "total": 107077, "lastPage": 10, "bookmarkRanges": {...}}``：
-   ``total`` 是命中总数、``lastPage`` 是站内允许的最大页码，``data`` 每项是一条插画摘要，含
+   ``total`` 是命中总数、``lastPage`` 是站内允许的最大页码。``data`` 每页固定 60 个槽位，其中会混入
+   **广告占位**（形如 ``{"isAdContainer": true}``，**没有** ``id``，不是作品）；脚本把占位与真作品分开
+   统计（``slots``/``artwork_count``/``ad_slot_count``，占位原文另放 ``ad_slots``），真作品条目含
    ``id``（字符串编号）、``title``、``illustType``（``0`` 插画 / ``1`` 漫画）、``xRestrict``、
    ``restrict``、``sl``、``url``（缩略图地址，只当字符串打印，不下载）、``description``、``tags``
    （字符串数组）、``userId``/``userName``、``width``/``height``、``pageCount``、``createDate``/
@@ -41,18 +43,25 @@ pixiv 的 web 前端接口在 ``https://www.pixiv.net`` 下：搜索走 ``/ajax/
     with Pixiv('pixiv', cookie='', access_token='', csrf_token='') as client:
         first_page = client.web_search_artworks(
             'cat', p=1, order='date_d', mode='all', s_mode='s_tag', type='all')
+        first_slots = first_page['body']['illustManga']['data']
+        first_artworks = [slot for slot in first_slots
+                          if 'isAdContainer' not in slot]
         print(first_page['body']['illustManga']['total'],
-              [item['id'] for item in first_page['body']['illustManga']['data']])
+              len(first_slots), [item['id'] for item in first_artworks])
         second_page = client.web_search_artworks(
             'cat', p=2, order='date_d', mode='all', s_mode='s_tag', type='all')
-        print([item['id'] for item in second_page['body']['illustManga']['data']])
+        second_slots = second_page['body']['illustManga']['data']
+        second_artworks = [slot for slot in second_slots
+                           if 'isAdContainer' not in slot]
+        print([item['id'] for item in second_artworks])
         ranking = client.web_ranking(mode='daily', p=1)
         print(ranking['rank_total'], [item['rank'] for item in ranking['contents']])
 
 每次调用打印一行 JSON：方法名、真实 ``status_code``、``Content-Type``、真实 ``url``，以及该路由的
-关键字段（请求的页码/词、``total``/``lastPage``/``rank_total``、条数、编号与名次列表、摘要对象）。
-缩略图 ``url`` 只当字符串打印，不下载媒体；每行顶层的 ``url`` 永远指本次请求的真实地址，条目自己的
-缩略图地址嵌在 ``artworks``/``contents`` 数组里，不会覆盖它。参数与站点名取自配置文件的
+关键字段（请求的页码/词、``total``/``lastPage``/``rank_total``、槽位/作品/广告占位三个计数与占位原文、
+编号与名次列表、摘要对象）。缩略图 ``url`` 只当字符串打印，不下载媒体；每行顶层的 ``url`` 永远指本次
+请求的真实地址，条目自己的缩略图地址嵌在 ``artworks``/``contents`` 数组里，不会覆盖它。参数与站点名
+取自配置文件的
 ``examples.pixiv`` 段（默认读包内 ``anybooru.json``）：``word`` 是搜索词、``search_query`` 是搜索
 的查询参数、``pages`` 是页码列表、``ranking_query`` 是排行榜参数；``--config`` 换配置、``--site``
 换站点，不传时取 ``examples.pixiv.site``。``cookie``/``access_token``/``csrf_token`` 显式传空串保持
@@ -81,16 +90,22 @@ def artwork_summary(item):
 
 
 def search_summary(listing, page, word):
-    """搜索返回 {"error", "body"}，插画数组在 body.illustManga 里，没有 message。"""
+    """搜索返回 {"error", "body"}；data 里真作品与广告占位分开报，都不丢。"""
     manga = listing['body']['illustManga']
+    slots = manga['data']
+    ad_slots = [slot for slot in slots if 'isAdContainer' in slot]
+    artworks = [slot for slot in slots if 'isAdContainer' not in slot]
     return {'requested_page': page, 'requested_word': word,
             'error': listing['error'],
             'body_keys': sorted(listing['body']),
             'illustManga_keys': sorted(manga),
             'total': manga['total'], 'lastPage': manga['lastPage'],
-            'count': len(manga['data']),
-            'ids': [item['id'] for item in manga['data']],
-            'artworks': [artwork_summary(item) for item in manga['data']]}
+            'slots': len(slots), 'artwork_count': len(artworks),
+            'ad_slot_count': len(ad_slots),
+            'ad_slots': [{'isAdContainer': slot['isAdContainer']}
+                         for slot in ad_slots],
+            'ids': [item['id'] for item in artworks],
+            'artworks': [artwork_summary(item) for item in artworks]}
 
 
 def ranking_summary(ranking):
