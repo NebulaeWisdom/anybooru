@@ -11,7 +11,7 @@
 pixiv **没有一份完整的官方公开 API 规范**，也没有可引用的本地服务端源码。本页结论分两档：
 
 - **网页端**：依据是本轮对 `https://www.pixiv.net` 的**匿名只读**直接请求（真实 URL、状态码与字段见[验证记录](verification.md)），辅以四个社区前端逆向来源（`YieldRay/pixiv-web-api`、`PixivNow` 的 web 文档、`daydreamer-json/pixiv-ajax-api-docs`（作者自述已过时）、一份社区小说端点参考）。这些都是**第三方**，不是服务端契约；有实测状态与字段的按实测写，只有来源的按来源写并标注。
-- **App 面**：依据是公开客户端 `pixivpy` 的 `pixivpy3/aapi.py` 与 `models.py`、一份第三方 OpenAPI（`hanshsieh/pixiv-api-doc`）与一份 **2016 年**的 Android 客户端抓包（`ZipFile`，Android 5.0.17）。三者都是**第三方**，不是 pixiv 官方规范；这份抓包是旧版本，**不能当作当前服务端规范，也不能保证其中路由仍可用**；App 面**成功路径本轮没有实测**（见[边界与未实测](#边界与未实测)）。
+- **App 面**：依据是公开客户端 `pixivpy` 的 `pixivpy3/aapi.py` 与 `models.py`、`gallery-dl` 的 Pixiv 提取器、一份第三方 OpenAPI（`hanshsieh/pixiv-api-doc`）与一份 **2016 年**的 Android 客户端抓包（`ZipFile`，Android 5.0.17）。这些都是第三方来源，不是 pixiv 官方规范；旧抓包不保证当前路由仍可用。本轮仅应用信息与表情定义两条路由匿名成功，带凭据的成功路径没有实测。
 
 本轮真跑的范围以[验证记录](verification.md)为准，不是对站点当前状态的保证。
 
@@ -84,7 +84,7 @@ with Pixiv('pixiv', access_token='') as client:  # 不自动带配置里的 toke
 
 配置里有 token、只想让某一次匿名，就在构造时传 `access_token=''`（App 面即不带 `Authorization`）；反过来，实例上没配 token 也能靠这一次的 `headers` 临时带上。
 
-**匿名能得到什么、得不到什么**：网页端多数 `ajax` 读取（插画详情/页列表、用户资料与作品索引、搜索、排行榜、小说、评论、标签、发现）匿名即可读公开内容；**账号范围的**路由（某用户的关注列表、关注时间线、当前账号 dashboard 之类）无会话 Cookie 时站点回 `400` 或 `401`（本轮实测 `ajax/user/27517/following` 与 `ajax/discovery/artworks` 匿名都是 `400`），本类照实抛出站点状态。App 面绝大多数路由**需要** `access_token`，无 token 的匿名请求被拒（本轮 `v1/illust/detail?illust_id=59580629` 匿名 `400`，正文是裸 `{"error": {...invalid_request...}}`）；只有两条 App 路由匿名 `200`：`app_application_info()` 与 `app_emoji()`。
+**匿名能得到什么、得不到什么**：本轮插画详情/页列表、用户资料与作品索引、搜索、排行榜、小说与部分评论/标签/发现路由取得匿名成功；用户关注、时间线和新版发现等选定请求返回 `400`。App 面应用信息与表情定义两条路由返回 `200`，8 条业务路由返回 OAuth `invalid_request` 的 `400`。未请求的路由不能据此断言匿名可用或必拒，Cookie/token 权限说明与成功字段按各方法的第三方来源列出。
 
 ## 通用入口 `request()`
 
@@ -199,9 +199,9 @@ with Pixiv('pixiv', cookie='', access_token='', csrf_token='') as client:
     print([row['id'] for row in rows if 'isAdContainer' not in row])
 ```
 
-本轮样本（都是匿名、都是快照）：`word='cat'` 时 `illustManga.total=107077`、`lastPage=10`；每页 `data` 有 **60 个槽位**，其中可能有 1 个是 `{"isAdContainer": true}` 的**广告槽**——它不是作品。本类**原样返回整页、不做过滤**，你遍历时必须自己用 `if 'isAdContainer' in row` 把广告行和作品行分开，并单独报广告数（上面的示例就是这样）。`p=2` 回第 2 页；**`p=10000` 仍是 `200` 且返回第 1 页样式的内容**——所以短页或 `200` 都不是「到底」的判据，`illustManga.lastPage` 才是。常用查询键：`order`（`date_d` 最新、`date` 最旧、`popular_d` 最多收藏）、`mode`（`all` / `safe` / `r18`）、`s_mode`（`s_tag` 标签、`s_tag_full` 精确标签、`s_tc` 标题/说明）、`type`（`all` / `illust` / `manga`）、`p`（页码，从 1 起），以及 `ai_type`、`dgw`、`wlt`/`wgt`、`hlt`/`hgt`、`ratio`、`tool`、`scd`/`ecd`、`blt`/`bgt` 等过滤键。逐键说明见[方法参考](pixiv-api.md)。
+本轮 `word='cat'` 样本的 `illustManga.total=107077`、`lastPage=10`；`data` 有 **60 个槽位**（59 个作品和 1 个 `{"isAdContainer": true}` 广告槽）。客户端原样返回，例子按实际行类型区分作品和广告并报数。`p=10000` 仍是 `200`，前三个作品 ID 与 `p=10` 相同；这不能证明深页有效。`lastPage` 记录站点这次给出的页界，但它和 `total`/每页槽数不能组成精确总页数公式。常用查询有 `order='date_d'`、`mode='all'`、`s_mode='s_tag'`、`type='all'`、`p=1`；其它排序和尺寸/日期/收藏数筛选的来源枚举与省略行为见[方法参考](pixiv-api.md)，不保证所有组合都已验证。
 
-只搜插画用 `web_search_illustrations(word, ...)`（数组在 `body.illust.data`），只搜漫画用 `web_search_manga(word, ...)`（`body.manga.data`），搜小说用 `web_search_novels(word, ...)`（`body.novel.data`，另有 `work_lang`、`gs`、`tlt`/`tgt`、`original_only`、`genre`、`csw` 等键）。**广告槽只出现在 `artworks` / `illustrations` / `manga` 三类**（各 60 槽、含 1 个 `{"isAdContainer": true}`）；**小说搜索本轮样本是 30 条、没有广告槽**。别把 60 槽 / 1 广告外推到所有搜索，按该路由实际返回的行判断，遍历时用 `if 'isAdContainer' in row` 区分并单独报数。
+只搜插画用 `web_search_illustrations(word, ...)`（`body.illust.data`），只搜漫画用 `web_search_manga(word, ...)`（`body.manga.data`），搜小说用 `web_search_novels(word, ...)`（`body.novel.data`）。本轮前三种作品搜索各有 60 槽、1 个广告；小说搜索样本为 30 条且没有广告。数字仅属于这次请求，不能据此保证每页数量或其它路由永远没有广告。
 
 ## 详情、插画页与榜单
 
@@ -269,7 +269,7 @@ with Pixiv('pixiv', cookie='', access_token='', csrf_token='') as client:
 - **App 面用绝对 `next_url` 游标**：列表返回的 `next_url` 原样交回 `client.request('GET', next_url, api='app')`；本类不解析、不递增、不自动跟随。**回填绝对地址时必须传 `api='app'`**。
 - **列表值写字面 Python 列表**（编成重复 `key[]=`），逗号串写字面字符串；`web_illust_recommend_illusts` 的 `illust_ids` 也走同一编码（`illust_ids[]=`）。
 - **`web_search_artworks` 的路径段与查询键都叫 `word`**：路径是 `/artworks/<词>`、查询是 `?word=<词>`，方法自己各拼一份，调用方只传一次 `word`。
-- 账号范围的网页端路由需要 `cookie`；没有会话时站点回 `400`/`401`，本类不伪造、不绕过。
+- 账号范围网页路由的 Cookie 权限来自第三方来源；本轮选定匿名请求只观察到 `400`，没有带会话的成功样本。
 
 ## 媒体地址
 
@@ -292,13 +292,13 @@ with Pixiv('pixiv', cookie='', access_token='', csrf_token='') as client:
 
 ## 边界与未实测
 
-- **App 面成功路径一轮都没发过**：59 个 `app_` 方法里，只有 `app_application_info()` 与 `app_emoji()` 拿到匿名 `200`；其余成功的调用本轮一次都没发。App 面的路由、参数与返回字段来自公开客户端源码、一份第三方 OpenAPI、一份 2016 年抓包与 gallery-dl 的显式函数（第二依据，不是服务端契约；旧抓包不保证路由仍可用），生产前请用你自己的 token 自测。
+- **App 面带凭据的成功路径未测**：`app_application_info()` 与 `app_emoji()` 对应路由由直接 HTTP 请求取得匿名 `200`；8 条业务路由匿名返回 `400` OAuth 错误，其余仅源码对齐。这里不是说这些 Python 方法全部执行过；实际运行的方法见验证记录。路由、参数与成功字段来自 P/Z/H/G 第三方来源，旧抓包不保证当前可用性。
 - **App 面有若干路由只给路径、不给返回 schema**：`app_trending_tags_manga()`、`app_trending_tags_novel()`、`app_illust_popular()`、`app_novel_popular()`、`app_search_autocomplete()`（`search_auto_complete_keywords` 的数组元素）、`app_user_state()`（`user_state` 内的字段）等都只按来源给出路由与已见键，本库**不编造字段**。
-- **网页端账号范围路由没有成功样本**：`web_user_following`、`web_user_bookmarks`、`web_follow_latest`、`web_top_illust`、`web_discovery_artworks` 等匿名回 `400`/`401`；本类已提供方法并如实在这些路由上标注“需要会话 Cookie”，但没有带 `cookie` 的成功响应。
-- **所有写方法一次都没有执行**：16 个网页端 `POST` + 6 个 App `POST` + 1 个网页端写查询（`web_bookmark_rename_progress` 是 `GET`）都只做源码对齐。它们的正文形态（JSON 还是表单）来自来源，成功返回字段来源未声明的，本类也**不编造**。项目从不调用它们。
+- **网页端账号范围路由没有成功样本**：`web_user_following`、`web_user_bookmarks`、`web_follow_latest`、`web_top_illust`、`web_discovery_artworks` 对应请求本轮均为匿名 `400`，不是 `401`。需要会话的说明来自第三方源码；单次“非法请求”正文不能独自证明失败只由未登录造成，带 Cookie 的成功路径未测。
+- **22 个 POST 一次都没有执行**：16 个网页端 POST 与 6 个 App POST 仅源码对齐。`web_bookmark_rename_progress` 则是读取进度的 GET，其两条资源路由已直接匿名探测并返回 `400`，但该 Python 方法未运行。源码未声明的写响应字段不作补造。
 - **参数枚举未穷尽**：搜索的高级过滤键、榜单 `mode` 的全部取值、`web_novel_series_content` 的 `order_by` 全部取值等只有来源枚举，未逐值实测。参数名不在已知集合里也会原样发出，站点可能自行忽略或报错。
 - **媒体字节零请求**：所有 `i.pximg.net` / `s.pximg.net` 地址一个都没请求过，可下载性、Referer 要求与许可未验证。
-- **网页端反爬现实照实记录**：对缺 Referer / 非日 IP / 数据中心 IP 的请求，站点可能回 `403` 挑战或 `{"error": true, ...}`，某些路由会跳到登录页。本类不伪造头、不绕行；头缺失下的现象请当作该头缺失下的现象。
+- **风控触发条件未测**：本轮未对缺 Referer、客户端标识或来源网络做对照，不能据这些样本归因挑战或限流。本类不自动重试、不更换主机、不跟随重定向。
 - **App 面协议常量**：本类只发调用方给的 `Authorization: Bearer`，不注入 `app-os` / `app-os-version` / `app-version` 之类头；若某路由在真实客户端里依赖这些头，缺头下的结果是站点自己的答复。
 - **没有 OAuth / 登录 / 刷新**：本类不实现 PKCE、`/auth/token`、令牌刷新与自动取 Cookie；token 与 cookie 由你自己取得并传入。
 
