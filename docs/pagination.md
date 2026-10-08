@@ -6,7 +6,7 @@
 
 返回的就是服务端那一页。有的家族直接给数组；有的包在 `{"posts": [...]}`、`{"items": [...]}` 或 `{"data": [...], "total_count": …}` 里；Wallhaven 的列表是 `{"data": [...], "meta": {…}}`，翻页信息在 `meta`；nhentai 是 `{"result": [...]}`。具体形状见各节。
 
-十四个家族的页码参数名不一样：
+十五个家族的页码参数名不一样：
 
 | 家族 / 方法 | 分页输入 |
 | :--- | :--- |
@@ -28,6 +28,9 @@
 | nhentai `gallery_suggestions` / `gts_new_tags` / `tag_search` | `limit`（取几条，不是页码） |
 | ArtStation 列表路由，含 `project_search_post` 这个只读 POST 搜索 | `page`（1 起） / `per_page`，服务端硬性检查 |
 | Wallhaven `wallpaper_search`（以及文档同形的合集壁纸列表） | `page`（1 起）；每页固定 24 条，没有 `per_page` |
+| pixiv `web_search_artworks` / `web_ranking` | `p`（页码，1 起）；搜索另有 `limit`（每页条数上限，**不是**偏移） |
+| pixiv 其它 web 列表路由（如 `ajax/illusts/comments/roots`） | `offset`（已跳过条数）/ `limit`（条数） |
+| pixiv app 列表方法 | 绝对 `next_url` 游标；调用方原样交回 `request(api='app')`，不 strip |
 
 ```python
 from anybooru import Danbooru
@@ -608,6 +611,55 @@ with Wallhaven('wallhaven') as client:                       # 包内 apikey 是
 
 参数与返回字段见 [方法参考](wallhaven-api.md)，`400` / `500` / 非法页的正文见 [错误处理](errors.md#wallhaven)，逐条 URL 与响应见 [验证记录](verification.md)。
 
+## pixiv 的分页
+
+pixiv 的两面各有自己的分页方式，客户端原样转发，不补默认值、不裁剪、不自动翻页。web 面的三条路由用了三套不同参数名，**不要互相套用**：
+
+| 方法 / 路由 | 分页输入 | 翻页信息在回包的哪里 |
+| :--- | :--- | :--- |
+| `web_search_artworks(word, **params)`，`GET /ajax/search/artworks/{词}` | `p` 是页码（1 起）；`limit` 是每页条数上限，**不是** `offset`；`word` 同时进路径段与查询串。`order` / `mode` / `s_mode` / `type` 原样转发 | `{"error": false, "body": {…}}`（**没有** `message`）；`body.illustManga` 里有 `data`（当页条目）、`total`（命中总数）、`lastPage`（站内允许的最大页码） |
+| `web_ranking(**params)`，`GET /ranking.php` | `p` 是页码（1 起）；`mode` / `date` 原样转发；方法自动补 `format=json` | **裸根对象**、没有信封：`page` 回显请求页码，`prev` / `next` 是上一/下一页页码（没有则 `false`），`rank_total` 是榜单总名额（日榜样本 `500`）；`contents` 每页 50 条 |
+| 其它 web 列表路由（如 `GET /ajax/illusts/comments/roots?illust_id=…&offset=0&limit=2`） | `offset` 是已跳过条数、`limit` 是条数，语义与 `p` 完全不同 | 例如插画评论回 `{"error": false, "message": "", "body": {"comments": […], "hasNext": bool}}` |
+
+web 搜索的 `p` 不是偏移：`p=1`、`p=2` 是第 1、2 页；`limit` 也不改页码语义。实测 `p=10000` 仍回 `200`，返回的是第 1 页样式的内容（`lastPage` 只有 `10`）——所以 **HTTP 200 与数组非空都不代表这个页码有效**，判断末页要看 `body.illustManga.lastPage`。排行榜越界反而报错：`ranking.php?mode=daily&p=10000` 回 `404` 加裸 `{"error": "ランキング集計の範囲外です"}`，不是空数组。web 各路由的默认每页数与 `limit` 上限没有取得完整样本，客户端不钳位。
+
+```python
+from anybooru import Pixiv
+
+with Pixiv('pixiv', cookie='', csrf_token='', access_token='') as client:   # 三个空串＝匿名
+    # GET https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&s_mode=s_tag&type=all&p=1
+    first_page = client.web_search_artworks(
+        'cat', order='date_d', mode='all', s_mode='s_tag', type='all', p=1)
+    manga = first_page['body']['illustManga']
+    print(manga['total'], manga['lastPage'], [item['id'] for item in manga['data']])
+
+    # GET https://www.pixiv.net/ajax/search/artworks/cat?...&p=2
+    second_page = client.web_search_artworks(
+        'cat', order='date_d', mode='all', s_mode='s_tag', type='all', p=2)
+    print([item['id'] for item in second_page['body']['illustManga']['data']])
+
+    # GET https://www.pixiv.net/ranking.php?mode=daily&p=1&format=json
+    ranking = client.web_ranking(mode='daily', p=1)
+    print(ranking['page'], ranking['next'], ranking['rank_total'])
+    for item in ranking['contents']:
+        print(item['rank'], item['illust_id'])
+```
+
+app 面用游标，不是页码：列表响应带一个**绝对地址** `next_url`（里面已含服务端要的游标参数）。要继续翻页，把它**原样**交给通用入口，并显式声明走 app 面：
+
+```python
+from anybooru import Pixiv
+
+with Pixiv('pixiv', access_token='<your-token>') as client:   # 需要 app token；本仓库没有凭据，未实测
+    # 某个 app 列表方法返回的 next_url 是绝对地址，例如带 offset / filter 一类游标参数
+    # next_page = client.request('GET', next_url, api='app')
+    pass
+```
+
+**不要 strip 游标**：不要在 `next_url` 上删参数、把查询串去掉只留路径，或把它折成页码自增——那些查询值就是服务端的游标，缺一个就会跳回或重复。`request` 对 `path` 只做 `urljoin`：绝对 URL 整条使用，查询串原样保留，`api='app'` 让请求落在 `app_url`。列表方法的返回体原样保留，库不替你拆出 `next_url`、不自动跟进。单条详情（`app_illust_detail`）本身没有 `next_url`；带游标的 app 列表方法见 [pixiv 方法参考](pixiv-api.md)。
+
+逐条 URL、状态与字段见 [验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
+
 ## 边界与未实测
 
 - 通用：所有家族的服务端默认值、上限、返回形状都以当次响应为准。本库不裁剪、不补默认值、不自动翻页、不自动重试。
@@ -622,6 +674,7 @@ with Wallhaven('wallhaven') as client:                       # 包内 apikey 是
 - nhentai：`tag_search` 本轮未调用（`POST`）。`per_page` 在 `tag_list`、`taxonomy_resolved` 上不保证被采纳。“没报错”不等于“参数生效”。`alphabet` 只在 `sort=name` 的样本里出现。
 - ArtStation：`project_comments` 的分页参数本轮没有实测。`per_page` 在 `1` 与 `50` 之间、`3` 与 `75` 之间没有细分；用户作品在第 2 页与第 9999 页之间没有细分；`channel_projects` 的 `page` 取值、`user_following` 的深页、非数字的 `page` / `per_page` 都没有样本。`project_search_post` 只试过 `per_page=3`；`filters` 与其它嵌套表单形态、缺 token / token 失效等分支都没有样本，只能算候选。`feed` 只试过 `sorting='latest'`。
 - Wallhaven：每页 24 条与 `meta` 的六个字段来自官方 API 页面加匿名样本；非数字 `page`、`page=0`、`page=1000000`、非法 `sorting` 这几条只代表试过的值，不能推广成整站行为。合集壁纸列表的 `meta` 只有 `current_page` / `last_page` / `per_page` / `total` 四个字段，没有 `query` 与 `seed`，只取得 `ThorRagnarok/274175` 一个合集的两页样本。`seed` 的跨页传递与「无重复」承诺在本轮样本里不成立，本库不据此去重也不改写 `seed`。
+- pixiv：web 搜索 `p` 与排行榜 `p` 只证过 `1`、`2` 与越界样本（搜索越界仍 `200`、排行榜越界 `404`）；`limit` 的默认值与上限、其它 web 列表路由的 `offset` / `limit` 边界、app 各列表的 `next_url` 具体形状都没有完整样本。app 游标只在需要 token 的路由上出现，本轮**未实测**（本仓库没有凭据）；客户端不拆壳、不自动跟进 `next_url`，也不改写游标。
 
 ## 相关文档
 
