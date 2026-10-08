@@ -13,7 +13,7 @@ Pixiv（网页端 `https://www.pixiv.net`、App 面 `https://app-api.pixiv.net`�
 
 ## 按目的找调用
 
-`client` 由 `Pixiv('pixiv', cookie='', access_token='', csrf_token='')` 创建；下表调用里的编号、词、查询值都是可直接运行的字面值。带「**需 Cookie**」的网页端方法匿名会被站点拒（`400`/`401`）；带「**需 token**」的 App 方法需要 `access_token`（`Pixiv('pixiv', access_token='<你的 token>')`）。
+`client` 由 `Pixiv('pixiv', cookie='', access_token='', csrf_token='')` 创建。表中「需 Cookie」和「需 token」按来源说明权限；本轮前者选定匿名请求为 `400`，后者 8 条业务路由为 OAuth `400`。未请求的路由不据此泛化，带凭据的成功路径未实测。
 
 | 我要做什么 | 调用 | 给什么 → 返回什么 |
 | :--- | :--- | :--- |
@@ -51,7 +51,7 @@ Pixiv（网页端 `https://www.pixiv.net`、App 面 `https://app-api.pixiv.net`�
 | App 面：某评论的回复 / 关注详情 / 账号状态（**需 token**） | `client.app_illust_comment_replies('123456789')` / `client.app_user_follow_detail('27517')` / `client.app_user_state()` | 评论或用户编号、或无参 → 回复、关注状态、账号状态 |
 | App 面：关键词自动补全（**需 token**） | `client.app_search_autocomplete('初音')` | 关键词 → `{search_auto_complete_keywords: [...]}`（元素字段来源未声明） |
 | App 面：翻页 | `client.request('GET', next_url, api='app')` | 上一条 App 列表返回的绝对 `next_url` → 下一页；**必须同时传 `api='app'`** |
-| App 面：匿名可读的两条 | `client.app_application_info()` / `client.app_emoji()` | 无参数 → 应用信息 / emoji 列表；本轮匿名实测 `200`（其余 App 路由匿名被拒） |
+| App 面：应用信息与表情定义 | `client.app_application_info()` / `client.app_emoji()` | 无参数 → `application_info` / `emoji_definitions`；对应路由直接 HTTP 匿名 `200`，不代表其它所有 App 路由匿名必拒 |
 | 预期错误路径 | `client.web_illust_show('59580629')` → `404`；`client.web_illust_show('0')` → `400`；`client.web_ranking(mode='daily', p=10000)` → `404`；`client.app_illust_detail('149040133')` 匿名 → `400` | 都抛 `AnybooruHTTPError`，读 `error.http_code` / `error.data` / `error.body` |
 | 换路径、换动词或加请求头 | `client.request('GET', 'v1/emoji', api='app', headers={'Accept-Language': 'ja'})` | 动词 + 路由（相对或绝对）+ `api` + `params`/`data`/`form`/`headers`/`response_format` → 同一条通路 |
 
@@ -96,7 +96,7 @@ Pixiv（网页端 `https://www.pixiv.net`、App 面 `https://app-api.pixiv.net`�
 
 #### 搜索（9 个只读 `GET`）
 
-**广告槽只出现在 `web_search_artworks` / `web_search_illustrations` / `web_search_manga` 三类**（各 60 槽、含 1 个 `{"isAdContainer": true}`）；**`web_search_novels` 本轮样本是 30 条、没有广告槽**，`web_search_top` 的聚合数组另有自己的条数。本类原样返回、不过滤，遍历时按该路由实际返回的行用 `if 'isAdContainer' in row` 区分，并单独报广告数。
+本轮 `web_search_artworks` / `web_search_illustrations` / `web_search_manga` 的样本各为 60 槽、含 1 个 `{"isAdContainer": true}`；`web_search_novels` 的样本为 30 条且没有广告，`web_search_top` 则分别返回 24/24/8 条插画/漫画/小说。本类不过滤，按实际返回的行区分广告并报数；不能把样本数量当作恒定结构。
 
 * `web_search_artworks(word, **params)` → `GET ajax/search/artworks/{word}`；`word` 同时进路径与查询 → `body.illustManga.data`/`total`/`lastPage`。
 * `web_search_illustrations(word, **params)` → `GET ajax/search/illustrations/{word}`；`type` 限 `illust_and_ugoira`/`illust`/`ugoira` → `body.illust.data`。
@@ -145,7 +145,7 @@ Pixiv（网页端 `https://www.pixiv.net`、App 面 `https://app-api.pixiv.net`�
 
 #### 特辑与标签（4 个只读 `GET`）
 
-* `web_showcase_article(article_id, **params)` → `GET ajax/showcase/article`；`article_id`（查询键）→ 文章元数据 + `illusts`/`novels`；来源只有前端逆向，`/showcase/` 页面本轮重定向 `302` 且不跟随，读取来源里没有有效 `article_id`，因此真实编号未实测。
+* `web_showcase_article(article_id, **params)` → `GET ajax/showcase/article`；`article_id`（查询键）→ 文章元数据 + `illusts`/`novels`；来源只有前端逆向，**成功路径未实测**：`article_id=0` 的一次 `404` 只是错误样本，`/showcase`（无尾斜杠）页面 `302 Location: /showcase/`（重定向不跟随），读取来源里没有可用的成功 `article_id`。
 * `web_tag_info(tag, **params)` → `GET ajax/tag/info`；`tag` → `tag`/`abstract`/`thumbnail`/`en`/`ja`。
 * `web_frequent_tags(work_type, **params)` → `GET ajax/tags/frequent/{work_type}`；`work_type ∈ {illust, novel}`；`ids`（列表）→ 共同标签数组。
 * `web_suggest_tags(word, **params)` → `GET ajax/tags/suggest_by_word`；`word` → `illust_count`/`tag_name`/`total_count`。
@@ -200,7 +200,7 @@ App 面返回**裸 JSON、没有 `{"error","message","body"}` 信封**，列表�
 * `app_illust_popular(**params)` → `GET v1/illust/popular`（**需 token**）；**来源只给路径、未声明 schema，也不要求 `illust_id`**，本库不声称任何返回字段。
 * `app_illust_comments(illust_id, **params)` → `GET v1/illust/comments`（**需 token**）；`offset`/`include_total_comments` → `{comments, next_url, total_comments?}`。
 * `app_illust_series(illust_series_id, **params)` → `GET v1/illust/series`（**需 token**）；`illust_series_id`（查询键）/`offset` → `{illusts, next_url, illust_series_detail: {title, caption, series_work_count}}`（来源为 gallery-dl；匿名实测 `400`，成功未实测）。
-* `app_illust_comments_v3(illust_id, **params)` → `GET v3/illust/comments`（**需 token**）；`illust_id` → `{comments, next_url}`（来源为 gallery-dl；独立的 v3 路由，不是 v1 的别名；成功未实测）。
+* `app_illust_comments_v3(illust_id, **params)` → `GET v3/illust/comments`（**需 token**）；`illust_id` → `{comments, next_url}`（来源为 gallery-dl；独立的 v3 路由，不是 v1 的别名；匿名实测 `400`，成功未实测）。
 * `app_illust_comment_replies(comment_id, **params)` → `GET v1/illust/comment/replies`（**需 token**）；→ `{comments, next_url}`（来源为第三方 OpenAPI）。
 * `app_illust_related(illust_id, **params)` → `GET v2/illust/related`（**需 token**）；`filter`/`seed_illust_ids`（列表）/`offset`/`viewed`（列表）→ `{illusts, next_url}`。
 * `app_illust_recommended(**params)` → `GET v1/illust/recommended`（**需 token**）；`content_type`/`include_ranking_label`/`offset`/`viewed` 等 → `{illusts, ranking_illusts, next_url}`。
