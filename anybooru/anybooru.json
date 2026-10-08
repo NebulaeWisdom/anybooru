@@ -90,6 +90,13 @@
     "wallhaven": {
       "url": "https://wallhaven.cc",
       "apikey": ""
+    },
+    "pixiv": {
+      "url": "https://www.pixiv.net",
+      "app_url": "https://app-api.pixiv.net",
+      "cookie": "",
+      "csrf_token": "",
+      "access_token": ""
     }
   },
   "examples": {
@@ -239,6 +246,17 @@
       "username": "ThorRagnarok",
       "collection_id": 274175,
       "collection_query": {"purity": "100", "page": 1}
+    },
+    "pixiv": {
+      "site": "pixiv",
+      "pause_seconds": 1.4,
+      "word": "cat",
+      "search_query": {"order": "date_d", "mode": "all", "s_mode": "s_tag", "type": "all"},
+      "pages": [1, 2],
+      "ranking_query": {"mode": "daily", "p": 1},
+      "illust_id": "149040133",
+      "user_id": "27517",
+      "user_query": {"full": 1}
     }
   },
   "smoke": {
@@ -339,6 +357,20 @@
       "collection_id": 274175,
       "collection_query": {"purity": "100", "page": 1},
       "missing_wallpaper_id": "000000"
+    },
+    "pixiv": {
+      "site": "pixiv",
+      "pause_seconds": 1.4,
+      "word": "cat",
+      "search_query": {"order": "date_d", "mode": "all", "s_mode": "s_tag", "type": "all"},
+      "pages": [1, 2],
+      "ranking_query": {"mode": "daily"},
+      "illust_id": "149040133",
+      "user_id": "27517",
+      "user_query": {"full": 1},
+      "missing_illust_id": "59580629",
+      "missing_status": 404,
+      "app_error_status": 400
     }
   },
   "verification": {
