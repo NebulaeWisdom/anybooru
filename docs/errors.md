@@ -80,7 +80,7 @@ Danbooru 引擎的 JSON 错误体形如：
 
 ## 状态码
 
-本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见 [e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数与限流错误，不能套用其他家族的状态码；缺失条目已有 `/999999999?json=` 回 `404` 的样本（`AnybooruHTTPError.data` 是字典、正文 6 字符），见 [验证记录](verification.md#轻量匿名冒烟脚本十站单轮执行2026-09-18)；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、`AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。nhentai 的错误样本也只覆盖本轮试过的路径；它的错误正文都是 JSON（`{"error": …}`），但参数校验失败的**真实状态码与正文字段名和 OpenAPI 里那张 `422` schema 对不上**（实测是 `400` 加 `error` / `details`），见下节。ArtStation 的错误样本同样只覆盖本轮试过的路径；它的 `400` 正文有两种 JSON 形状（`{"data": "…"}` 与 `{"message": …, "code": …}`），另有一类**空正文**的 `400` / `404`，而未知路径还会回 `200` + HTML，见下节。Wallhaven 的错误样本同样只覆盖本轮试过的路径；原生路由的错误正文是单字段 JSON `{"error": …}`，但 `page=0` 的 `500` 是站点自己的 HTML 错误页、相似搜索的 `403` 是 Cloudflare 质询页，见下节。
+本库不对状态码做任何预判或翻译：服务端返回什么就抛什么。下面保留 Danbooru 与 Moebooru 的速查；Serika 的 HTTP/code 对照见 [Serika 契约审计附注](serika-contract-notes.md)，e621ng 的权限与错误边界见 [e621ng 契约审计附注](e621-contract-notes.md)。Zerochan 未实测非法参数与限流错误，不能套用其他家族的状态码；缺失条目已有 `/999999999?json=` 回 `404` 的样本（`AnybooruHTTPError.data` 是字典、正文 6 字符），见 [验证记录](verification.md#轻量匿名冒烟脚本十站单轮执行2026-09-18)；其文档与响应依据见 [Zerochan 契约审计附注](zerochan-contract-notes.md)。Sakuria 的错误码只有本轮试过的那几个样本（含 `426` 与「缺失 `/spotlight/{id}` 回 `503`」）列在下文，不是全集，见 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的错误码样本同样只覆盖本轮试过的路径（缺失帖子 `410`、缺失标签 / 用户 / 评论 `404`、非法路径段的纯文本 `400`、需要身份的 `403`），且**帖子不存在用 `410` 而不是 `404`**，见 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 的错误样本同样只覆盖本轮试过的路径，三者不要互相套用；它的错误正文不统一：有的是纯文本、`AnybooruHTTPError.data` 为 `None`，有的才是 JSON 对象，见下节。nhentai 的错误样本也只覆盖本轮试过的路径；它的错误正文都是 JSON（`{"error": …}`），但参数校验失败的**真实状态码与正文字段名和 OpenAPI 里那张 `422` schema 对不上**（实测是 `400` 加 `error` / `details`），见下节。ArtStation 的错误样本同样只覆盖本轮试过的路径；它的 `400` 正文有两种 JSON 形状（`{"data": "…"}` 与 `{"message": …, "code": …}`），另有一类**空正文**的 `400` / `404`，而未知路径还会回 `200` + HTML，见下节。Wallhaven 的错误样本同样只覆盖本轮试过的路径；原生路由的错误正文是单字段 JSON `{"error": …}`，但 `page=0` 的 `500` 是站点自己的 HTML 错误页、相似搜索的 `403` 是 Cloudflare 质询页，见下节。pixiv 的错误样本同样只覆盖本轮试过的路径；它的 `error` 字段在 web 信封里是布尔、在 `ranking.php` 里是字符串、在 app 里是对象，而且 `200` 也可能带 `error: true`（那是数据，不是异常），见下节。
 
 ### Danbooru 引擎
 
@@ -328,6 +328,52 @@ with Wallhaven('wallhaven') as client:                       # 包内 apikey 是
 
 `wallpaper_show` / `tag_show` 的路径段由客户端用 `quote(str(value), safe='')` 编码；ID 本身不校验，编号不存在就走到站点自己的 `404`。状态与正文见 [方法参考](wallhaven-api.md)，官方口径与逐条 URL 见 [验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
 
+### pixiv
+
+pixiv 两面（web 与 app）的错误体形状不同，而且同一字段 `error` 有三种类型：web 信封里是**布尔**，`ranking.php` 的裸对象里是**字符串**，app 的裸对象里是**对象**。读之前先确认是哪条路由。本轮样本里的错误正文都是 `application/json; charset=utf-8`。
+
+| 状态码 | 本轮观察（样本，不是全集） |
+| :--- | :--- |
+| `400` | **web 信封**：`GET https://www.pixiv.net/ajax/illust/0` 回 `{"error": true, "message": "", "body": []}`；`GET /ajax/discovery/artworks?mode=all&limit=2` 与 `GET /ajax/user/27517/illusts/bookmarks?tag=&offset=0&limit=2&rest=show` 也是 `400` 加信封 `error: true` 的无效请求。后一条**不能**读成“必须登录”：本轮没有任何带登录态的样本证明带上 Cookie 就会成功 |
+| `404` | **web 信封**：不存在的 `GET /ajax/illust/59580629` 回 `{"error": true, "message": "", "body": []}`——这里 `body` 是空数组，不是对象 |
+| `404` | **web 裸对象**：`GET https://www.pixiv.net/ranking.php?mode=daily&p=10000&format=json` 回**不带信封**的 `{"error": "ランキング集計の範囲外です"}`，`error` 是字符串 |
+| `400` | **app 裸对象**：`GET https://app-api.pixiv.net/v1/illust/detail?illust_id=149040133`（无 token）回 `{"error": {"user_message": "", "message": "Error occurred at the OAuth process. Please check your Access Token to fix this. Error Message: invalid_request", "reason": "", "user_message_details": {}}}`。既不是 `401`，也没有 web 信封 |
+| `404` | **app 端点不存在**：`GET /v1/illust/recommended-nologin` 与 `GET /v1/novel/recommended-nologin` 回 `{"error": {"user_message": "指定されたエンドポイントは存在しません", "message": "", "reason": "", "user_message_details": {}}}`；这是路由不存在，不是权限拒绝。对照：`GET /v1/application-info/android` 与 `GET /v1/emoji` 匿名回 `200`，所以不是所有 app 路由都要 token |
+
+两条行为规则，与上面哪些路由返回错误无关：
+
+* **HTTP `200` 不代表“没有错误”，也不代表页码有效**：web 搜索 `p=10000` 仍回 `200`，返回的是第 1 页样式的内容（`body.illustManga.lastPage` 只有 `10`），不是异常也不是空数组。本库**不**把正文里的 `error: true` 翻成本地异常：某条路由若 `200` 且正文 `error: true`，你拿到的就是那个字典，`AnybooruHTTPError` 不会抛，也不会被换成 `AnybooruAPIError`。只有共享传输判定非 2xx 时才抛 `AnybooruHTTPError`，正文照实留在 `.data` / `.body`。
+* 状态码与正文原样保留，不翻译、不归一：`last_call` 在抛异常前就写好了那次请求的 URL、状态码与响应头，出错时也能读。
+
+```python
+from anybooru import Pixiv, AnybooruHTTPError
+
+with Pixiv('pixiv', cookie='', csrf_token='', access_token='') as client:   # 三个空串＝匿名
+    try:
+        client.web_illust_show('59580629')                # 不存在的插画编号
+    except AnybooruHTTPError as error:
+        print(error.http_code)                            # 404
+        print(error.data['error'], error.data['body'])    # True []
+
+    try:
+        client.web_ranking(mode='daily', p=10000)         # 超出榜单的页码
+    except AnybooruHTTPError as error:
+        print(error.http_code, error.data['error'])       # 404 ランキング集計の範囲外です
+
+    try:
+        client.app_illust_detail('149040133')             # 无 token 的 app 调用
+    except AnybooruHTTPError as error:
+        print(error.http_code)                            # 400
+        print(error.data['error']['message'])             # Error occurred at the OAuth process. …
+
+    # 200 不等于页码有效：这条路由回 200，内容仍是第 1 页样式
+    page = client.web_search_artworks('cat', order='date_d', mode='all',
+                                      s_mode='s_tag', type='all', p=10000)
+    print(page['body']['illustManga']['lastPage'])        # 10
+```
+
+`web_illust_show` 一类路径段由客户端用 `quote(str(value), safe='')` 编码；ID 本身不校验，编号不存在就走到站点自己的 `404`。逐条 URL 与正文见 [验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
+
 ## 不重试
 
 本库不自动重试，也不做指数退避：
@@ -346,6 +392,7 @@ Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探�
 nhentai 的错误路径同样是有界样本：61 次匿名 GET 里出现的非 2xx 只有 `400` / `401` / `403` / `404` 四类，其中 `403` 只出现在站点旧一代 `/api/...` 路径上（纯文本指向 v2 文档，不是原生方法会走的路径）；`429`、`503` 与任何带凭据的失败形态都没有样本，写方法的拒绝形态（收藏、黑名单、下载 URL）与 PoW / CAPTCHA 分支一律未实测。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20) 与 [nhentai 契约审计附注](nhentai-contract-notes.md)。
 ArtStation 的错误路径同样只跑了有界样本：两批匿名探测共 37 次请求，其中非 2xx 12 个（`400` 九个、`401` / `403` / `404` 各一）、其余 25 个是 `200`；另有一段独立的 `POST` 跟进（匿名 CSRF token 与表单式搜索各取到一次 `200`，失败分支没有样本）。`429`、`5xx` 与带账号凭据的路径都没有样本，`per_page` 只试过四条 GET 路由的几个取值，`POST` 侧只试过 `per_page=3`，未知路径回 `200` + HTML 也只试过两条路径，不能推广成全站行为。逐条见[验证记录](verification.md) 与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
 Wallhaven 的错误路径同样只跑了有界样本：非 2xx 只有 `400`（越界页码）、`401`（匿名读设置）、`404`（不存在的壁纸 / 标签、匿名读自己的合集、不在官方 7 条路由里的 `/similar` 与 `/user` 取样路径、不存在的合集）、`500`（`page=0` 的 HTML 错误页）与 `403`（相似搜索的 Cloudflare 质询页）；`429` 从未触发，非法 key 与 NSFW 的 `401` 只有官方口径、本仓库没有 key 可测，上表不是全集。逐条见[验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
+pixiv 的错误路径同样只跑了有界样本：web 面非 2xx 只有 `400`（`ajax/illust/0`、`ajax/discovery/artworks`、用户 bookmarks）与 `404`（不存在的 `ajax/illust/59580629`、越界 `ranking.php`），app 面只有匿名 `v1/illust/detail` 的 `400` 与两条已下线 `recommended-nologin` 的 `404`；`401`、`403`、`429`、`5xx` 与任何带凭据的失败形态都没有样本，`ranking.php` 的裸错误对象除越界外没有更多样本。上表不是全集。逐条见[验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
 
 ## 相关文档
 
