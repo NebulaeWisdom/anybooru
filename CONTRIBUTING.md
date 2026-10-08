@@ -2,10 +2,10 @@
 
 ## 资源
 
-- [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown。十四个家族各四份：客户端用法、方法参考、能力入口、契约审计附注。另有安装、配置、认证、分页、错误、迁移与验证记录。
+- [**项目文档**](docs/index.md)：`docs/` 下的中文 Markdown。十五个家族各四份：客户端用法、方法参考、能力入口、契约审计附注。另有安装、配置、认证、分页、错误、迁移与验证记录。
 - [源码仓库](https://github.com/NebulaeWisdom/anybooru)：源码安装入口。本库暂不发布到 PyPI。
 - [新增图站流程](docs/adding-a-site.md)：把一个新站点接进本库的维护者清单。步骤：判引擎、摸契约、写客户端、冒烟与示例、四份家族文档、导航与元数据、实测记录、提交边界。
-- [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation / Wallhaven 十四个家族共 37 个可运行脚本。
+- [代码示例](examples/)：Danbooru / Moebooru / Serika / e621ng / Zerochan / Gelbooru / Gelbooru02 / Shuushuu / Sakuria / Anime-Pictures / Cosine / Nhentai / ArtStation / Wallhaven / Pixiv 十五个家族共 39 个可运行脚本。
 - [问题追踪](https://github.com/NebulaeWisdom/anybooru/issues)：Bug 与功能请求。
 
 ## 契约依据（只读参考，不要修改、不要提交）
@@ -17,7 +17,7 @@
 - `Serika.art/`：Serika 引擎。官方 v1 在 `app/api/v1/**/route.ts`，站内面在 `app/api/**/route.ts`。
 - `e621ng/`：e621ng 引擎。路由在 `e621ng/config/routes.rb`，帖子序列化在 `app/blueprints/`。
 
-其余十个家族没有可引用的本地上游服务端源码：
+其余十一个家族没有可引用的本地上游服务端源码：
 
 - `zerochan.net`：依据是官方 API 页面快照 + 真实请求实测。逐条出处、与实现的差异记在 [`docs/zerochan-contract-notes.md`](docs/zerochan-contract-notes.md)。
 - `gelbooru.com`：站点用 `index.php`。dapi 加 `json=1` 返回 JSON，`autocomplete2` 本身返回 JSON，标签页、帖子页和 wiki 是 HTML。依据是官方 wiki/帮助页与站点脚本 + 真实匿名响应。来源层级记在 [`docs/gelbooru-contract-notes.md`](docs/gelbooru-contract-notes.md)。
@@ -29,8 +29,9 @@
 - `nhentai.net`：站点自带的 `.net` API v2。依据是站点自带 [OpenAPI](https://nhentai.net/api/v2/openapi.json)，OpenAPI 3.1.0，98 paths / 114 operations / 129 schemas，加匿名只读响应。来源层级、排除项记在 [`docs/nhentai-contract-notes.md`](docs/nhentai-contract-notes.md)。
 - `artstation.com`：公开作品集站点。依据只有匿名只读响应实测。成功字段与未实测项记在 [`docs/artstation-contract-notes.md`](docs/artstation-contract-notes.md)。
 - `wallhaven.cc`：站点自带的 API v1。依据是官方 API v1 页面（https://wallhaven.cc/help/api）加匿名只读响应。7 条只读路由、返回信封与边界记在 [`docs/wallhaven-contract-notes.md`](docs/wallhaven-contract-notes.md)。
+- `pixiv.net`：网页端 `https://www.pixiv.net` 的 `ajax/*` 与 `ranking.php?format=json` 加官方 App API `https://app-api.pixiv.net` 两个面，放在同一个 `Pixiv` 类里（共 140 个原生方法：web 81、app 59），由 `request(..., api='web'|'app')` 选根。没有本地上游服务端源码，本轮也未取得完整的官方公开 API 规范：网页端依据是匿名只读响应，App 面需要 OAuth2 登录后的 `Authorization: Bearer`，本轮只做源码对齐、成功路径未实测。依据分级、权限分支与排除项记在 [`docs/pixiv-contract-notes.md`](docs/pixiv-contract-notes.md)。
 
-改动这十个家族时，请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应。候选字段的推断必须显式标明，不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十四个家族都有源码依据”。
+改动这十一个家族时，请区分站点说明、公开前端文件、帮助页/OpenAPI、脚本行为与真实响应。候选字段的推断必须显式标明，不能当成返回值承诺。四个源码家族与它们是两条不同的依据路径，不存在“十五个家族都有源码依据”。
 
 ## 边界与未实测
 
@@ -123,6 +124,16 @@
 - 官方写限流 45 次/分钟、超限 `429`，阈值未触发验证；客户端不内置限速。
 - 带 `apikey` 的 `settings`、私有合集与 NSFW 搜索未实测；原生方法里 `collection_list`（本人合集）与 `user_settings` 只有匿名 `404` / `401` 的路由级样本，未执行。
 
+**Pixiv**
+
+- 没有本地上游服务端源码，本轮也未取得完整的官方公开 API 规范。依据分两档：网页端 `https://www.pixiv.net` 的 `ajax/*` 与 `ranking.php?format=json` 按匿名只读响应写；App API `https://app-api.pixiv.net` 需要 OAuth2 登录后的 `Authorization: Bearer`，只做源码对齐，成功路径未实测。
+- 不是 booru（图站）。一个类覆盖两个面，`request(..., api='web'|'app')` 显式选根（`sites.pixiv` 的 `url` 与 `app_url`），方法名用 `web_` / `app_` 前缀，不做路由嗅探。
+- 两面都原样返回完整 JSON，一个外层都不拆：网页端信封是 `{"error": false, "message": "", "body": {…}}`，排行榜是另一套以 `contents` 为顶层数组的外壳，App 面的 `illusts` / `next_url` 也不剥。**HTTP 200 而正文 `error` 为 `true` 时同样当数据返回，不转成异常**。
+- 凭据三项都默认为空：`cookie`（网页端可选）、`csrf_token`（网页端写路由用）、`access_token`（App 面 Bearer）。只接收调用方已经拿到的值，**不实现 OAuth 登录、不刷新令牌、不自动取 Cookie**。
+- **不伪造 App 面的 User-Agent / `x-client-time` / `x-client-hash`**：缺少这些头就如实记录站点返回什么，不伪装成官方客户端。
+- 网页端匿名可读插画详情、插画页列表、用户资料、排行榜与搜索；需要登录态的路由匿名会被拒（实测缺参或不带登录态是 `400`，不存在的插画是 `404`）。逐条状态码见 [`docs/verification.md`](docs/verification.md)。
+- App 面全部方法、写路由、媒体下载、OAuth/PKCE 与挑战求解都不在匿名实测范围内。
+
 ## 我能做什么？
 
 ### 报告 Bug
@@ -154,6 +165,7 @@
   - Nhentai：给出站点自带 [OpenAPI](https://nhentai.net/api/v2/openapi.json) 的条目，JSON Pointer 或 `operationId`，例如 `#/paths/~1api~1v2~1galleries/get`，以及可复现的匿名响应，请求 URL、状态码、正文关键字段，与执行范围。它同样没有本地上游服务端源码，也没有别的契约来源。`.to` 一类克隆站的行为不算 `.net` 的契约。
   - ArtStation：给出可复现的匿名响应，请求 URL、状态码、正文关键字段，与执行范围。本轮未取得官方 API 文档页、OpenAPI 与服务端源码。本类覆盖公开作品集资源、只读搜索与 RSS，没有内容写入方法，也没有指定作品详情方法。两条 POST 的 token 由调用方传入，不要把它当凭据配置项。
   - Wallhaven：给出可复现的匿名响应，请求 URL、状态码、正文关键字段，与执行范围。依据是官方 API v1 页面（https://wallhaven.cc/help/api）加匿名响应，没有 OpenAPI 与服务端源码。相似标签用 `q='like:<壁纸编号>'`、用户上传用 `q='@<用户名>'`，`/w/{id}/similar` 与 `/user` 不是站点路由（实测 `404`），不要把它们当接口。
+  - Pixiv：给出可复现的匿名响应，请求 URL、状态码、`Content-Type` 与正文关键字段，并写明是网页端（`https://www.pixiv.net`）还是 App API（`https://app-api.pixiv.net`）。网页端依据是匿名响应，App 面依据是公开客户端源码（第二依据，不是服务端契约），需要登录的成功路径一律标未实测。不要伪造 App 面的 User-Agent / `x-client-time` / `x-client-hash`，也不要把 OAuth 登录流程塞进客户端。
 - 不要以某个站点的私有行为当契约。
 
 ### 提交 Pull Request
@@ -185,6 +197,8 @@
    python examples/artstation/browse_resources.py
    python examples/wallhaven/list_wallpapers.py
    python examples/wallhaven/browse_resources.py
+   python examples/pixiv/list_artworks.py
+   python examples/pixiv/browse_resources.py
    ```
 
    示例脚本默认读包内 `anybooru/anybooru.json`。用 `--config` 指向自己的配置，用 `--site` 换站点。代理等请求设置来自 `request`，凭据来自 `sites`，示例查询值来自 `examples`。
@@ -216,6 +230,7 @@ python test/danbooru.py --config <你的配置文件>
   - Shuushuu：OpenAPI 路径/schema + 实测响应。
   - Sakuria、Anime-Pictures 与 ArtStation：可复现的匿名响应与执行范围。
   - Wallhaven：官方 API v1 页面（https://wallhaven.cc/help/api）的条目标题与锚点，加可复现的匿名响应与执行范围。
+  - Pixiv：网页端给出可复现的匿名响应（请求 URL、状态码、正文关键字段）与执行范围；App 面给出公开客户端源码出处与“只做源码对齐、未实测”的说明。两面分开写，不要把网页端的匿名结论外推到 App 面。
   - Nhentai：站点自带 OpenAPI 的路径/schema，JSON Pointer 或 `operationId`，+ 实测响应。
 - 在对应家族的 `docs/<家族>-api.md` 里补参数与返回字段。
 

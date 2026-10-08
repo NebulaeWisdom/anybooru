@@ -5,7 +5,7 @@ Anybooru
 
 Anybooru is an API client for Danbooru, Moebooru, Serika, e621ng, Zerochan,
 Gelbooru, e-shuushuu, Gelbooru 0.2 based sites, Sakuria, Anime-Pictures,
-Cosine, nhentai, ArtStation and Wallhaven APIs.
+Cosine, nhentai, ArtStation, Wallhaven and pixiv APIs.
 
 Anybooru requires "requests" package to work.
 
@@ -25,6 +25,7 @@ Anybooru modules:
     nhentai -- Contains Nhentai main class for the nhentai API.
     artstation -- Contains ArtStation main class.
     wallhaven -- Contains Wallhaven main class for the Wallhaven API.
+    pixiv -- Contains Pixiv main class for the pixiv web and app APIs.
     api_moebooru -- Contains all Moebooru API functions.
     api_danbooru -- Contains all Danbooru API functions.
     api_serika -- Contains official v1 and internal Serika API functions.
@@ -39,6 +40,7 @@ Anybooru modules:
     api_nhentai -- Contains native nhentai API functions.
     api_artstation -- Contains native ArtStation API functions.
     api_wallhaven -- Contains native Wallhaven API functions.
+    api_pixiv -- Contains native pixiv web and app API functions.
     exceptions -- Manages and builds Anybooru errors messages.
     resources -- Packaged default parameters (DEFAULT_CONFIG_FILE) and encoding.
 """
@@ -63,5 +65,6 @@ from .cosine import Cosine
 from .nhentai import Nhentai
 from .artstation import ArtStation
 from .wallhaven import Wallhaven
+from .pixiv import Pixiv
 from .exceptions import (AnybooruError, AnybooruAPIError, AnybooruHTTPError)
 from .resources import DEFAULT_CONFIG_FILE

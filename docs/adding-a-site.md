@@ -1,6 +1,6 @@
 # 接入一个新图站（新家族）
 
-把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。照着现有代码抄更快。可运行的完整样板是 gelbooru02 那一套（`anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py` + `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md`）。最近一次完整样板是 Wallhaven 那一套（`anybooru/wallhaven.py` + `anybooru/api_wallhaven.py` + `test/wallhaven.py` + `examples/wallhaven/` + `docs/wallhaven*.md`），依据是官方 API v1 页面加匿名实测响应，7 个只读 GET 方法、返回完整 JSON 信封。前一次是 Nhentai 那一套（`anybooru/nhentai.py` + `anybooru/api_nhentai.py` + `test/nhentai.py` + `examples/nhentai/` + `docs/nhentai*.md`），依据是站点自带 OpenAPI 加匿名实测响应。再前一次是 Cosine 那一套（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），含四种返回外壳与两个写入口的处理。
+把一个新图站接进 Anybooru 的维护者清单：做哪些事、产物放哪、哪些结论必须有真实证据。照着现有代码抄更快。可运行的完整样板是 gelbooru02 那一套（`anybooru/gelbooru02.py` + `anybooru/api_gelbooru02.py` + `test/tbib.py` + `examples/gelbooru02/` + `docs/gelbooru02*.md`）。最近一次完整样板是 Pixiv 那一套（`anybooru/pixiv.py` + `anybooru/api_pixiv.py` + `test/pixiv.py` + `examples/pixiv/` + `docs/pixiv*.md`）：一个类同时覆盖两个域名不同的面（网页端 `https://www.pixiv.net` 的 `ajax/*` 与官方 App API `https://app-api.pixiv.net`），`request(..., api='web'|'app')` 显式选根，方法名用 `web_` / `app_` 前缀区分，两面都原样返回完整 JSON（HTTP 200 而正文 `error` 为 `true` 时也当数据返回，不转成异常），app 面只做源码对齐。前一次是 Wallhaven 那一套（`anybooru/wallhaven.py` + `anybooru/api_wallhaven.py` + `test/wallhaven.py` + `examples/wallhaven/` + `docs/wallhaven*.md`），依据是官方 API v1 页面加匿名实测响应，7 个只读 GET 方法、返回完整 JSON 信封。前一次是 Nhentai 那一套（`anybooru/nhentai.py` + `anybooru/api_nhentai.py` + `test/nhentai.py` + `examples/nhentai/` + `docs/nhentai*.md`），依据是站点自带 OpenAPI 加匿名实测响应。再前一次是 Cosine 那一套（`anybooru/cosine.py` + `anybooru/api_cosine.py` + `test/cosine.py` + `examples/cosine/` + `docs/cosine*.md`），含四种返回外壳与两个写入口的处理。
 
 ## 0. 先判断：已有家族，还是要新家族
 
@@ -15,7 +15,8 @@
 
 Cosine 对应三项：`Cosine` / `anybooru/cosine.py` + `anybooru/api_cosine.py`、站点键 `cosine`、`docs/cosine*.md`。  
 Nhentai 对应三项：`Nhentai` / `anybooru/nhentai.py` + `anybooru/api_nhentai.py`、站点键 `nhentai`、`docs/nhentai*.md`。  
-Wallhaven 对应三项：`Wallhaven` / `anybooru/wallhaven.py` + `anybooru/api_wallhaven.py`、站点键 `wallhaven`、`docs/wallhaven*.md`。
+Wallhaven 对应三项：`Wallhaven` / `anybooru/wallhaven.py` + `anybooru/api_wallhaven.py`、站点键 `wallhaven`、`docs/wallhaven*.md`。  
+Pixiv 对应三项：`Pixiv` / `anybooru/pixiv.py` + `anybooru/api_pixiv.py`、站点键 `pixiv`、`docs/pixiv*.md`。它比别的家族多一层：网页端与 App API 域名不同，两套根都放进 `sites.pixiv`（`url` 与 `app_url`），由 `request(..., api='web'|'app')` 选择，方法名用 `web_` / `app_` 前缀，不拆成两个家族（共 140 个原生方法：web 81、app 59）。
 
 依据分级：
 - 有上游引擎源码的家族（`danbooru/`、`moebooru/`、`Serika.art/`、`e621ng/`）：以路由与控制器的**文件 + 行号**为第一依据。
@@ -34,6 +35,8 @@ Cosine 与它们同档：自研 Next.js + Prisma + Meilisearch API，站点前�
 ArtStation 使用站点自己的根级 JSON、`/api/v2` 与 RSS，不套 booru 模型；本轮未取得官方 API 规范或服务端源码，只凭匿名响应核对。`/openapi.json` 返回 200 HTML Explore 页，并不是规范；个别详情路径 403 挑战或 401 不能外推成全站不可用，也不能据此发明认证方式。
 
 Wallhaven 有可读的官方 API v1 页面（https://wallhaven.cc/help/api），但没有 OpenAPI 或服务端源码：依据是官方页面的标题与锚点（`#wallpapers` / `#search` / `#tags` / `#user-settings` / `#limits` / `#auth`）加匿名只读响应。它把全部读取面收在 7 条只读 GET 路由上。**相似标签与用户上传不是独立路由**，而是 `q='like:<壁纸编号>'` 与 `q='@<用户名>'` 两种查询写法——官方页面的 `/w/{id}/similar` 与 `/user` 实测 `404`；别家引擎有 `/similar` 或 `/user`，不等于这家也有，不要照抄血缘经验造方法（`like:` 搜索实测被 Cloudflare 质询挡下，只按页面写法记录，不做绕行）。它的搜索参数 `categories` / `purity` 是三位字符串掩码，不是布尔；本人合集与 `settings` 需要 API key（匿名 `settings` 是 `401`、匿名本人合集是 `404`），他人**公开**合集与合集内壁纸匿名可读（实测 `collections/{username}` 与 `collections/{username}/{id}` 均 `200`）。
+
+Pixiv 既没有本地上游服务端源码，本轮也未取得完整的官方公开 API 规范：网页端 `ajax/*` 与 `ranking.php?format=json` 按匿名只读响应写（实测信封是 `{"error": false, "message": "", "body": {…}}`，排行榜是另一套以 `contents` 为顶层数组的外壳）；App API `app-api.pixiv.net` 需要 OAuth2 登录后拿到的 `Authorization: Bearer <access_token>`，本轮只做源码对齐、成功路径未实测。公开客户端源码（如 `pixivpy` 的路由表）只当第二依据，不能当服务端契约。**不要伪造 App 面的 User-Agent / `x-client-time` / `x-client-hash`，也不自动跑 OAuth**：凭据只接收调用方已经拿到的值，缺凭据就如实标未实测。
 
 不要 clone 与本次无关的仓库，不要修改只读参考源码。
 
@@ -129,4 +132,5 @@ Wallhaven 有可读的官方 API v1 页面（https://wallhaven.cc/help/api），
 - Cosine 的未实测项与输入矛盾见 [cosine-contract-notes.md](cosine-contract-notes.md)。
 - ArtStation 的证据与输入资料差异见 [artstation-contract-notes.md](artstation-contract-notes.md)。
 - Wallhaven 的官方 API 页面条目、7 条只读路由与未实测项见 [wallhaven-contract-notes.md](wallhaven-contract-notes.md)。
+- Pixiv 的两面依据、权限分支与排除项见 [pixiv-contract-notes.md](pixiv-contract-notes.md)：网页端按匿名响应写，App 面只做源码对齐（OAuth/PKCE 不实现、不伪造 App 头），两面的完整 JSON 都原样返回，HTTP 200 而 `error` 为 `true` 时不转成异常。
 - 要账号、要写权限的跑不了的照实标「未实测」，不要伪称跑过。

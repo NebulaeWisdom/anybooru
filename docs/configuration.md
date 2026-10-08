@@ -38,7 +38,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 
 ## 完整样例
 
-完整可直接复制的内容见包内 [`anybooru/anybooru.json`](../anybooru/anybooru.json)，wheel 与 sdist 都带这份文件。`sites` 段共 18 个条目。结构如下：`sites` 段可按需要增删站点；`verification` 段只给维护者验证脚本，普通使用者可省略。
+完整可直接复制的内容见包内 [`anybooru/anybooru.json`](../anybooru/anybooru.json)，wheel 与 sdist 都带这份文件。`sites` 段共 19 个条目。结构如下：`sites` 段可按需要增删站点；`verification` 段只给维护者验证脚本，普通使用者可省略。
 
 ```json
 {
@@ -83,7 +83,14 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
     "cosine": { "url": "https://pic.cosine.ren", "revalidate_secret": "" },
     "nhentai": { "url": "https://nhentai.net", "api_key": "" },
     "artstation": { "url": "https://www.artstation.com" },
-    "wallhaven": { "url": "https://wallhaven.cc", "apikey": "" }
+    "wallhaven": { "url": "https://wallhaven.cc", "apikey": "" },
+    "pixiv": {
+      "url": "https://www.pixiv.net",
+      "app_url": "https://app-api.pixiv.net",
+      "cookie": "",
+      "csrf_token": "",
+      "access_token": ""
+    }
   },
   "examples": {
     "serika": {
@@ -232,12 +239,23 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
       "username": "ThorRagnarok",
       "collection_id": 274175,
       "collection_query": {"purity": "100", "page": 1}
+    },
+    "pixiv": {
+      "site": "pixiv",
+      "pause_seconds": 1.4,
+      "word": "cat",
+      "search_query": {"order": "date_d", "mode": "all", "s_mode": "s_tag", "type": "all"},
+      "pages": [1, 2],
+      "ranking_query": {"mode": "daily", "p": 1},
+      "illust_id": "149040133",
+      "user_id": "27517",
+      "user_query": {"full": 1}
     }
   }
 }
 ```
 
-十二类“查询整块放进字典”的家族各有容易踩的点。键与对应调用见下文 [`examples` 段](#examples-段)总表。
+十三类“查询整块放进字典”的家族各有容易踩的点。键与对应调用见下文 [`examples` 段](#examples-段)总表。
 
 - **Serika**：查询值是逗号分隔字符串，如 `ratings='safe'`，不是 Rails 数组。站内详情示例从列表响应取 `post_id` 再查，不硬编码图片 ID。三个匿名示例命令见 [serika.md](serika.md#可运行示例)。
 - **e621ng**：查询参数是 Rails 顶层参数与 `search[...]`。`wiki_title` 是 `wiki_page_show` 的标题或 ID；含冒号标题如 `help:api` 由客户端转义。三个匿名示例命令见 [e621.md](e621.md)。
@@ -251,6 +269,8 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 - **nhentai**：`list_query` 就是 `gallery_list(**list_query)` 的实参，`{"per_page": 2}` → `gallery_list(per_page=2)`；页码另放 `pages`。`search_query` 展开成 `search(**search_query)`；`query` 是站点搜索表达式，必填；`sort` 只收 `date` / `popular` 与三个人气窗口。`gallery_id` 供 `gallery_show(658856)`；`tag_type` + `tag_slug` 供 `tag_show('language', 'english')`；`tag_ids` 是英文逗号串 `'12227,6346'`，客户端不拼接、不改写；`comments_query` 展开成 `gallery_comments(**comments_query)`。站点规定 `page` / `per_page` 的取值范围与默认值（OpenAPI 里逐端点写明），客户端不钳位。每个端点有匿名请求预算，例如 `GET /api/v2/galleries` 匿名 `15/1min per IP`；示例用 `pause_seconds` 自己等，库不限速也不重试。命令与参数表见 [nhentai.md](nhentai.md) 与 [分页](pagination.md#nhentai-的分页)。
 - **ArtStation**：`list_query` / `search_query` / `album_query` 里的键就是字面实参，如 `per_page` / `query` / `sorting` / `filters`；页码另放 `pages`（`[1, 2]`，1 起步）。`filters` 必须是一个 JSON 字符串 `"[{\"field\":\"title\",\"method\":\"contain\",\"value\":\"dragon\"}]"`，传数组会回 `400` `{"data":"filters should be a string"}`。`username` 供 `user_show('timwarnock')`；`album_id` 供 `album_projects(104104, **album_query)`；`project_id` 供 `project_comments(22897630)`。`csrf_request` / `post_search_query` 不是示例脚本入口，而是给可选两步调用备好的参数：先 `client.csrf_token(**csrf_request)` 拿 `public_csrf_token`，再显式传给 `client.project_search_post(<该 token>, **post_search_query)`，同一个客户端 Cookie 随之带上。两个随包示例各自仍只发 4 个 GET，不自动跑这两步；取值全部来自配置，示例只打印状态码、关键字段与计数，不下载媒体地址。两个匿名示例命令见 [artstation.md](artstation.md)。
 - **Wallhaven**：列表是信封 `{"data": […], "meta": {…}}`，方法原样返回、不拆层。查询键就是 `wallpaper_search(**params)` 的实参，`search_query` 展开成 `wallpaper_search(**search_query)`；`tag_query` 也是同一方法的另一组实参（`q='id:1'` 是精确标签搜索，官方写它不能与别的 `q` 表达式组合）。`resolutions` 与 `ratios` 是**字面逗号串**，如 `resolutions='1920x1080,1920x1200'`、`ratios='16x9,16x10'`；`colors` 是官方 29 色调色板里的**一个**六位十六进制色值（不带 `#`，官方没有把它写成多值列表），不是逗号串。传 Python 列表会被共享编码器写成重复的 `key[]`，不是这条路由要的形式。`pages` 是 1 起步页码数组 `[1, 2]`。`wallpaper_id` 供 `wallpaper_show('pom5lj')`，`tag_id` 供 `tag_show(1)`；`username` + `collection_id` 供 `user_collections('ThorRagnarok')` 与 `collection_wallpapers('ThorRagnarok', 274175, **collection_query)`，合集 `id` 从 `user_collections` 的列表项取。每页固定 24 条，`seed` 不能当稳定游标（实测跨页会变），详见 [分页](pagination.md#wallhaven-的分页)。两个匿名示例命令见 [wallhaven.md](wallhaven.md)。
+
+- **pixiv**：一个类管两个域名，`sites.pixiv` 除网页根 `url` 外还有 app 根 `app_url`；`request(method, path, api='web')` 走 `url`，`api='app'` 走 `app_url`，调用方显式选面、库不嗅探路径。`word` 是搜索词，`search_query` 是搜索的查询参数，两者一起交给 `web_search_artworks('cat', **search_query)`；`pages` 是 1 起步页码数组 `[1, 2]`，搜索的页码键是 `p`，不是 `offset`，排行榜 `web_ranking(**ranking_query)` 也用 `p`。`illust_id` 供 `web_illust_show('149040133')` 与 `web_illust_pages('149040133')`；`user_id` 供 `web_user_show('27517', **user_query)` 与 `web_user_profile_all('27517')`。凭据字段 `cookie` / `csrf_token` / `access_token` 只归属各自那一面，示例显式传空串保持匿名，只用 web 面、不带 app token；媒体地址只当字符串打印，不下载。两个匿名示例命令见 [pixiv.md](pixiv.md)。
 
 `examples.*` 只服务示例脚本；`verification.*` 是维护者验证脚本的输入。两者互不替代。
 
@@ -276,7 +296,7 @@ with Danbooru('danbooru', config_file='my-anybooru.json') as client:  # 读自�
 - 名单外的站点只要跑同一套引擎就能用：构造时传 `site_url`；Moebooru 还必须同时传 `api_version`，完全绕开本段。
 - 名单里的站点不保证每个能力可用。站点可能关闭功能、按权限裁剪返回，网络侧也可能只挡住某条线路，例如 `konachan.com` 在某些网络上得到 Cloudflare 挑战页。
 
-支持范围由各引擎自己的接口规则决定：Danbooru 引擎看 [danbooru-api.md](danbooru-api.md)；Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)；Serika 引擎看 [serika-api.md](serika-api.md)；e621ng 引擎看 [e621-api.md](e621-api.md)；Zerochan 看 [zerochan-api.md](zerochan-api.md)；Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)；Gelbooru02（TBIB）看 [gelbooru02-api.md](gelbooru02-api.md)；Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)；Sakuria 看 [sakuria-api.md](sakuria-api.md)；Anime-Pictures 看 [anime-pictures-api.md](anime-pictures-api.md)；Cosine 看 [cosine-api.md](cosine-api.md)；nhentai 看 [nhentai-api.md](nhentai-api.md)；ArtStation 看 [artstation-api.md](artstation-api.md)；Wallhaven 看 [wallhaven-api.md](wallhaven-api.md)。
+支持范围由各引擎自己的接口规则决定：Danbooru 引擎看 [danbooru-api.md](danbooru-api.md)；Moebooru 引擎看 [moebooru-api.md](moebooru-api.md)；Serika 引擎看 [serika-api.md](serika-api.md)；e621ng 引擎看 [e621-api.md](e621-api.md)；Zerochan 看 [zerochan-api.md](zerochan-api.md)；Gelbooru 看 [gelbooru-api.md](gelbooru-api.md)；Gelbooru02（TBIB）看 [gelbooru02-api.md](gelbooru02-api.md)；Shuushuu 看 [shuushuu-api.md](shuushuu-api.md)；Sakuria 看 [sakuria-api.md](sakuria-api.md)；Anime-Pictures 看 [anime-pictures-api.md](anime-pictures-api.md)；Cosine 看 [cosine-api.md](cosine-api.md)；nhentai 看 [nhentai-api.md](nhentai-api.md)；ArtStation 看 [artstation-api.md](artstation-api.md)；Wallhaven 看 [wallhaven-api.md](wallhaven-api.md)；pixiv 的 web 与 app 两面看 [pixiv-api.md](pixiv-api.md)。
 
 比对基线固定在本地上游快照：`danbooru/` HEAD `d4cdddd44`、`moebooru/` HEAD `206455e1`、`Serika.art/` HEAD `ef11dd12`、`e621ng/` HEAD `7a9c98851`。同引擎也可能漂移：站点跑更老或改过的分支时，个别端点参数、权限、响应形态可能不同。本库实现的是那份上游规则，不是某个站点的私有行为。按需增删站点键是正常用法；把清单当成“只支持这些站”会误判。
 
@@ -284,7 +304,7 @@ Zerochan、Gelbooru 与 Gelbooru02 是例外：Zerochan 没有可引用的公开
 
 Shuushuu 没有本地上游服务端源码，依据站点 [OpenAPI](https://e-shuushuu.net/api/openapi.json) 与真实响应，不是 Danbooru/Moebooru 模板，详见 [契约附注](shuushuu-contract-notes.md)。Sakuria 依据更弱：既没有官方 API 页面，也没有 OpenAPI，也没有上游源码，只有匿名响应观察加随后的有界实测；样本之外行为仍是候选，推断不构成返回值承诺，见 [Sakuria 契约附注](sakuria-contract-notes.md)。Anime-Pictures 也没有可读到的正式来源：官方 API 手册页存在但整站受 Cloudflare 质询，命令行读不到；没有 OpenAPI，也没有服务端源码；依据匿名只读响应实测加候选输入资料，外部客户端源码链接本轮没有独立读过，未实测的参数边界与输入矛盾见 [Anime-Pictures 契约附注](anime-pictures-contract-notes.md)。Cosine 没有本地上游服务端源码；站点前端代码在公开仓库，本轮只按需只读个别文件当线索，不 clone、不写行号；公开结论以匿名只读响应为准，见 [Cosine 契约附注](cosine-contract-notes.md)。nhentai 没有本地上游服务端源码，依据站点自己发布的 OpenAPI（`GET https://nhentai.net/api/v2/openapi.json`，OpenAPI 3.1.0，`info.version` 为 `2.0.0+14bccf7`，98 条路径 / 114 个操作）与真实响应，不是 Danbooru/Moebooru 模板，见 [nhentai 契约附注](nhentai-contract-notes.md)。ArtStation 本轮未取得官方 API 文档页、OpenAPI 或服务端源码，`/openapi.json` 实测回站点自己的 HTML 页面；依据只有匿名响应实测，见 [ArtStation 契约附注](artstation-contract-notes.md)。Wallhaven 有站点自己的官方 API 页面（`https://wallhaven.cc/help/api`，标题 "API v1"，含 `#wallpapers` / `#search` / `#tags` / `#user-settings` / `#limits` / `#auth` 等锚点；"User Collections" 小节复用了 `#user-settings` 这个锚点，同一锚点出现两次），依据是那份页面加匿名真实响应，不是 Danbooru/Moebooru 模板，也没有上游服务端源码，见 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
 
-同一个站点名在所有客户端里都表示 `sites` 段的键，可用类有 `Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation`、`Wallhaven`。选哪个类由调用者决定。
+同一个站点名在所有客户端里都表示 `sites` 段的键，可用类有 `Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation`、`Wallhaven`、`Pixiv`。选哪个类由调用者决定。
 
 ### Danbooru 系站点（Danbooru 引擎）
 
@@ -451,6 +471,18 @@ API 页面要求请求头 `User-Agent` 含项目名与使用者自己的 Zerocha
 
 它不是 booru 引擎：路径挂在 `/api/v1` 下，搜索是 `GET /api/v1/search`，壁纸详情 `GET /api/v1/w/{id}`，标签 `GET /api/v1/tag/{id}`，账号面 `GET /api/v1/settings` 与 `GET /api/v1/collections`。列表回包是 `{"data": [...], "meta": {…}}` 信封，方法原样返回；`meta` 有 `current_page` / `last_page` / `per_page`（每页固定 24）/ `total` / `query` / `seed`。官方 API 页面只列这 7 条路由，没有单独的相似或用户资料路由；相似标签用 `wallpaper_search(q='like:<壁纸编号>')`、用户上传用 `wallpaper_search(q='@<用户名>')`。候选路径 `GET /api/v1/w/pom5lj/similar`、`GET /api/v1/user` 与 `GET /api/v1/user/LewisMweir13` 实测都回 `404`——这只是这三条取样不存在，不能证明站点没有其它未列出的隐藏路由。七个原生方法全是 `GET` 读取，不下载媒体。官方页面写限流 45 次/分钟、超限 `429`，本库不做客户端限速；示例与冒烟脚本用配置里的 `pause_seconds` 自己等。官方依据是 [API v1 页面](https://wallhaven.cc/help/api) 与匿名样本，见 [wallhaven.md](wallhaven.md)、[wallhaven-api.md](wallhaven-api.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
 
+### pixiv 站点（站点自有的 web JSON 与官方 App API，两个域名，没有完整公开规范）
+
+| 键 | 类型与取值 | 含义与例子 |
+| :--- | :--- | :--- |
+| `url` | string，**web 面根地址** | 网页前端与它的 `/ajax/*`、`ranking.php` 都在这个根下。例子 `"https://www.pixiv.net"` |
+| `app_url` | string，**app 面根地址** | 官方移动客户端 API 的另一个域名，`/v1/*`、`/v2/*`、`/webview/*` 挂在这里。例子 `"https://app-api.pixiv.net"` |
+| `cookie` | string，默认 `""` | 网页登录会话；非空时作为 web 请求的 `Cookie` 头发送，留 `""` 即 web 匿名。例子 `"PHPSESSID=…"` |
+| `csrf_token` | string，默认 `""` | 与网页登录会话配套的 CSRF 令牌；非空时作为 web 请求的 `X-CSRF-Token` 头发送，留 `""` 即不带 |
+| `access_token` | string，默认 `""` | app 面的 OAuth2 访问令牌；非空时作为 app 请求的 `Authorization: Bearer <access_token>` 头发送，留 `""` 即 app 匿名 |
+
+条目里这五个键都要在。显式 `cookie=''` / `access_token=''` / `csrf_token=''` 表示本次客户端在对应面上匿名，**不读**配置里的值；`None`（或不传）才读配置。两侧凭据严格分开：本类只把 `cookie` / `csrf_token` 加到 web 请求、只把 `access_token` 加到 app 请求，不会把任一凭据发到另一个域名，也不会给 web 请求加 `Authorization`；共享的 `requests.Session` 仍按 requests 默认的 Cookie 域规则保存并重放站点自己设置的 Cookie（与其它家族相同）。库不解析响应的 `Set-Cookie` 去拼 `cookie`，也不会走 OAuth 登录或刷新 token。web 请求固定带 `Referer: <url>/`，app 请求不带这个头，也没有伪造的 App UA / `x-client-time` / `x-client-hash`。`app_url` 也可用构造参数单独覆盖。见 [authentication.md](authentication.md#pixiv两个域名两套凭据) 与 [pixiv.md](pixiv.md)。
+
 ### 样例清单里各条的实际状态
 
 清单是样例：每条状态如下，不要把“在清单里”等同于“支持”或“已测”。支持范围由各引擎接口规则决定，接口文档见上文链接。
@@ -475,10 +507,11 @@ API 页面要求请求头 `User-Agent` 含项目名与使用者自己的 Zerocha
 | `nhentai` | nhentai API v2，站点自有 REST API，站点自己发布 OpenAPI，无上游引擎源码 | 36 个原生方法按站点 OpenAPI 封装，`info.version` 为 `2.0.0+14bccf7`，98 条路径 / 114 个操作 / 129 个 schema。本轮串行 61 次匿名 GET，每请求只发一次、不跟随跳转、不重试、不下载媒体，把 31 个 GET 路由逐个直接打过：25 个 `200`，6 个匿名必拒 `401`：`/api/v2/user`、`/api/v2/favorites`、`/api/v2/favorites/random`、`/api/v2/blacklist`、`/api/v2/blacklist/ids`、`/api/v2/galleries/{id}/favorite`，正文统一 `{"error": "Authentication required"}`。4 个写方法，3 个 `POST` + 1 个 `DELETE`，与 `POST /api/v2/tags/search` 未调用；带 key 成功路径、PoW/CAPTCHA、账号与内部路由 `auth` / `user` / `moderation` 分组、所有媒体请求从未执行，`.to` 克隆站不接入。脚本侧另有匿名冒烟 10 请求 10 通过，`8×200` 加预期 `404` / `400`，退出 `0`；两个示例 3 次与 5 次 GET 全 `200`，退出 `0`。逐条见 [验证记录](verification.md#nhentai匿名只读实测2026-09-20)，出处与排除项见 [nhentai 契约附注](nhentai-contract-notes.md) |
 | `artstation` | ArtStation，站点自研 JSON 与 RSS，本轮未取得官方 API 规范或服务端源码 | 15 条原生 GET 路由有匿名响应样本；2 条只读 POST，匿名 CSRF token 与表单式搜索，各取到 `200`。全站列表与搜索每页限制不同；两个指定详情样本为 `403` 挑战 / `401`，因此没有 `project_show`，也不自动换路。POST 的 `filters`、缺 token、token 失效等分支未实测。实际命令、状态与未实测项见 [验证记录](verification.md#artstation匿名只读实测2026-09-20) 与 [契约附注](artstation-contract-notes.md) |
 | `wallhaven` | Wallhaven API v1，站点自有的 JSON API，站点发布官方 API 页面，没有上游引擎源码 | 七个原生 `GET` 路由全部匿名实测：搜索（含 12 个参数与多组边界）、壁纸详情、标签详情、用户公开合集、合集壁纸两页都取到 `200`；`settings` 匿名 `401`、匿名读自己的合集 `404`、不存在 id / 标签 / 合集 `404`、越界页码 `400`、`page=0` 的 `500` HTML、相似搜索 `403` Cloudflare 质询。需要 apikey 的成功路径与 `X-API-Key` 头**未实测**（本仓库没有凭据）。逐条见 [验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md) |
+| `pixiv` | pixiv，站点自有的 web `/ajax` API 与官方 App API，两个域名，没有完整公开规范 | web 面匿名实测：插画详情与 `/pages`、用户资料与 `/profile/all`、插画搜索两页、日榜两页、插画评论、相关推荐、用户作品、小说搜索与小说排行、`illust`/`novel` 发现路由都取到 `200`；`ajax/illust/0` `400`、不存在的 `ajax/illust/59580629` `404`、越界 `ranking.php?p=10000` `404`、`ajax/discovery/artworks` 与用户 bookmarks `400`。app 面匿名 `v1/illust/detail` `400`，两条 `recommended-nologin` `404`，而 `v1/application-info/android` 与 `v1/emoji` 匿名 `200`。需要 app token 的成功路径**未实测**（本仓库没有凭据）。逐条见 [验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md) |
 
 ### 怎么判断一个站点该用哪个类
 
-库不做自动识别。`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation`、`Wallhaven` 是十四个并列类，传输方式、认证形态与参数拼法按各自引擎写死。选错类不会自动降级，也不会失败后换另一个类重试。
+库不做自动识别。`Danbooru`、`Moebooru`、`Serika`、`E621`、`Zerochan`、`Gelbooru`、`Gelbooru02`、`Shuushuu`、`Sakuria`、`AnimePictures`、`Cosine`、`Nhentai`、`ArtStation`、`Wallhaven`、`Pixiv` 是十五个并列类，传输方式、认证形态与参数拼法按各自引擎写死。选错类不会自动降级，也不会失败后换另一个类重试。
 
 判断依据只能是自己手里的信息：站点自述，包括页脚、帮助页、API 页面、上游仓库；以及发一次请求看响应。Zerochan、Gelbooru02、Sakuria、Anime-Pictures、Cosine、nhentai、ArtStation 这类没有可读到的上游服务端源码的站点，只能靠站点页面、可读到的公开前端文件与实测响应。
 
@@ -522,6 +555,8 @@ nhentai 的路径挂在站点 `/api/v2` 下，与 booru 家族不同：根 `/api
 ArtStation 的路径也是站点自己的：全局作品列表 `/projects.json`，用户作品 `/users/{username}/projects.json`，随机作品 `/random_project.json`，用户资料有 `/users/{username}.json`、`/users/{username}/quick.json`、`/api/v2/user_profiles/{username}.json` 三套，搜索与筛选字段 `/api/v2/search/projects.json` 与 `/api/v2/search/projects/filter_fields.json`，社区侧 `/api/v2/community/…`，包括专辑、频道、探索、评论，订阅源 `/artwork.rss`。它不是 booru：路径里没有 `posts`，列表外壳 `{"data": […], "total_count": N}`，分页参数 `page` / `per_page`。两条详情路由被站点挡下：`GET /projects/{hash}.json` 回 `403` Cloudflare 质询 HTML，响应头带 `Cf-Mitigated: challenge`；`GET /api/v2/community/projects/{id}.json` 回 `401` `{"data": null}`。所以本库没有 `project_show`，也不会自动改用随机或搜索路径；这两条仍可用通用 `request('GET', …)` 显式调用，成败由站点决定。本轮未取得官方 API 文档页、OpenAPI 或服务端源码，`/openapi.json` 实测回站点 HTML，不是规范文档。见 [artstation.md](artstation.md) 与 [契约附注](artstation-contract-notes.md)。
 
 Wallhaven 的路径挂在站点根的 `/api/v1` 下：搜索 `/api/v1/search`，壁纸详情 `/api/v1/w/{id}`，标签 `/api/v1/tag/{id}`，账号设置 `/api/v1/settings`，合集 `/api/v1/collections`、`/api/v1/collections/{username}` 与 `/api/v1/collections/{username}/{id}`。它不是 booru：路径里没有 `posts.json`，列表外壳是 `{"data": [...], "meta": {…}}`，筛选参数是 `q` / `categories` / `purity` / `sorting` / `order` / `topRange` / `atleast` / `resolutions` / `ratios` / `colors` / `page` / `seed` 这 12 个站点自己的名字。官方 API 页面只列那 7 条路由，没有单独的相似或用户资料路由；候选 `/w/pom5lj/similar`、`/user`、`/user/LewisMweir13` 实测都回 `404`（取样，不是「全站无此路由」的证明）。相似标签与用户上传走搜索 `q` 里的 `like:<壁纸编号>` 与 `@<用户名>` 前缀。认证是查询参数 `apikey`（或 `X-API-Key` 头），与前面家族的 Basic / Bearer / 表单字段都不同。见 [wallhaven.md](wallhaven.md) 与 [契约附注](wallhaven-contract-notes.md)。
+
+pixiv 的路径分在两个域名上：web 面在 `https://www.pixiv.net`——站点前端自己的 JSON 挂在 `/ajax` 下，例如插画详情 `/ajax/illust/{id}`、每页地址 `/ajax/illust/{id}/pages`、用户 `/ajax/user/{id}` 与 `/ajax/user/{id}/profile/all`、搜索 `/ajax/search/artworks/{词}` 与 `/ajax/search/novels/{词}`、小说排行 `/ajax/ranking/novel`、发现 `/ajax/illust/discovery` 与 `/ajax/novel/discovery`、评论 `/ajax/illusts/comments/roots`，另有一条不在 `/ajax` 下的 `/ranking.php?format=json`；app 面在另一个域名 `https://app-api.pixiv.net`，官方移动客户端的 `/v1/*`、`/v2/*`、`/webview/*` 挂在这里，例如 `/v1/illust/detail`。两面的返回外壳也不同：web 多数路由是 `{"error": bool, "message": str, "body": …}`（搜索路由没有 `message`，`ranking.php` 是裸对象），app 是裸 JSON。所以 `Pixiv` 一个类带两个根地址，`request(api='web')` / `request(api='app')` 由调用方显式选面；它也不同于 booru：路径里没有 `posts.json`，搜索参数是 `word` / `order` / `mode` / `s_mode` / `type` / `p` 这些站点自己的名字。它没有可对照的本地上游服务端源码，依据是匿名只读响应加第三方客户端源码，见 [pixiv.md](pixiv.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
 
 选错类的表现是普通 HTTP 错误或字段对不上的返回，不会被库掩盖：拿 Danbooru 客户端请求 Moebooru 站点会得到 `404`；拿 Danbooru 客户端请求 e621 站点能拿到 `200`，但正文是 `{"posts": [ … ]}` 这种外层对象，帖子字段也是 e621 自己的嵌套结构，客户端不转换结构、不补字段；凭据形态不匹配时是 `401`。这些都在 [errors.md](errors.md) 的异常模型里。
 
@@ -608,8 +643,13 @@ Wallhaven 的路径挂在站点根的 `/api/v1` 下：搜索 `/api/v1/search`，
 | Wallhaven | `wallpaper_id` = `"pom5lj"` | `client.wallpaper_show('pom5lj')`，即 GET `https://wallhaven.cc/api/v1/w/pom5lj`；详情比摘要多 `uploader`（`username` / `group` / `avatar`）与 `tags` |
 | Wallhaven | `username` = `"ThorRagnarok"`、`collection_id` = `274175`、`collection_query` = `{"purity":"100","page":1}` | `client.user_collections('ThorRagnarok')` 拿该账号的公开合集（每项 `id` / `label` / `views` / `public` / `count`），再用列表里的 `id` 调 `client.collection_wallpapers('ThorRagnarok', 274175, purity='100', page=1)`，即 GET `https://wallhaven.cc/api/v1/collections/ThorRagnarok/274175?purity=100&page=1`；返回与搜索同形的 `data` + `meta`，但 `meta` 只有 `current_page` / `last_page` / `per_page` / `total` |
 | Wallhaven | `pause_seconds` = `1.4` | `time.sleep(1.4)`，示例在请求之间等，不代表服务端限流阈值；官方写限流 45 次/分钟、超限 `429`，见 [errors.md](errors.md#wallhaven) |
+| pixiv | `site` = `"pixiv"` | `Pixiv('pixiv', cookie='', csrf_token='', access_token='')`，示例显式传空串即匿名、不读配置里的凭据；示例只用 web 面（`https://www.pixiv.net`）的匿名读取，不带 app token |
+| pixiv | `word` = `"cat"`、`search_query` = `{"order":"date_d","mode":"all","s_mode":"s_tag","type":"all"}`、`pages` = `[1,2]` | `client.web_search_artworks('cat', order='date_d', mode='all', s_mode='s_tag', type='all', p=1)`，即 GET `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&s_mode=s_tag&type=all&p=1`；第二页把 `p` 换成 `2`。返回 `{"error": false, "body": {…}}`（这条路由**没有** `message`），插画摘要在 `body.illustManga.data`，`total` 与 `lastPage` 同在 `body.illustManga` 里；该页 60 个 slot 里有 1 条 `{"isAdContainer": true}` 占位、没有 `id`，脚本打印真实 URL / 状态、`total` / `lastPage` 与带 `id` 的条目编号 |
+| pixiv | `ranking_query` = `{"mode":"daily","p":1}` | `client.web_ranking(mode='daily', p=1)`，即 GET `https://www.pixiv.net/ranking.php?mode=daily&p=1&format=json`（方法自动补 `format=json`，否则该路由回 HTML）。返回**裸根对象**、没有 `error`/`body` 外壳：`contents` 每页 50 条，`page` / `next` / `prev` / `rank_total` 与它同级；`p` 超出榜单回 `404`，不是空数组 |
+| pixiv | `illust_id` = `"149040133"`、`user_id` = `"27517"`、`user_query` = `{"full":1}` | `client.web_illust_show('149040133')`，即 GET `https://www.pixiv.net/ajax/illust/149040133`，返回信封，`body.urls` 是各尺寸地址、`body.tags.tags` 是标签数组；`client.web_user_show('27517', full=1)`，即 GET `https://www.pixiv.net/ajax/user/27517?full=1`；第二个示例再从这两个 id 继续读 `web_illust_pages('149040133')` 与 `web_user_profile_all('27517')` |
+| pixiv | `pause_seconds` = `1.4` | `time.sleep(1.4)`，示例在请求之间等，不代表服务端限流阈值 |
 
-两个约定：Danbooru 与 Moebooru 示例读顶层散键，`tags` / `limit` / `pages`；Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Sakuria、Anime-Pictures、Cosine、nhentai、ArtStation、Wallhaven 把查询整块放进 `*_query` 字典再展开，nhentai 与 Wallhaven 另把页码放在 `pages`。`comment_body` 只服务上面那条写操作；只读示例用列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
+两个约定：Danbooru 与 Moebooru 示例读顶层散键，`tags` / `limit` / `pages`；Serika、e621ng、Zerochan、Gelbooru、Gelbooru02、Shuushuu、Sakuria、Anime-Pictures、Cosine、nhentai、ArtStation、Wallhaven、pixiv 把查询整块放进 `*_query` 字典再展开，nhentai、Wallhaven 与 pixiv 另把页码放在 `pages`。`comment_body` 只服务上面那条写操作；只读示例用列表返回的第一个帖子 id。这些键都可以按自己的脚本增删。
 
 示例脚本用法：
 
@@ -636,6 +676,8 @@ python examples/gelbooru02/browse_resources.py
 .venv/Scripts/python.exe examples/artstation/browse_resources.py
 .venv/Scripts/python.exe examples/wallhaven/list_wallpapers.py
 .venv/Scripts/python.exe examples/wallhaven/browse_resources.py
+.venv/Scripts/python.exe examples/pixiv/list_artworks.py
+.venv/Scripts/python.exe examples/pixiv/browse_resources.py
 ```
 
 `--config` 指定配置文件路径，省略即读包内默认那份。第一条用包内那份；第二条换成自己复制出来的 `my-anybooru.json`，你也可以取别的名字。`--site` 显式覆盖站点名，省略时取 `examples.<段>.site`。两者都只用命令行参数，不使用环境变量。
@@ -661,6 +703,8 @@ python examples/gelbooru02/browse_resources.py
 | `api_key` | `sites.<键>.api_key`，nhentai | `Nhentai('nhentai', api_key='')`；显式空串即匿名、不读配置里的 key；非空时头是 `Authorization: Key <api_key>`，库只加 `Key ` 这个 scheme 前缀，不改写 key 本身 |
 | `site_url` | `sites.<键>.url`，ArtStation 条目只有 `url`，构造签名里没有凭据参数 | `ArtStation('artstation', site_url='https://www.artstation.com')` |
 | `apikey` | `sites.<键>.apikey`，Wallhaven | `Wallhaven('wallhaven', apikey='')`；显式空串即本次匿名、不读配置里的 key；非空时作为 `apikey` 查询值发送（头形态用 `request(headers=…)`） |
+| `cookie` / `csrf_token` / `access_token` | `sites.<键>` 的同名键，Pixiv | `Pixiv('pixiv', cookie='', csrf_token='', access_token='')`；三个显式空串表示两面都匿名、不读配置；`cookie` 与 `csrf_token` 只加到 web 请求，`access_token` 只加到 app 请求，互不跨界 |
+| `app_url` | `sites.<键>.app_url`，Pixiv 的 app 面根地址 | `Pixiv('pixiv', app_url='https://app-api.pixiv.net')`；web 面根仍由 `site_url`（或 `sites.<键>.url`）决定 |
 | `timeout` / `proxies` / `user_agent` | `request` 段同名键，所有家族，含 Zerochan 的 `user_agent` | `Zerochan('zerochan', user_agent='MyProject - MyZerochanUsername')` |
 
 ```python
@@ -718,6 +762,7 @@ with Danbooru('danbooru') as client:
 | `nhentai` | `gallery_id=658856`、`list_query={per_page:2}`、`search_query={query:'language:english',sort:'date',page:1}`、`tag_type='language'`、`tag_slug='english'`、`missing_id=999999999`、`invalid_query={page:0,per_page:2}`；最多 10 次匿名 GET，间隔取全局 `pause_seconds`，页码取全局 `pages`：画廊列表两页、指定画廊详情、搜索、今日热门、标签详情、评论计数、指定画廊评论，`per_page` 取自 `list_query`、缺失画廊与非法页码的列表调用两个预期错误路径；构造显式 `api_key=''`、不跟随跳转、不重试、不发 `POST`/`DELETE`、不请求账号路由、不下载媒体 |
 | `artstation` | `site='artstation'`、`project_query={page:1,per_page:2}`、`username='timwarnock'`、`pages=[1,2]`、`user_project_query={per_page:2}`、`search_query={query:'cat',page:1,per_page:3,sorting:'relevance'}`、`album_id=104104`、`album_query={page:1,per_page:4}`、`feed_query={sorting:'latest'}`、`missing_username='zzzz_no_such_user_99'`、`invalid_search_query={query:'cat',page:1,per_page:2}`、`pause_seconds=1.3`；正好 10 次匿名 GET：`project_list`、`user_projects` 两页、`project_random`、`project_search`、`search_filter_fields`、`album_projects`、`feed`、缺失用户预期 `404` 空正文 `text/plain`、`per_page=2` 的搜索预期 `400` `{"message":"per_page should be >= 3","code":"per_page"}`；条目只有 `url`，不重试、不跟随跳转、不下载媒体，也不发 POST，`csrf_request` / `post_search_query` 只服务文档化的可选两步调用，不并入冒烟 |
 | Wallhaven | `site='wallhaven'`、`pause_seconds=1.4`、`search_query={q:'nature',categories:'100',purity:'100',sorting:'date_added',order:'desc'}`、`pages=[1,2]`、`tag_query={q:'id:1',purity:'100'}`、`wallpaper_id='pom5lj'`、`tag_id=1`、`username='ThorRagnarok'`、`collection_id=274175`、`collection_query={purity:'100',page:1}`、`missing_wallpaper_id='000000'`；最多 10 次匿名 GET：搜索两页、一次精确标签搜索（`q='id:1'`）、`wallpaper_show('pom5lj')`、`tag_show(1)`、`user_collections('ThorRagnarok')`、合集壁纸一页、缺失壁纸预期 `404`；条目 `apikey` 留空即匿名，不跟随跳转、不重试、不下载媒体，也不发送 `X-API-Key` 头 |
+| pixiv | `site='pixiv'`、`pause_seconds=1.4`、`word='cat'`、`search_query={order:'date_d',mode:'all',s_mode:'s_tag',type:'all'}`、`pages=[1,2]`、`ranking_query={mode:'daily'}`、`illust_id='149040133'`、`user_id='27517'`、`user_query={full:1}`、`missing_illust_id='59580629'`、`missing_status=404`、`app_error_status=400`；正好 10 次匿名只读请求：日榜两页、搜索两页、插画详情、插画 `/pages`、用户资料、用户 `/profile/all`，外加两条预期错误路径（不存在的 `ajax/illust/59580629` 预期 `404`、匿名 `app-api.pixiv.net/v1/illust/detail` 预期 `400`）；构造显式清空 `cookie` / `csrf_token` / `access_token`，不跟随跳转、不重试、不发写请求、不下载媒体 |
 
 这些参数改变查询输入，不改变固定请求数量。运行方法、每站预算、退出码及匿名边界见 [README](../README.md#轻量匿名冒烟检查)；真实结果只记在 [verification.md](verification.md)。
 
@@ -753,3 +798,4 @@ with Danbooru('danbooru') as client:
 - ArtStation 未取得官方 API 规范或服务端源码；POST 的 `filters`、缺 token、token 失效等分支未实测；两条详情路由被站点挡下。
 - Wallhaven 有官方 API 页面但没有上游服务端源码；七个原生 `GET` 只做了匿名实测，`apikey` 与 `X-API-Key` 两种带法的成功返回、私有合集、NSFW 壁纸与 `settings` 均**未实测**（本仓库没有凭据，也不索要）。
 - 上游只固定到本地快照，同引擎可能漂移；站点跑更老或改过的分支时，个别端点可能不同。
+- pixiv 没有完整公开 API 规范，也没有本地上游服务端源码；web 面匿名侧有响应样本，app 面与所有需要 `cookie` / `access_token` 的成功路径**未实测**（本仓库没有凭据，也不索要）。两面凭据互不跨界，库不抓 Cookie、不走 OAuth 登录或刷新 token，也不伪造 App UA / `x-client-time` / `x-client-hash`。

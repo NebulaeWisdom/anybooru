@@ -2193,3 +2193,206 @@ python -X utf8 examples/wallhaven/browse_resources.py --config my-anybooru.json
 - 方法级未调用 `user_settings`、`collection_list`。路径参数的通用查询传递已经修正；最终集合请求实际携带 `purity`/`page`，其余路径参数方法的自定义查询与凭据覆盖分支未额外发请求。
 - 媒体/CDN/头像 URL 只读取字符串，没有下载或可用性验证；没有账号操作、写请求、质询求解、429 压测。
 - 未运行项目测试套件、mock、CI、构建、formatter 或 lint；行为证据仅为上述匿名只读请求与轻量冒烟/示例，不外推到其它家族。
+
+
+## Pixiv：匿名只读实测（2026-10-08）
+
+### 范围、计数与结论
+
+- pixiv 有两个 JSON 面：网页前端面在 `https://www.pixiv.net`（`/ajax/*`、`/ranking.php`、`/rpc/cps.php`），官方 App 面在 `https://app-api.pixiv.net`（`/v1`、`/v2`、`/v3`）。网页面返回 `{"error": false, "message": "", "body": {...}}` 包装（搜索、排行是例外，见下），App 面返回裸 JSON 或 `{"error": {...}}`。客户端按面分主动入口，完整返回正文，不拆层、不补键。
+- **路由级证据：104 次 GET = 56×200、40×400、7×404、1×302**，UTC 07:46:05.988452 至 08:19:58.384897，全部为匿名直接 HTTP 请求，证明站点响应，不等于 Python 方法已经执行。
+- **脚本级证据：28 次 GET**，首次冒烟 10 次（8×200 + 1×404 + 1×400）、首次列表示例 1 次（有成功 JSON 但进程在打印前退出，状态未记录）、首次浏览示例 4 次（4×200）、修正后冒烟 10 次（8×200 + 1×404 + 1×400）、修正后列表示例 3 次（3×200）。
+- **本节合计 132 次匿名 GET**：131 次有已知 HTTP 状态 = 79×200、42×400、9×404、1×302；另 1 次有成功 JSON 但无记录状态，不补记为 200。
+- 最终冒烟 **`SUMMARY pixiv | requests=10 | passed=10 failed=0`**，退出 **0**；修正后列表示例退出 **0**，浏览示例退出 **0**（未重跑）。真正执行的 Python 方法共 7 个：`web_ranking`、`web_search_artworks`、`web_illust_show`、`web_illust_pages`、`web_user_show`、`web_user_profile_all`，以及匿名被拒的 `app_illust_detail`。其余候选路由只有直接 HTTP 证据。
+- 所有请求串行、每次请求前（含第一次）暂停至少 1.4 秒；匿名（`cookie`/`access_token`/`csrf_token` 显式空串）、不跟随跳转、不重试、不登录、不发写请求、不下载媒体。
+
+### 路由级逐条证据
+
+下表编号只用于引用本节响应。Content-Type 照实际响应记录；除 `/showcase` 为 `text/html` 外其余均为 JSON。`error`/`message`/`body` 位置与键名照首层原样。
+
+| # / 路由 | 真实 URL | HTTP / Content-Type | 首层与关键返回 |
+| :--- | :--- | :--- | :--- |
+| 1 / illust | `https://www.pixiv.net/ajax/illust/59580629` | 404 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`=''，`body`=[] |
+| 2 / user | `https://www.pixiv.net/ajax/user/27517?full=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`userId,name,image,imageBig,premium,isFollowed,isMypixiv,isBlocking,background,sketchLiveId,partial,sketchLives,commission,publisher,following,mypixivCount`，userId='27517' |
+| 3 / profile-all | `https://www.pixiv.net/ajax/user/27517/profile/all` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts,manga,novels,mangaSeries,novelSeries,collections,collectionIds,pickup,bookmarkCount,externalSiteWorksStatus,request,shouldShowSensitiveNotice`，illusts=253 manga=1 novels=0 |
+| 4 / ranking | `https://www.pixiv.net/ranking.php?mode=daily&p=1&format=json` | 200 / `application/json; charset=utf-8` | 首层 `contents,mode,content,page,prev,next,date,prev_date,next_date,rank_total,meta,date_range_text,zoneConfig`；`contents` 50 条，`page`=1，`rank_total`=500，`mode`='daily'，`content`='all'，`prev`=False，`next`=2 |
+| 5 / search | `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=all` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`，`illustManga` keys=`data,total,lastPage,bookmarkRanges` total=107077 lastPage=10 data=60 |
+| 6 / app-illust | `https://app-api.pixiv.net/v1/illust/detail?illust_id=59580629` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 7 / illust-current | `https://www.pixiv.net/ajax/illust/149040133` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illustId,illustTitle,illustComment,id,title,description,illustType,createDate,uploadDate,restrict,xRestrict,sl,urls,tags,alt,userId`，illustId=149040133 1202x1700 pageCount=1 |
+| 8 / illust-pages | `https://www.pixiv.net/ajax/illust/149040133/pages` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 1 条，条目键=`urls,width,height` |
+| 9 / illust-zero | `https://www.pixiv.net/ajax/illust/0` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 10 / ranking-page2 | `https://www.pixiv.net/ranking.php?mode=daily&p=2&format=json` | 200 / `application/json; charset=utf-8` | 首层 `contents,mode,content,page,prev,next,date,prev_date,next_date,rank_total,meta,date_range_text,zoneConfig`；`contents` 50 条，`page`=2，`rank_total`=500，`mode`='daily'，`content`='all'，`prev`=1，`next`=3 |
+| 11 / ranking-deep | `https://www.pixiv.net/ranking.php?mode=daily&p=10000&format=json` | 404 / `application/json; charset=utf-8` | 首层 `error`；`error`='ランキング集計の範囲外です' |
+| 12 / search-page2 | `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=2&s_mode=s_tag&type=all` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`，`illustManga` keys=`data,total,lastPage,bookmarkRanges` total=107077 lastPage=10 data=60 |
+| 13 / search-deep | `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=10000&s_mode=s_tag&type=all` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`，`illustManga` keys=`data,total,lastPage,bookmarkRanges` total=107077 lastPage=10 data=60 |
+| 14 / search-limit | `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=all&limit=1` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`，`illustManga` keys=`data,total,lastPage,bookmarkRanges` total=107077 lastPage=10 data=60 |
+| 15 / discovery | `https://www.pixiv.net/ajax/discovery/artworks?mode=all&limit=2` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 16 / bookmarks | `https://www.pixiv.net/ajax/user/27517/illusts/bookmarks?tag=&offset=0&limit=2&rest=show` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 17 / web-illust-comments | `https://www.pixiv.net/ajax/illusts/comments/roots?illust_id=149040133&offset=0&limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`comments,hasNext` |
+| 18 / web-illust-related | `https://www.pixiv.net/ajax/illust/149040133/recommend/init?limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts,nextIds,details` |
+| 19 / web-user-top | `https://www.pixiv.net/ajax/user/27517/profile/top` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts,manga,novels,collections,requestPostWorks,requestPlans,zoneConfig,extraData` |
+| 20 / web-user-illusts | `https://www.pixiv.net/ajax/user/27517/profile/illusts?ids%5B%5D=149040133&ids%5B%5D=147208254&work_category=illustManga&is_first_page=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`works,zoneConfig,extraData` |
+| 21 / web-novel-ranking | `https://www.pixiv.net/ajax/ranking/novel?mode=daily&p=1` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`display_a,start,end,date,h_title,zoneConfig` |
+| 22 / web-search-novels | `https://www.pixiv.net/ajax/search/novels/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`novel,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData` |
+| 23 / web-illust-discovery | `https://www.pixiv.net/ajax/illust/discovery?mode=safe&max=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts` |
+| 24 / web-novel-discovery | `https://www.pixiv.net/ajax/novel/discovery?mode=safe` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`novels,details` |
+| 25 / web-illust-new | `https://www.pixiv.net/ajax/illust/new?lastId=0&limit=2&type=illust&r18=False` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 26 / app-recommended-nologin | `https://app-api.pixiv.net/v1/illust/recommended-nologin?content_type=illust&filter=for_ios&include_ranking_label=True` | 404 / `application/json; charset=utf-8` | 首层 `error`；`error.user_message`='指定されたエンドポイントは存在しません'，`error.message`='' |
+| 27 / app-novel-recommended-nologin | `https://app-api.pixiv.net/v1/novel/recommended-nologin?filter=for_ios` | 404 / `application/json; charset=utf-8` | 首层 `error`；`error.user_message`='指定されたエンドポイントは存在しません'，`error.message`='' |
+| 28 / app-application-info | `https://app-api.pixiv.net/v1/application-info/android` | 200 / `application/json; charset=utf-8` | 首层 `application_info`；`application_info` 键=`latest_version,update_required,update_available,update_message,notice_exists,store_url,notice_id,notice_important,notice_message` |
+| 29 / app-emoji | `https://app-api.pixiv.net/v1/emoji` | 200 / `application/json; charset=utf-8` | 首层 `emoji_definitions`（38 条） |
+| 30 / app-spotlight | `https://app-api.pixiv.net/v1/spotlight/articles?category=all&offset=0` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 31 / web-novel-detail | `https://www.pixiv.net/ajax/novel/11165421` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`bookmarkCount,commentCount,markerCount,createDate,uploadDate,description,id,title,likeCount,pageCount,userId,userName,viewCount,isOriginal,isBungei,xRestrict` |
+| 32 / web-novel-comments | `https://www.pixiv.net/ajax/novels/comments/roots?novel_id=11165421&offset=0&limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`comments,hasNext` |
+| 33 / web-novel-related | `https://www.pixiv.net/ajax/novel/11165421/recommend/init?limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`novels,nextIds,details` |
+| 34 / web-search-illustrations | `https://www.pixiv.net/ajax/search/illustrations/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=illust` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illust,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData` |
+| 35 / web-search-manga | `https://www.pixiv.net/ajax/search/manga/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=manga` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`manga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData` |
+| 36 / web-search-top | `https://www.pixiv.net/ajax/search/top/cat?word=cat&lang=en` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`novel,popular,relatedTags,tagTranslation,zoneConfig,extraData,illust,manga,collection` |
+| 37 / web-search-tags | `https://www.pixiv.net/ajax/search/tags/cat?lang=en` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`tag,word,pixpedia,breadcrumbs,myFavoriteTags,tagTranslation` |
+| 38 / web-search-page10 | `https://www.pixiv.net/ajax/search/artworks/cat?word=cat&order=date_d&mode=all&p=10&s_mode=s_tag&type=all` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`，`illustManga` keys=`data,total,lastPage,bookmarkRanges` total=107077 lastPage=10 data=60 |
+| 39 / web-illust-new-r18-int | `https://www.pixiv.net/ajax/illust/new?lastId=0&limit=2&type=illust&r18=0` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 40 / web-illust-discovery-max100 | `https://www.pixiv.net/ajax/illust/discovery?mode=safe&max=100` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 41 / web-user-following | `https://www.pixiv.net/ajax/user/27517/following?offset=0&limit=2&rest=show` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 42 / web-follow-latest | `https://www.pixiv.net/ajax/follow_latest/illust?mode=all&p=1` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 43 / web-top-illust | `https://www.pixiv.net/ajax/top/illust?mode=all` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 44 / app-v2-novel-detail | `https://app-api.pixiv.net/v2/novel/detail?novel_id=11165421` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 45 / web-novel-series | `https://www.pixiv.net/ajax/novel/series/1122424` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`id,userId,userName,profileImageUrl,xRestrict,isOriginal,isConcluded,genreId,title,caption,language,tags,publishedContentCount,publishedTotalCharacterCount,publishedTotalWordCount,publishedReadingTime` |
+| 46 / web-novel-series-content | `https://www.pixiv.net/ajax/novel/series_content/1122424?limit=2&last_order=0&order_by=asc` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`tagTranslation,thumbnails,illustSeries,requests,users,page` |
+| 47 / web-novel-series-titles | `https://www.pixiv.net/ajax/novel/series/1122424/content_titles` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 8 条，条目键=`id,title,available` |
+| 48 / web-novel-replies | `https://www.pixiv.net/ajax/novels/comments/replies?comment_id=33074564&page=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`comments,hasNext` |
+| 49 / web-illust-replies | `https://www.pixiv.net/ajax/illusts/comments/replies?comment_id=233757844&page=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 0 条 |
+| 50 / web-illust-more | `https://www.pixiv.net/ajax/illust/recommend/illusts?illust_ids=149021929&illust_ids=135613111` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 51 / web-novel-more | `https://www.pixiv.net/ajax/novel/recommend/novels?novelIds%5B%5D=16448475&novelIds%5B%5D=18112696` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`novels` |
+| 52 / web-user-novels | `https://www.pixiv.net/ajax/user/38475999/novels?ids%5B%5D=11165421&ids%5B%5D=11165886` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`11165421,11165886` |
+| 53 / web-user-profile-novels | `https://www.pixiv.net/ajax/user/38475999/profile/novels?ids%5B%5D=11165421&ids%5B%5D=11165886&is_first_page=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`works,zoneConfig,extraData` |
+| 54 / web-user-illusts-short | `https://www.pixiv.net/ajax/user/27517/illusts?ids%5B%5D=149040133&ids%5B%5D=147208254` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`149040133,147208254` |
+| 55 / web-user-meta | `https://www.pixiv.net/ajax/user/27517/meta` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`description,title,canonical,ogp,twitter,alternateLanguages,descriptionHeader` |
+| 56 / web-user-latest | `https://www.pixiv.net/ajax/user/27517/works/latest` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts,novels` |
+| 57 / web-user-tags | `https://www.pixiv.net/ajax/user/27517/illusts/tags?all=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 921 条，条目键=`tag,tag_translation,tag_yomigana,cnt` |
+| 58 / web-user-tagged | `https://www.pixiv.net/ajax/user/27517/illusts/tag?tag=%E5%88%9D%E9%9F%B3%E3%83%9F%E3%82%AF&offset=0&limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`works,total,zoneConfig,extraData` |
+| 59 / web-user-novel-tags | `https://www.pixiv.net/ajax/user/38475999/novels/tags?all=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 31 条，条目键=`tag,tag_translation,tag_yomigana,cnt` |
+| 60 / web-user-novel-tagged | `https://www.pixiv.net/ajax/user/38475999/novels/tag?tag=%E5%89%B5%E4%BD%9CBL&offset=0&limit=2` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`works,total,zoneConfig,extraData` |
+| 61 / web-search-suggestions | `https://www.pixiv.net/ajax/search/suggestion?mode=all` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`popularTags,recommendTags,recommendByTags,recommendedIllusts,myFavoriteTags,tagTranslation,thumbnails` |
+| 62 / web-tag-info | `https://www.pixiv.net/ajax/tag/info?tag=cat` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`tag,abstract,thumbnail,en,en_new,ja,ja_new,is_view_lead_wire` |
+| 63 / web-tag-suggest | `https://www.pixiv.net/ajax/tags/suggest_by_word?word=cat` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 64 / web-tag-frequent | `https://www.pixiv.net/ajax/tags/frequent/illust?ids%5B%5D=149040133&ids%5B%5D=147208254` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，`body` 数组 5 条，条目键=`tag,tag_translation` |
+| 65 / web-autocomplete | `https://www.pixiv.net/rpc/cps.php?keyword=cat` | 200 / `application/json; charset=utf-8` | 首层 `candidates`（10 条） |
+| 66 / web-search-users | `https://www.pixiv.net/ajax/search/users?nick=fuzichoco&s_mode=s_usr&i=1&p=1` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 67 / web-novel-bookmark-data | `https://www.pixiv.net/ajax/novel/11165421/bookmarkData` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`id,isBookmarkable,bookmarkData` |
+| 68 / web-search-ugoira | `https://www.pixiv.net/ajax/search/illustrations/cat?word=cat&order=date_d&mode=all&p=1&s_mode=s_tag&type=ugoira` | 200 / `application/json; charset=utf-8` | 首层 `error,body`；`error`=false，body 键=`illust,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData` |
+| 69 / web-discovery-max18 | `https://www.pixiv.net/ajax/illust/discovery?mode=safe&max=18` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts` |
+| 70 / web-discovery-max19 | `https://www.pixiv.net/ajax/illust/discovery?mode=safe&max=19` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 71 / web-ugoira-metadata | `https://www.pixiv.net/ajax/illust/150572937/ugoira_meta` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`src,originalSrc,mime_type,frames` |
+| 72 / web-illust-more-brackets | `https://www.pixiv.net/ajax/illust/recommend/illusts?illust_ids%5B%5D=149021929&illust_ids%5B%5D=135613111` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`illusts` |
+| 73 / web-novel-new | `https://www.pixiv.net/ajax/novel/new?lastId=0&limit=2&r18=false` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 74 / web-editors-picks | `https://www.pixiv.net/ajax/novel/editors_picks?limit=2&lang=ja` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`tagTranslation,thumbnails,illustSeries,requests,users,page,zoneConfig` |
+| 75 / web-top-novel | `https://www.pixiv.net/ajax/top/novel?mode=all&lang=ja` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`page,thumbnails,users,tagTranslation,novelSeries,requests,zoneConfig` |
+| 76 / web-novel-genre | `https://www.pixiv.net/ajax/genre/novel/romance?mode=safe&lang=ja` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`page,zoneConfig,extraData,tagTranslation,thumbnails,illustSeries,requests,users` |
+| 77 / web-user-recommends | `https://www.pixiv.net/ajax/user/27517/recommends?userNum=2&workNum=1&isR18=false` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 78 / web-user-followers | `https://www.pixiv.net/ajax/user/27517/followers?offset=0&limit=2` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 79 / web-user-novel-bookmarks | `https://www.pixiv.net/ajax/user/38475999/novels/bookmarks?tag=&offset=0&limit=2&rest=show` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 80 / web-user-bookmark-tags | `https://www.pixiv.net/ajax/user/27517/illusts/bookmark/tags` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 81 / web-user-novel-bookmark-tags | `https://www.pixiv.net/ajax/user/38475999/novels/bookmark/tags` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 82 / web-user-extra | `https://www.pixiv.net/ajax/user/extra?is_smartphone=false&version=20261008` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 83 / web-discovery-novels | `https://www.pixiv.net/ajax/discovery/novels?mode=all&limit=2` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 84 / web-discovery-users | `https://www.pixiv.net/ajax/discovery/users?limit=2` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 85 / web-follow-novel | `https://www.pixiv.net/ajax/follow_latest/novel?p=1&mode=all` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 86 / web-mypixiv-latest | `https://www.pixiv.net/ajax/mypixiv_latest/illust?p=1` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 87 / web-watch-manga | `https://www.pixiv.net/ajax/watch_list/manga?p=1` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 88 / web-watch-novel | `https://www.pixiv.net/ajax/watch_list/novel?p=1&new=1` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 89 / web-street-recommend_tags | `https://www.pixiv.net/ajax/street/recommend_tags?lang=en` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='Invalid request.'，`body`=[] |
+| 90 / web-street-latest | `https://www.pixiv.net/ajax/street/latest?lang=en` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='Invalid request.'，`body`=[] |
+| 91 / web-street-sub | `https://www.pixiv.net/ajax/street/sub?lang=en` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='Invalid request.'，`body`=[] |
+| 92 / web-street-for_you | `https://www.pixiv.net/ajax/street/for_you?lang=en` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='Invalid request.'，`body`=[] |
+| 93 / web-rename-progress-illusts | `https://www.pixiv.net/ajax/illusts/bookmarks/rename_tag_progress` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 94 / web-rename-progress-novels | `https://www.pixiv.net/ajax/novels/bookmarks/rename_tag_progress` | 400 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='不正なリクエストです。'，`body`=[] |
+| 95 / app-novel-ranking | `https://app-api.pixiv.net/v1/novel/ranking?mode=day` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 96 / app-novel-marker | `https://app-api.pixiv.net/v1/novel/markers` | 404 / `application/json; charset=utf-8` | 首层 `error`；`error.user_message`='指定されたエンドポイントは存在しません'，`error.message`='' |
+| 97 / app-comment-replies | `https://app-api.pixiv.net/v1/illust/comment/replies?comment_id=233757844` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 98 / app-comment-v2 | `https://app-api.pixiv.net/v2/illust/comments?illust_id=149040133` | 404 / `application/json` | 空 JSON 对象 `{}` |
+| 99 / app-user-state | `https://app-api.pixiv.net/v1/user/me/state` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 100 / web-illust-series | `https://www.pixiv.net/ajax/series/257832?p=1` | 200 / `application/json; charset=utf-8` | 首层 `error,message,body`；`error`=false，body 键=`tagTranslation,thumbnails,illustSeries,requests,users,page,extraData,zoneConfig` |
+| 101 / web-showcase-index | `https://www.pixiv.net/showcase` | 302 / `text/html; charset=UTF-8` | 重定向：`Content-Length: 0`，响应头 `location: /showcase/`，无正文 |
+| 102 / app-illust-series | `https://app-api.pixiv.net/v1/illust/series?illust_series_id=257832&offset=0` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 103 / app-comments-v3 | `https://app-api.pixiv.net/v3/illust/comments?illust_id=149040133` | 400 / `application/json; charset=utf-8` | 首层 `error`；`error.message` 含 `invalid_request`，`error.user_message`=''，`error.reason`='' |
+| 104 / web-showcase-zero | `https://www.pixiv.net/ajax/showcase/article?article_id=0` | 404 / `application/json; charset=utf-8` | 首层 `error`,`message`,`body`；`error`=true，`message`='リクエストされたページが見つかりませんでした'，`body`=[] |
+
+
+### 资源 body 关键字段
+
+下面按资源族列出首层包装与 `body` 的关键字段名，全部来自上表当次响应。客户端完整返回这些对象，不拆层、不补键、不改名。
+
+- `/ajax/illust/{id}`（详情）：首层 `error,message,body`。`body` 含 `illustId`/`id`（同一字符串编号）、`illustTitle`/`title`、`illustComment`/`description`、`illustType`、`xRestrict`、`sl`、`createDate`、`uploadDate`、`width`、`height`、`pageCount`、`userId`、`userName`、`userAccount`、`bookmarkCount`、`likeCount`、`commentCount`、`viewCount`、`urls`（`mini,thumb,small,regular,original`）、`tags`、`alt`，以及 `seriesNavData`、`isOriginal`、`aiType` 等。`tags` 是对象，其 `tags` 数组每项含 `tag,locked,deletable`，**部分**标签才有 `userId,userName`（当次 4 个标签里前 2 个有）。媒体地址只是字符串，不下载。
+- `/ajax/illust/{id}/pages`：首层 `error,message,body`。`body` 是数组，一张图一项，键为 `urls,width,height`；`urls` 有 `thumb_mini,small,regular,original`。当次一页 `1202x1700`。
+- `/ajax/user/{id}`：首层 `error,message,body`。`body` 含 `userId`（字符串）、`name`、`image`、`imageBig`、`premium`、`isFollowed`、`isMypixiv`、`isBlocking`、`partial`、`following`、`mypixivCount`、`commission`、`publisher`，以及 `comment`、`webpage`、`social`、`region`、`age`、`birthDay`、`gender`、`job`、`workspace`、`official`、`group`。`?full=1` 让这些统计字段一次带出。
+- `/ajax/user/{id}/profile/all`：首层 `error,message,body`。`body` 含 `illusts`、`manga`、`novels`、`mangaSeries`、`novelSeries`、`collections`、`collectionIds`、`pickup`、`bookmarkCount`、`externalSiteWorksStatus`、`request`、`shouldShowSensitiveNotice`。当次 `illusts` 是以插画编号为键的字典（253 项）、`manga` 字典 1 项、`novels` 数组 0 项，`bookmarkCount` 分 `public`/`private`。
+- `/ajax/user/{id}/profile/top`：`body` 含 `illusts,manga,novels,collections,requestPostWorks,requestPlans,zoneConfig,extraData`；`/ajax/user/{id}/profile/illusts` 与 `/profile/novels` 用 `ids[]` 查询，`body` 是 `works,zoneConfig,extraData`；`/ajax/user/{id}/illusts` 与 `/novels` 用 `ids[]`，`body` 直接以编号为键。
+- `/ranking.php?format=json`：**裸根对象**，没有 `error`/`message` 包装，键为 `contents,mode,content,page,prev,next,date,prev_date,next_date,rank_total,meta,date_range_text,zoneConfig`。`contents` 每页 50 条，条目键 `title,date,tags,url,illust_type,illust_book_style,illust_page_count,user_name,profile_img,illust_content_type,illust_series,illust_id,width,height,user_id,rank,yes_rank,rating_count,view_count,illust_upload_timestamp,attr,is_masked`；`illust_series` 当次是 **布尔或对象**（`illust_series_id,illust_series_title,illust_series_caption,illust_series_user_id,illust_series_content_illust_id,illust_series_content_order,illust_series_content_count,illust_series_create_datetime,page_url`）两种。`meta` 是 `h_title,meta_ogp,twitter_card,h_canonical,title`。
+- `/ajax/search/artworks/{词}`：首层 `error,body`（**没有** `message`）。`body` 含 `illustManga,suggestChips,popular,relatedTags,tagTranslation,zoneConfig,extraData`；`illustManga` 是 `data,total,lastPage,bookmarkRanges`，`data` 每页 60 个槽位。`/ajax/search/illustrations/{词}` 用 `body.illust`、`/ajax/search/manga/{词}` 用 `body.manga`、`/ajax/search/novels/{词}` 用 `body.novel`、`/ajax/search/top/{词}` 含 `novel,illust,manga,collection`、`/ajax/search/tags/{词}` 含 `tag,word,pixpedia,breadcrumbs,myFavoriteTags,tagTranslation`。
+- `/ajax/illusts/comments/roots` 与 `/ajax/novels/comments/roots`：`body` 是 `comments,hasNext`。`/ajax/illust/{id}/recommend/init` 与 `/novel/{id}/recommend/init`：`body` 是 `illusts`/`novels,nextIds,details`。`/ajax/novel/{id}`：`body` 含 `id,title,description,content,coverUrl,userId,userName,pageCount,bookmarkCount,likeCount,viewCount,createDate,uploadDate,xRestrict,restrict,tags,seriesNavData` 等。`/ajax/illust/{id}/ugoira_meta`：`body` 是 `src,originalSrc,mime_type,frames`。`/ajax/tag/info`：`body` 是 `tag,abstract,thumbnail,en,en_new,ja,ja_new,is_view_lead_wire`。
+- App 面：`/v1/application-info/android` 返回 `application_info`，`/v1/emoji` 返回 `emoji_definitions`，二者匿名 200；`/v1/illust/detail`、`/v1/novel/detail` 等需要令牌的路由匿名返回 `{"error": {...}}`（见下）。
+
+### 参数变化、失败与重定向
+
+- 页码：`ranking.php?mode=daily&p=1` 与 `p=2` 均 **200**（`page=1`/`page=2`，`rank_total=500`），`p=10000` 是 **404** `{"error": "ランキング集計の範囲外です"}`。`search/artworks` 的 `p=1`、`p=2`、`p=10` 均 **200** 且 `lastPage=10`，`p=10000` 也是 **200** 并返回内容——**HTTP 200 不等于页码有效**；`limit=1` 仍 **200**，`data` 仍是 60 槽位。
+- 广告占位：`search/artworks` 的 60 个 `data` 槽位里，当次每页有 1 个 `{"isAdContainer": true}`（**没有** `id`），其余 59 个才是作品。脚本把它单列统计，不丢弃、不把它当作品。
+- 越界与非法值：`/ajax/illust/0` **400** `不正なリクエストです。`；`/ajax/illust/discovery?mode=safe&max=2`、`?max=18` **200**，`?max=19`、`?max=100` **400**（另一条 `/ajax/discovery/artworks` 匿名也是 **400**）；`/ajax/illust/59580629` **404** `{"error":true,"message":"","body":[]}`；`/ajax/showcase/article?article_id=0` **404** `リクエストされたページが見つかりませんでした`。网页面 400 的 `message` 多为 `不正なリクエストです。`，`/street/*` 四条为英文 `Invalid request.`，需要登录态的读取路由（书签、关注、看板、my pixiv 等）匿名同样落在 **400**，不是 401。
+- 数组参数：`/ajax/illust/recommend/illusts` 用 `illust_ids[]`（共享编码器发出的重复键）匿名 **200**，用裸 `illust_ids` 重复键匿名 **400**；同形的 `ids[]`/`novelIds[]` 用在用户作品、小说等路由。
+- App 面：需要 `Authorization: Bearer` 的路由（`/v1/illust/detail`、`/v1/spotlight/articles`、`/v2/novel/detail`、`/v1/novel/ranking`、`/v1/illust/comment/replies`、`/v1/user/me/state`、`/v1/illust/series`、`/v3/illust/comments`）匿名 **400**，正文 `{"error": {"user_message": "", "message": "Error occurred at the OAuth process. Please check your Access Token to fix this. Error Message: invalid_request", "reason": "", "user_message_details": {}}}`。`/v1/illust/recommended-nologin`、`/v1/novel/recommended-nologin`、`/v1/novel/markers` 匿名 **404** `指定されたエンドポイントは存在しません`；`/v2/illust/comments` **404** 正文 `{}`。
+- 重定向：`GET https://www.pixiv.net/showcase` 返回 **302**，`Content-Type: text/html; charset=UTF-8`、`Content-Length: 0`，响应头 `location: /showcase/`（补尾斜杠）。客户端不跟随跳转，3xx 由共享传输抛原始的 HTTP 错误。
+
+### 命令与运行结果
+
+三条脚本均为匿名只读、每次请求前（含第一次）暂停至少 1.4 秒、不跟随跳转、不重试、不下载媒体；查询值取自配置文件的 `smoke.pixiv` / `examples.pixiv` 段。命令用中性配置路径表示：
+
+```bash
+.venv/Scripts/python.exe -X utf8 test/pixiv.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/pixiv/list_artworks.py --config my-anybooru.json
+.venv/Scripts/python.exe -X utf8 examples/pixiv/browse_resources.py --config my-anybooru.json
+```
+
+| 执行 | UTC 时间 | 请求 / HTTP | 退出码与结果 |
+| :--- | :--- | :--- | :--- |
+| 首次冒烟 | 2026-10-08T08:11:56.911368+00:00 至 2026-10-08T08:12:17.882096+00:00 | 10 / 8×200 + 1×404 + 1×400 | 1；`SUMMARY pixiv | requests=10 | passed=5 failed=5` |
+| 首次列表示例 | 2026-10-08T08:12:19.292226+00:00 至 2026-10-08T08:12:22.389387+00:00 | 1 / 有成功 JSON，状态未记录 | 1；第一次搜索读广告占位 `id` 触发 `KeyError`，在 `emit` 前退出，未打印 HTTP 状态 |
+| 首次浏览示例 | 2026-10-08T08:12:23.790912+00:00 至 2026-10-08T08:12:33.153318+00:00 | 4 / 4×200 | 0；输出真实状态与字段，stderr 为空 |
+| 修正后冒烟 | 2026-10-08T08:16:46.054576+00:00 至 2026-10-08T08:17:07.629490+00:00 | 10 / 8×200 + 1×404 + 1×400 | 0；`SUMMARY pixiv | requests=10 | passed=10 failed=0` |
+| 修正后列表示例 | 2026-10-08T08:17:09.031357+00:00 至 2026-10-08T08:17:17.710016+00:00 | 3 / 3×200 | 0；输出真实状态与字段，stderr 为空 |
+
+首次问题不是站点故障，不删去、不改记“首次全通过”：
+
+- 首次冒烟 5 个 FAIL 都是校验器假设过窄：`illust_series` 当次既是布尔也是对象（当次 p1 上 37 个布尔、13 个对象），排行校验原本只收布尔；`search` 的 60 槽位里混了 1 个 `{"isAdContainer": true}` 广告占位（无 `id`），校验器把它当作品读 `id`；插画 `tags.tags` 的 `userId`/`userName` 只有部分标签有，校验器要求每个标签都有。已按真实并集放宽：占位显式计入 `ad_slots`、作品单独取编号，`illust_series` 接受布尔或对象，标签只校验固定键、actor 键缺省允许。
+- 首次列表示例在第一次搜索后、`emit` 之前读取广告占位的 `id` 触发 `KeyError` 退出 1；那一次成功响应的 HTTP 状态没有打印，**不补记为 200**。修正后占位与作品分开统计，不再对占位取 `id`。
+- 首次浏览示例 4×200、退出 0，未改动、未重跑。修正后两个脚本 stderr 均为空；冒烟从 `from anybooru import Pixiv` 导入并显式匿名构造。
+
+### 最终方法级逐条证据
+
+下面是实际 Python 方法的执行结果（修正后冒烟 10 条、修正后列表示例 3 条、浏览示例 4 条），与上面的直接路由证据分开计数。成功行与预期错误行的 Content-Type 均为 `application/json; charset=utf-8`。
+
+| 脚本 / 调用 | 实际请求 URL | HTTP | 关键返回与检查 |
+| :--- | :--- | :--- | :--- |
+| 冒烟 / web_ranking page 1 | `https://www.pixiv.net/ranking.php?format=json&p=1&mode=daily` | HTTP 200 application/json; charset=utf-8 | contents:list,mode:str,content:str,page:int,prev:bool,next:int,date:str,rank_total:int,meta:dict / page=1 mode=daily content=all prev=False next=2 rank_total=500 date=20261007 entries=50 first_rank=1 first_id=150504540 first_type=0 first_size=800x800 first_views=18687 first_rating=261 first_user=552160 first_tags=4 |
+| 冒烟 / web_ranking page 2 | `https://www.pixiv.net/ranking.php?format=json&p=2&mode=daily` | HTTP 200 application/json; charset=utf-8 | page=2 mode=daily content=all prev=1 next=3 rank_total=500 entries=50 ranks=51–100 first_rank=51 first_id=150520694 first_size=2894x4093 first_views=3109 first_rating=107 first_user=18708753 first_tags=6 |
+| 冒烟 / web_search_artworks page 1 | `https://www.pixiv.net/ajax/search/artworks/cat?p=1&order=date_d&mode=all&s_mode=s_tag&type=all&word=cat` | HTTP 200 application/json; charset=utf-8 | data:list,total:int,lastPage:int / requested_page=1 word='cat' total=107077 lastPage=10 slots=60 artworks=59 ad_slots=1 ad_slot_keys=[['isAdContainer']] first ids=[150597938,150597364,150597001,150596543,150594497] |
+| 冒烟 / web_search_artworks page 2 | `https://www.pixiv.net/ajax/search/artworks/cat?p=2&order=date_d&mode=all&s_mode=s_tag&type=all&word=cat` | HTTP 200 application/json; charset=utf-8 | requested_page=2 total=107077 lastPage=10 slots=60 artworks=59 ad_slots=1 first ids=[150548771,150545412,150544771,150543126,150542990] |
+| 冒烟 / web_illust_show configured id | `https://www.pixiv.net/ajax/illust/149040133` | HTTP 200 application/json; charset=utf-8 | illustId=149040133 title_chars=8 illustType=0 xRestrict=0 sl=2 size=1202x1700 pageCount=1 userId=27517 account_chars=9 bookmarkCount=9627 likeCount=7300 viewCount=65694 tags=4 tags_with_actor=2 actor_keys=['userId','userName'] url_keys=[mini,original,regular,small,thumb] |
+| 冒烟 / web_illust_pages configured id | `https://www.pixiv.net/ajax/illust/149040133/pages` | HTTP 200 application/json; charset=utf-8 | requested=149040133 pages=1 sizes=['1202x1700'] url_keys=[original,regular,small,thumb_mini] |
+| 冒烟 / web_user_show configured id | `https://www.pixiv.net/ajax/user/27517?full=1` | HTTP 200 application/json; charset=utf-8 | userId=27517 name_chars=8 premium=True isFollowed=False partial=1 following=288 mypixivCount=1536 image_chars=105 imageBig_chars=106 |
+| 冒烟 / web_user_profile_all configured id | `https://www.pixiv.net/ajax/user/27517/profile/all` | HTTP 200 application/json; charset=utf-8 | requested=27517 illusts=253 manga=1 novels=0 bookmarkCount_keys=['private','public'] |
+| 冒烟 / web_illust_show missing id | `https://www.pixiv.net/ajax/illust/59580629` | HTTP 404 AnybooruHTTPError (expected) | data=dict error=True message='' body=[] body_chars=37 content_type='application/json; charset=utf-8' last_call=HTTP 404 https://www.pixiv.net/ajax/illust/59580629 |
+| 冒烟 / app_illust_detail anonymous | `https://app-api.pixiv.net/v1/illust/detail?illust_id=149040133` | HTTP 400 AnybooruHTTPError (expected) | data=dict error_keys=['message','reason','user_message','user_message_details'] message_chars=111 mentions=invalid_request reason='' body_chars=191 content_type='application/json; charset=utf-8' |
+| 列表示例 / web_search_artworks | `https://www.pixiv.net/ajax/search/artworks/cat?p=1&order=date_d&mode=all&s_mode=s_tag&type=all&word=cat` | 200 | `{"requested_page":1,"requested_word":"cat","total":107077,"lastPage":10,"slots":60,"artwork_count":59,"ad_slot_count":1,"ad_slots":[{"isAdContainer":true}],"ids":["150597938",…]}` |
+| 列表示例 / web_search_artworks | `https://www.pixiv.net/ajax/search/artworks/cat?p=2&order=date_d&mode=all&s_mode=s_tag&type=all&word=cat` | 200 | `{"requested_page":2,"total":107077,"lastPage":10,"slots":60,"artwork_count":59,"ad_slot_count":1,"ad_slots":[{"isAdContainer":true}],"ids":["150548771",…]}` |
+| 列表示例 / web_ranking | `https://www.pixiv.net/ranking.php?format=json&mode=daily&p=1` | 200 | `{"page":1,"mode":"daily","content":"all","prev":false,"next":2,"date":"20261007","rank_total":500,"count":50,"ids":[150504540,…]}` |
+| 浏览示例 / web_illust_show | `https://www.pixiv.net/ajax/illust/149040133` | 200 | illustId=149040133 illustTitle=夏まつり冬まつり illustType=0 xRestrict=0 sl=2 width=1202 height=1700 pageCount=1 userId=27517 userName=藤ちょこ（藤原） userAccount=fuzichoco bookmarkCount=9627 likeCount=7300 viewCount=65693 commentCount=39 urls keys=[mini,thumb,small,regular,original] tags=4 |
+| 浏览示例 / web_illust_pages | `https://www.pixiv.net/ajax/illust/149040133/pages` | 200 | count=1 sizes=['1202x1700'] |
+| 浏览示例 / web_user_show | `https://www.pixiv.net/ajax/user/27517?full=1` | 200 | userId=27517 name=藤ちょこ（藤原） premium=true isFollowed=false partial=1 following=288 mypixivCount=1536 |
+| 浏览示例 / web_user_profile_all | `https://www.pixiv.net/ajax/user/27517/profile/all` | 200 | illusts_count=253 illusts_sample_ids=['149040133','147208254','143484250','143317250','143198386'] manga_count=1 novels_count=0 bookmarkCount={"public":{"illust":1,"novel":0,"collection":0},"private":{"illust":0,"novel":0}} |
+
+### 边界与未实测
+
+- 需要登录态或令牌的读取路由只做到“匿名被拒”的证据：网页面书签/关注/看板等匿名 **400**，App 面需令牌路由匿名 **400** 或 **404**。带凭据的成功路径一次都没执行；`cookie`/`access_token`/`csrf_token` 的默认值在包内配置里为空串，客户端不发任何登录、OAuth 交换或令牌刷新请求。
+- 写请求（收藏、关注、评论、上传、删除等）一次都没发。媒体/CDN 地址只读取字符串，没有下载或可用性验证。没有求解质询、压测 429、并发或重试。
+- 分页语义只用样本页码覆盖：`ranking.php` 的 `p=1/2/10000`、`search/artworks` 的 `p=1/2/10/10000` 与 `limit=1`、`discovery` 的 `max=2/18/19/100`。未枚举全部参数组合与精确最大页码；短页、空页、HTTP 200 都不单独证明页码有效或已到末页。
+- 真正执行的 Python 方法只有 6 个读取方法加 1 个匿名被拒的 App 方法；其余候选路由（评论、推荐、novel、series、tag、street、watch、书签等）只有直接 HTTP 证据，实现对齐这些响应，方法级未逐个执行。最后追加的 series/v3 候选只是路由响应，对应匿名 400/404，没有 Python 执行、没有补跑旧脚本。
+- 未运行项目测试套件、mock、CI、构建、formatter 或 lint；行为证据仅为上述匿名只读请求与两个冒烟/示例脚本，不外推到其它家族或全站长期可用。
