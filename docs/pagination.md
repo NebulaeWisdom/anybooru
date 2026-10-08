@@ -28,7 +28,7 @@
 | nhentai `gallery_suggestions` / `gts_new_tags` / `tag_search` | `limit`（取几条，不是页码） |
 | ArtStation 列表路由，含 `project_search_post` 这个只读 POST 搜索 | `page`（1 起） / `per_page`，服务端硬性检查 |
 | Wallhaven `wallpaper_search`（以及文档同形的合集壁纸列表） | `page`（1 起）；每页固定 24 条，没有 `per_page` |
-| pixiv `web_search_artworks` / `web_ranking` | `p`（页码，1 起）；搜索另有 `limit`（每页条数上限，**不是**偏移） |
+| pixiv `web_search_artworks` / `web_ranking` | `p`（页码，1 起）；搜索另有 `limit`（站点自己的每页条数键，实测 `limit=1` 仍回 60 个 slot，不保证被采纳；不是偏移） |
 | pixiv 其它 web 列表路由（如 `ajax/illusts/comments/roots`） | `offset`（已跳过条数）/ `limit`（条数） |
 | pixiv app 列表方法 | 绝对 `next_url` 游标；调用方原样交回 `request(api='app')`，不 strip |
 
@@ -617,11 +617,13 @@ pixiv 的两面各有自己的分页方式，客户端原样转发，不补默�
 
 | 方法 / 路由 | 分页输入 | 翻页信息在回包的哪里 |
 | :--- | :--- | :--- |
-| `web_search_artworks(word, **params)`，`GET /ajax/search/artworks/{词}` | `p` 是页码（1 起）；`limit` 是每页条数上限，**不是** `offset`；`word` 同时进路径段与查询串。`order` / `mode` / `s_mode` / `type` 原样转发 | `{"error": false, "body": {…}}`（**没有** `message`）；`body.illustManga` 里有 `data`（当页条目）、`total`（命中总数）、`lastPage`（站内允许的最大页码） |
+| `web_search_artworks(word, **params)`，`GET /ajax/search/artworks/{词}` | `p` 是页码（1 起）；`limit` 是站点自己的每页条数键（实测 `limit=1` 仍回 60 个 slot，不保证被采纳），**不是** `offset`；`word` 同时进路径段与查询串。`order` / `mode` / `s_mode` / `type` 原样转发 | `{"error": false, "body": {…}}`（**没有** `message`）；`body.illustManga` 里有 `data`（当页条目）、`total`（命中总数）、`lastPage`（站内允许的最大页码） |
 | `web_ranking(**params)`，`GET /ranking.php` | `p` 是页码（1 起）；`mode` / `date` 原样转发；方法自动补 `format=json` | **裸根对象**、没有信封：`page` 回显请求页码，`prev` / `next` 是上一/下一页页码（没有则 `false`），`rank_total` 是榜单总名额（日榜样本 `500`）；`contents` 每页 50 条 |
 | 其它 web 列表路由（如 `GET /ajax/illusts/comments/roots?illust_id=…&offset=0&limit=2`） | `offset` 是已跳过条数、`limit` 是条数，语义与 `p` 完全不同 | 例如插画评论回 `{"error": false, "message": "", "body": {"comments": […], "hasNext": bool}}` |
 
-web 搜索的 `p` 不是偏移：`p=1`、`p=2` 是第 1、2 页；`limit` 也不改页码语义。实测 `p=10000` 仍回 `200`，返回的是第 1 页样式的内容（`lastPage` 只有 `10`）——所以 **HTTP 200 与数组非空都不代表这个页码有效**，判断末页要看 `body.illustManga.lastPage`。排行榜越界反而报错：`ranking.php?mode=daily&p=10000` 回 `404` 加裸 `{"error": "ランキング集計の範囲外です"}`，不是空数组。web 各路由的默认每页数与 `limit` 上限没有取得完整样本，客户端不钳位。
+web 搜索的 `p` 不是偏移：`p=1`、`p=2` 是第 1、2 页；`limit` 也不改页码语义。实测 `p=10` 与 `p=10000` 都回 `200`，`p=10000` 的前 3 个 ID 与 `p=10` 相同——深页落到末页样式（`body.illustManga.lastPage` 是 `10`），不是空数组——所以 **HTTP 200 与数组非空都不代表这个页码有效**，判断末页要看 `body.illustManga.lastPage`。排行榜越界反而报错：`ranking.php?mode=daily&p=10000` 回 `404` 加裸 `{"error": "ランキング集計の範囲外です"}`，不是空数组。web 各路由的默认每页数与 `limit` 上限没有取得完整样本，客户端不钳位。
+
+搜索一页的 `body.illustManga.data` 里混有占位条目：本轮 `ajax/search/artworks` 的样本每页 60 个 slot，其中 1 条是 `{"isAdContainer": true}`，其余 59 条才是作品（`p=1`、`p=2`、`p=10000`、`limit=1` 的样本各含 1 条）。客户端原样返回、不过滤也不替换，遍历作品时自己按条目里有没有 `id` 判断。这组数字只属于 `ajax/search/artworks` 一条路由：同期小说搜索 `ajax/search/novels` 的样本是 30 条且没有广告位，**不要**把「60 里 1 条广告」套到其它搜索路由。
 
 ```python
 from anybooru import Pixiv
@@ -631,12 +633,15 @@ with Pixiv('pixiv', cookie='', csrf_token='', access_token='') as client:   # �
     first_page = client.web_search_artworks(
         'cat', order='date_d', mode='all', s_mode='s_tag', type='all', p=1)
     manga = first_page['body']['illustManga']
-    print(manga['total'], manga['lastPage'], [item['id'] for item in manga['data']])
+    # isAdContainer 标记广告行；只在展示作品时分开，客户端不删返回数据
+    print(manga['total'], manga['lastPage'],
+          [item['id'] for item in manga['data'] if 'isAdContainer' not in item])
 
     # GET https://www.pixiv.net/ajax/search/artworks/cat?...&p=2
     second_page = client.web_search_artworks(
         'cat', order='date_d', mode='all', s_mode='s_tag', type='all', p=2)
-    print([item['id'] for item in second_page['body']['illustManga']['data']])
+    print([item['id'] for item in second_page['body']['illustManga']['data']
+           if 'isAdContainer' not in item])
 
     # GET https://www.pixiv.net/ranking.php?mode=daily&p=1&format=json
     ranking = client.web_ranking(mode='daily', p=1)
