@@ -427,9 +427,57 @@ with ArtStation('artstation') as client:            # 包内条目只有 url，�
 
 **未实测清单**：带有效 key 的任何成功响应、`X-API-Key` 头这条路径、私有合集与自己的合集列表的登录态返回、NSFW 壁纸的成功读取。上表的匿名 `401` / `404` 只是当前身份的拒绝形态，不能反推「带上 key 一定成功」，也不说明服务端把两种带法当成同一件事。状态码与正文见 [错误处理](errors.md#wallhaven)，官方依据与样本见 [方法参考](wallhaven-api.md)。
 
+## pixiv：两个域名，两套凭据
+
+`Pixiv` 一个类对两个域名，凭据因此也分两套，各只归属自己那一面：
+
+| 面 | 请求根 | 这一面带的头 |
+| :--- | :--- | :--- |
+| web | `sites.<站点>.url`（包内是 `https://www.pixiv.net`） | 固定带 `Referer: <web 根>/`；`cookie` 非空时加 `Cookie: <cookie>`，`csrf_token` 非空时加 `X-CSRF-Token: <csrf_token>`；**不带** `Authorization` |
+| app | `sites.<站点>.app_url`（包内是 `https://app-api.pixiv.net`） | `access_token` 非空时加 `Authorization: Bearer <access_token>`；本类不添加 `Referer` / `Cookie` / `X-CSRF-Token`（共享会话的 Cookie jar 仍按 requests 默认域规则工作） |
+
+```json
+{
+  "sites": {
+    "pixiv": {
+      "url": "https://www.pixiv.net",
+      "app_url": "https://app-api.pixiv.net",
+      "cookie": "",
+      "csrf_token": "",
+      "access_token": ""
+    }
+  }
+}
+```
+
+规则：
+
+* 三个凭据都是三态：`cookie=None`（或不传）读 `sites.<键>.cookie`，显式 `cookie=''` 表示本次 web 匿名且**不读**配置里的值；`csrf_token` 与 `access_token` 同理。包内五项里三个凭据都是空串，所以 `Pixiv('pixiv')` 开箱即匿名，构造不发请求；
+* 两套凭据严格分开：本类只把 `cookie` / `csrf_token` 加在 web 请求上、只把 `access_token` 加在 app 请求上，不会把任一凭据发到另一个域名，也不会给 web 请求加 `Authorization`；共享会话按 requests 默认的 Cookie 域规则处理站点自己设置的 Cookie；
+* `request(method, path, api='web')` 走 web 根、`api='app'` 走 app 根，由调用方显式选面；库不按路径嗅探该用哪一面，也不在两面对调凭据；
+* 库**不抓 Cookie**：不解析响应的 `Set-Cookie` 去拼下一次的凭据，`cookie` 只来自你传入的值。共享的 `requests.Session` 仍按 requests 默认行为保存并重放站点设置的 Cookie（与其它家族相同）；显式传 `cookie` 时那个 `Cookie` 头会取代会话自动拼的那个；
+* 库**不走 OAuth**：没有登录、PKCE 换取、刷新 token 的方法，也不从浏览器 Cookie 推导 `access_token`。令牌由使用者自己准备；被拒或过期时站点返回它自己的响应，库不在 `400` / `401` 后退回匿名或换令牌；
+* 不伪造 App 身份头：不发 `x-client-time`、`x-client-hash`，也不把 UA 换成 App UA——UA 仍是共享配置的 `request.user_agent`（默认 `Anybooru/0.1.0.dev1`）。要单独覆盖就传 `user_agent=`，或按单次调用用 `request(headers=…)` 显式传；
+* `request(headers=…)` 里调用方给的 `headers` 最后合并，可覆盖 `Referer` / `Cookie` / `Authorization` 等任一头，用于单次调用；原生 `web_*` / `app_*` 方法不带隐式附加头；
+* 权限由服务端判定，客户端不预判能力，也不在认证失败后另换身份。
+
+匿名可达与需凭据的实测对照（都是匿名样本，串行、每项一次、不带任何凭据）：
+
+| 调用 | 匿名实测 | 读得出什么 |
+| :--- | :--- | :--- |
+| web `ajax/illust/{id}`、`ajax/illust/{id}/pages`、`ajax/user/{id}`、`ajax/user/{id}/profile/all`、`ajax/search/artworks/{词}`、`ranking.php?format=json` 等 | `200` | 这些 web 读取带上 `Referer: <web 根>/`、不带 Cookie 就能拿到 JSON |
+| web `ajax/illust/0` | `400` | 信封 `{"error": true, "message": "", "body": []}` |
+| web `ajax/illust/59580629`（不存在） | `404` | 同样的信封形态，正文 `body` 是 `[]` |
+| web `ajax/discovery/artworks?mode=all`、`ajax/user/{id}/illusts/bookmarks` | `400` | 信封 `error: true` 的一般性无效请求。**不能**据此断言它们“必须登录”：本轮没有任何带登录态的成功或失败样本 |
+| app `v1/illust/detail` | `400` | 裸 `{"error": {"user_message": "", "message": "…invalid_request", "reason": "", "user_message_details": {}}}`，OAuth 拒绝；app 业务路由匿名不可用 |
+| app `v1/illust/recommended-nologin`、`v1/novel/recommended-nologin` | `404` | 裸错误体写着“指定されたエンドポイントは存在しません”，**端点不存在**（匿名推荐路由已下线），不是权限拒绝 |
+| app `v1/application-info/android`、`v1/emoji` | `200` | **不是所有 app 路由都要 token**：这两条匿名可达，分别返回 `{"application_info": …}` 与 `{"emoji_definitions": […]}` |
+
+**未实测**：带 `cookie` / `csrf_token` / `access_token` 的任何成功响应；需要登录态的 web 路由（动态、关注、通知一类）；app 业务路由在有效 token 下的返回；OAuth 登录、PKCE 换取与刷新流程既未实现也未执行。上表的匿名 `400` / `404` 只描述当前身份下的现象，不能反推“带上凭据一定成功”，也不能说 app 面全部要 token。逐条 URL、状态与正文见 [验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
+
 ## 边界与未实测
 
-已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要该站账号，已实测匿名拒绝为 `401`、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 `426`，带 `x-sakuria-data-contract: 2` 后为 `401` `sakuria_session_required`），17 个成功返回结构一律未知；带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与 `post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，其余按候选输入封装；逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与 [Cosine 契约审计附注](cosine-contract-notes.md)。nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 `403` 挑战与 v2 详情的 `401` `{"data":null}` 也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与 [ArtStation 契约审计附注](artstation-contract-notes.md)。Wallhaven 同样没有凭据样本：`apikey` 查询值与 `X-API-Key` 头两种带法只按官方 API 页面 "Authentication" 一节封装，从未发送过任何 key，`user_settings`、自己的 `collection_list`、私有合集与 NSFW 壁纸的成功响应一律未实测；匿名侧只取得 `200`（搜索 / 详情 / 标签 / 用户公开合集）与 `401` / `404` 两种拒绝形态，它们不能反推带 key 的结果。逐条见[验证记录](verification.md)与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
+已提供的需要登录的写方法只有源码对齐，没有线上实测。Serika 用户没有且不申请 API key，12 个需 key 方法的成功响应也未实测；匿名公开方法与部分站内读取已有真实执行。Moebooru 的 90 个原生方法按上游 HEAD `206455e1` 对齐，e621ng 的 18 个原生只读方法按上游 HEAD `7a9c98851` 对齐，两者的匿名执行范围见[验证记录](verification.md)。Gelbooru 的 5 个 dapi 方法需要该站账号，已实测匿名拒绝为 `401`、空正文，账号成功路径仍只有站点文档依据。源码或文档对齐不保证站点授予权限。Shuushuu 的五个认证方法、`user_ratings` 以及全部账号写操作未调用、未实测；公开读方法也只执行了验证记录列出的子集。Gelbooru02（TBIB）的账号路径未调用；新客户端默认匿名，不提供登录或内置凭据字段。其 `post_deleted` 方法没有单独实跑，直接请求对应删除流路由得到 `500`，没有成功样本。Sakuria 的 17 个 `me*` 方法按账号读取封装；本轮只请求过 `/me/likes`（匿名无契约头为 `426`，带 `x-sakuria-data-contract: 2` 后为 `401` `sakuria_session_required`），17 个成功返回结构一律未知；带 token 的路径从未执行，也没有任何登录、换取或刷新 token 的方法可用。匿名只读侧的执行（54 次串行探测、10 次上限的冒烟与两个示例）也都是有界样本，不泛化到 44 个方法；依据是本仓库最弱的一档（无官方页面 / OpenAPI / 源码）。逐条见[验证记录](verification.md#sakuria匿名只读实测2026-09-19)与 [Sakuria 契约审计附注](sakuria-contract-notes.md)。Anime-Pictures 的凭据路径同样没有成功样本：`authorization` / `cookie` 的确切用法、登录态 cookie 名与 `post_create` 需要的头都未实测；匿名侧只观察到 `post_tags` 与 `image_get` 的 `403`（前者 JSON、后者空正文），`post_create` 连拒绝形态都没有样本（本轮没有发过 POST）。13 个方法里 10 个只读 GET 匿名已实测，其余按候选输入封装；逐条见[验证记录](verification.md#anime-pictures匿名只读实测2026-09-19)与 [Anime-Pictures 契约审计附注](anime-pictures-contract-notes.md)。Cosine 尚无带密钥的实测样本：公开读取默认匿名，两个 POST（`artwork_revalidate`、`search_index_admin`）本轮从未调用，成功与拒绝形态都未实测；11 个只读 GET 的匿名执行范围见[验证记录](verification.md#cosine匿名只读实测2026-09-20)与 [Cosine 契约审计附注](cosine-contract-notes.md)。nhentai 的凭据路径同样没有成功样本：31 个 GET 路由全是匿名请求（25 个 `200`、6 个 `401`），`Authorization: Key <api_key>` 与 `Authorization: User <token>` 都**从未发送过**——前者只有 OpenAPI 依据，后者连 OpenAPI 都把它归到 First-party/internal。4 个写方法（收藏增删、黑名单更新、下载 URL）与 `POST /api/v2/tags/search` 本轮未调用，成功、拒绝与权限形态都没有样本；PoW / CAPTCHA 与限流（`429`）也未触发。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20)与 [nhentai 契约审计附注](nhentai-contract-notes.md)。ArtStation 本轮没有验证账号凭据方案：构造没有凭据参数，17 个原生方法是 15 个匿名 GET 加 2 个匿名 POST（`csrf_token` 与 `project_search_post`，都不是内容写入），没有账号登录、刷新会话或写数据的入口。`csrf_token()` 给的只是匿名会话的请求凭据，不等于账号身份；指定详情的 `403` 挑战与 v2 详情的 `401` `{"data":null}` 也只是两条路径的匿名访问拒绝，不能说明站点接受哪种账号凭据、带凭据会返回什么，一律未知；匿名可达也不等于获得许可。逐条见[验证记录](verification.md)与 [ArtStation 契约审计附注](artstation-contract-notes.md)。Wallhaven 同样没有凭据样本：`apikey` 查询值与 `X-API-Key` 头两种带法只按官方 API 页面 "Authentication" 一节封装，从未发送过任何 key，`user_settings`、自己的 `collection_list`、私有合集与 NSFW 壁纸的成功响应一律未实测；匿名侧只取得 `200`（搜索 / 详情 / 标签 / 用户公开合集）与 `401` / `404` 两种拒绝形态，它们不能反推带 key 的结果。逐条见[验证记录](verification.md)与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。Pixiv 的两套凭据同样没有成功样本：`cookie` / `csrf_token` 只按 web 面封装、`access_token` 只按 app 面封装，三者都**从未发送过非空值**。web 面匿名读取取到多个 `200`；app 面匿名只观察到 `v1/illust/detail` 的 `400` OAuth 拒绝、两条已下线 `recommended-nologin` 路由的 `404`，以及 `v1/application-info/android` 与 `v1/emoji` 的 `200`。这些匿名现象都不能反推带上凭据的结果，也不代表 app 面全部要 token；OAuth 登录与刷新未实现。逐条见[验证记录](verification.md)与 [pixiv 契约附注](pixiv-contract-notes.md)。
 
 ## 相关文档
 
