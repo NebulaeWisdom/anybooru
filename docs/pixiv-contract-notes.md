@@ -396,7 +396,7 @@ novel 8**。`total`/`lastPage` 与每页槽数也对不上（`107077/60` 远大�
 | 匿名访问某些 web 路由会 `401`/认证失败 | 本轮账号态 web 路由匿名是 **400 非法请求**，不是 401；不能把 web 400 等同认证 403 |
 | “所有 app 路由都要 token” | `v1/application-info/android`、`v1/emoji` 匿名 **200**；不是所有 app 路由都要 |
 | 匿名 app 请求返回 401 | 实测是 **400** 加 OAuth `invalid_request` 错误体 |
-| 业务请求需要 `x-client-time`/`x-client-hash` | 业务路由不需要，客户端**不伪造**这两个头，也不伪造 app UA |
+| 业务请求需要 `x-client-time`/`x-client-hash` | pixivpy 普通 API 函数不注入这两个头，认证函数才注入；本库不自动生成，也不伪造 app UA。带有效凭据时服务端的实际头需求未测 |
 | web 错误 message 统一 | web 响应并非都有 `message`：搜索、小说榜无该键，`ranking.php`/`cps.php` 无信封 |
 | W：`ajax/illust/recommend/illusts` 用不带括号的重复 `illust_ids` | **来源 bug**：无括号实测 **400**；带括号 `illust_ids[]` 实测 **200**。正确形式与其它列表一致 |
 | `ajax/illust/discovery` 的 `max` 硬上限 18 | 与 Live 一致：`max=18` 200（18 条）、`max=19` 400、`max=100` 400 |
@@ -407,9 +407,9 @@ novel 8**。`total`/`lastPage` 与每页槽数也对不上（`107077/60` 远大�
 | `ajax/novel/series_content/{id}` 的 `page` 用 `novels` | 实测 `page` 用 **`seriesContents`**，不是 `novels` |
 | `ajax/illusts/comments/replies` 成功即含评论 | 实测 `comment_id=233757844` 为 **200 但 `error:true`、`body` 为空数组**；本类原样返回，不把 HTTP 200 当有数据 |
 | 搜索 `data` 每页都是 60 个作品行 | 只对 `artworks`/`illustrations`/`manga` 成立且为 **60 槽位 = 59 作品 + 1 广告占位 `{"isAdContainer": true}`**；`novels` 是 **30 个小说无广告**，`top` 聚合是 **illust 24 / manga 24 / novel 8**。`len(data)` 不是作品数，客户端不过滤、由调用方判别 |
-| v1/v2/v3 插画评论 | `v1/illust/comments`（P）与 `v3/illust/comments`（gallery-dl，匿名 400 OAuth）各自是独立现役路由、并存；`v2/illust/comments` 本轮 404、不封装。三条**不是别名** |
+| v1/v2/v3 插画评论 | `v1/illust/comments`（P）与 `v3/illust/comments`（G，匿名 400 OAuth）来自不同客户端；本库显式保留两条路径，不做别名或自动降级。`v2/illust/comments` 本轮 404、不封装；这不证明其它两条带凭据成功 |
 | `ajax/showcase/article` 可直接按 article_id 读 | 文章接口无有效 id 可用：`article_id=0` 本轮 **404** `{error,message,body}`；页面 `/showcase` 是另一对象、**302 `Location: /showcase/`** 且未跟转。没有成功样本，保持 source-only，不拿页面重定向当文章接口结果 |
-| gallery-dl 仍含 `v1/novel/series`、`v1/novel/text`，而 pixivpy 选 `v2/novel/series` 且标注 `v1/novel/text` 不存在 | 第三方源互相冲突，**照录不裁**：本客户端选 v2 系列 + `webview_v2/novel` 取正文，但不断言服务端已迁移或旧路由全局不存在 |
+| gallery-dl 仍含 `v1/novel/series`、`v1/novel/text`，而 pixivpy 选 `v2/novel/series` 且标注 `v1/novel/text` 不存在 | 第三方源互相冲突。本客户端选 v2 系列与 `webview/v2/novel` HTML 正文入口，不断言服务端已迁移或旧路由全局不存在 |
 | 榜单条目的 `illust_series` 是布尔 | 实测 `false` 与对象两种值并存；对象带 `illust_series_id` 等一串字段，按布尔解析会出错 |
 | 插画 `tags.tags` 每条都带 `userId`/`userName` | 实测**可选**：作者自加标签有，其它标签没有（样本 `149040133` 第 3、4 个标签只有 `tag`/`locked`/`deletable`） |
 | H：`GET /v2/illust/comments` 现役 | 本轮匿名 **404**，body 是空对象 `{}`；不与 P 的 v1 并列封装，列入第 7 节排除 |
