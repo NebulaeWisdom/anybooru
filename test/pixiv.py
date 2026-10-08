@@ -14,8 +14,9 @@ it. ``web_illust_show``, ``web_illust_pages``, ``web_user_show`` and
 ``web_user_profile_all`` answer ``{"error": false, "message": "",
 "body": ...}``: the illustration body carries the identifiers, title, type
 flags, width/height, page count, dates, the four/five ``urls`` addresses and
-the ``tags`` object whose ``tags`` array items hold
-``tag``/``locked``/``deletable``/``userId``/``userName``; the pages body is an
+the ``tags`` object whose ``tags`` array items hold ``tag``/``locked``/
+``deletable`` (the ``userId``/``userName`` actor keys appear on some tags only
+and are checked when present); the pages body is an
 array of ``{"urls", "width", "height"}``; the user body carries ``userId``
 (echoed back as the string it was requested by), ``name``, the two profile
 image addresses, ``premium``, ``isFollowed``, ``partial`` and the counters
@@ -24,7 +25,10 @@ image addresses, ``premium``, ``isFollowed``, ``partial`` and the counters
 ``bookmarkCount``. ``web_search_artworks`` instead answers
 ``{"error": false, "body": {"illustManga": {"data", "total", "lastPage", ...},
 ...}}``; this file reads only ``error`` and ``body`` and never touches any
-optional ``message`` key. Its ``data`` items are checked for ``id``,
+optional ``message`` key. Its ``data`` array mixes the real artworks with
+advertisement placeholders that carry only ``isAdContainer``; this file splits
+the two, checks ``isAdContainer`` is true on each placeholder, reports the
+``ad_slots`` count and validates the remaining rows as artworks for ``id``,
 ``title``, ``illustType``, ``xRestrict``,
 ``restrict``, ``sl``, ``url``, ``userId``, ``userName``, ``width``, ``height``,
 ``pageCount``, ``createDate``, ``updateDate``, ``description`` and ``alt``.
@@ -32,8 +36,9 @@ optional ``message`` key. Its ``data`` items are checked for ``id``,
 ``mode``, ``content``, ``page``, ``prev``, ``next``, ``date``, ``rank_total``
 and ``meta``, no ``error``/``message`` wrapper; each of its 50 ``contents``
 entries is checked for ``rank``, ``illust_id``, ``user_id``, ``width``,
-``height``, ``view_count``, ``rating_count`` and the remaining documented keys,
-and the returned ``page`` must equal the requested one.
+``height``, ``view_count``, ``rating_count`` and the remaining documented keys
+(``illust_series`` is accepted as either a boolean or an object), and the
+returned ``page`` must equal the requested one.
 
 Every listing reports its ``total``/``lastPage`` (search) or ``rank_total``
 (ranking) and the entry count, but no line asserts that a page is full, that a
@@ -72,8 +77,8 @@ ILLUST_BODY_FIELDS = {'illustId': str, 'id': str, 'illustTitle': str,
                       'urls': dict, 'tags': dict}
 ILLUST_URL_FIELDS = {'mini': str, 'thumb': str, 'small': str, 'regular': str,
                      'original': str}
-ILLUST_TAG_FIELDS = {'tag': str, 'locked': bool, 'deletable': bool,
-                     'userId': str, 'userName': str}
+ILLUST_TAG_FIELDS = {'tag': str, 'locked': bool, 'deletable': bool}
+ILLUST_TAG_ACTOR_KEYS = ('userId', 'userName')
 PAGE_ITEM_FIELDS = {'urls': dict, 'width': int, 'height': int}
 PAGE_URL_FIELDS = {'thumb_mini': str, 'small': str, 'regular': str,
                    'original': str}
@@ -98,7 +103,7 @@ RANKING_ITEM_FIELDS = {'title': str, 'date': str, 'tags': list, 'url': str,
                        'yes_rank': int, 'rating_count': int,
                        'view_count': int, 'illust_upload_timestamp': int,
                        'attr': str, 'illust_content_type': dict,
-                       'illust_series': bool, 'is_masked': bool}
+                       'illust_series': (bool, dict), 'is_masked': bool}
 
 
 def require(condition, detail):
@@ -140,8 +145,14 @@ def illust_detail(value, illust_id):
             f"id={body['id']!r}, requested {illust_id!r}")
     fields(body['urls'], ILLUST_URL_FIELDS)
     fields(body['tags'], {'tags': list})
+    actors = 0
     for tag in body['tags']['tags']:
         fields(tag, ILLUST_TAG_FIELDS)
+        present = [key for key in ILLUST_TAG_ACTOR_KEYS if key in tag]
+        if present:
+            actors += 1
+            for key in present:
+                kind_of(key, tag[key], str)
     return (f"{detail} | illustId={body['illustId']} title_chars="
             f"{len(body['illustTitle'])} illustType={body['illustType']} "
             f"xRestrict={body['xRestrict']} sl={body['sl']} "
@@ -150,7 +161,8 @@ def illust_detail(value, illust_id):
             f"account_chars={len(body['userAccount'])} "
             f"bookmarkCount={body['bookmarkCount']} "
             f"likeCount={body['likeCount']} viewCount={body['viewCount']} "
-            f"tags={len(body['tags']['tags'])} "
+            f"tags={len(body['tags']['tags'])} tags_with_actor={actors} "
+            f"actor_keys={list(ILLUST_TAG_ACTOR_KEYS)} "
             f"url_keys={sorted(body['urls'])}")
 
 
@@ -195,18 +207,24 @@ def user_profile_all(value, user_id):
 
 
 def search_page(value, page, word):
-    """A keyword search only reads its ``error`` and ``body`` here."""
+    """Split the ad placeholders from the real artworks, dropping neither."""
     fields(value, {'error': bool, 'body': dict})
     require(value['error'] is False, f"error={value['error']!r}, expected false")
     manga = value['body']['illustManga']
     detail = fields(manga, {'data': list, 'total': int, 'lastPage': int})
     require(manga['total'] >= 0, f"total={manga['total']}")
     require(manga['lastPage'] >= 0, f"lastPage={manga['lastPage']}")
-    for item in manga['data']:
+    slots = manga['data']
+    ad_slots = [slot for slot in slots if 'isAdContainer' in slot]
+    artworks = [slot for slot in slots if 'isAdContainer' not in slot]
+    for slot in ad_slots:
+        require(slot['isAdContainer'] is True,
+                f"ad slot isAdContainer={slot['isAdContainer']!r}, expected true")
+    for item in artworks:
         fields(item, SEARCH_ITEM_FIELDS)
         for tag in item['tags']:
             require(type(tag) is str, f'tag: got {type(tag).__name__}')
-    lead = manga['data'][0] if manga['data'] else None
+    lead = artworks[0] if artworks else None
     if lead is None:
         head = 'first=none'
     else:
@@ -216,8 +234,10 @@ def search_page(value, page, word):
                 f"first_user={lead['userId']} first_tags={len(lead['tags'])}")
     return (f"{detail} | requested_page={page} word={word!r} "
             f"total={manga['total']} lastPage={manga['lastPage']} "
-            f"entries={len(manga['data'])} "
-            f"ids={[item['id'] for item in manga['data']]} {head}")
+            f"slots={len(slots)} artworks={len(artworks)} "
+            f"ad_slots={len(ad_slots)} "
+            f"ad_slot_keys={[sorted(slot) for slot in ad_slots]} "
+            f"ids={[item['id'] for item in artworks]} {head}")
 
 
 def ranked_page(value, page):
