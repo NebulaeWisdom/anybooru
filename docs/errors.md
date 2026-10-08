@@ -334,15 +334,16 @@ pixiv 两面（web 与 app）的错误体形状不同，而且同一字段 `erro
 
 | 状态码 | 本轮观察（样本，不是全集） |
 | :--- | :--- |
-| `400` | **web 信封**：`GET https://www.pixiv.net/ajax/illust/0` 回 `{"error": true, "message": "", "body": []}`；`GET /ajax/discovery/artworks?mode=all&limit=2` 与 `GET /ajax/user/27517/illusts/bookmarks?tag=&offset=0&limit=2&rest=show` 也是 `400` 加信封 `error: true` 的无效请求。后一条**不能**读成“必须登录”：本轮没有任何带登录态的样本证明带上 Cookie 就会成功 |
+| `400` | **web 信封**：`GET https://www.pixiv.net/ajax/illust/0` 回 `{"error": true, "message": "不正なリクエストです。", "body": []}`；`GET /ajax/discovery/artworks?mode=all&limit=2` 与 `GET /ajax/user/27517/illusts/bookmarks?tag=&offset=0&limit=2&rest=show` 也是 `400`，信封同为 `{"error": true, "message": "不正なリクエストです。", "body": []}`。后一条**不能**读成“必须登录”：本轮没有任何带登录态的样本证明带上 Cookie 就会成功 |
+| `200` | **web 信封但 `error: true`**：`GET https://www.pixiv.net/ajax/illusts/comments/replies?comment_id=233757844&page=1` 回 `200`、`application/json`，正文却是 `{"error": true, "message": "", "body": []}`（读不到 `hasNext`）。客户端把它当**数据**原样返回，不抛异常，见下面两条行为规则 |
 | `404` | **web 信封**：不存在的 `GET /ajax/illust/59580629` 回 `{"error": true, "message": "", "body": []}`——这里 `body` 是空数组，不是对象 |
 | `404` | **web 裸对象**：`GET https://www.pixiv.net/ranking.php?mode=daily&p=10000&format=json` 回**不带信封**的 `{"error": "ランキング集計の範囲外です"}`，`error` 是字符串 |
 | `400` | **app 裸对象**：`GET https://app-api.pixiv.net/v1/illust/detail?illust_id=149040133`（无 token）回 `{"error": {"user_message": "", "message": "Error occurred at the OAuth process. Please check your Access Token to fix this. Error Message: invalid_request", "reason": "", "user_message_details": {}}}`。既不是 `401`，也没有 web 信封 |
-| `404` | **app 端点不存在**：`GET /v1/illust/recommended-nologin` 与 `GET /v1/novel/recommended-nologin` 回 `{"error": {"user_message": "指定されたエンドポイントは存在しません", "message": "", "reason": "", "user_message_details": {}}}`；这是路由不存在，不是权限拒绝。对照：`GET /v1/application-info/android` 与 `GET /v1/emoji` 匿名回 `200`，所以不是所有 app 路由都要 token |
+| `404` | **app 路由候选拒绝**：两条 `recommended-nologin` 与 `v1/novel/markers` 的本轮正文含 `user_message: "指定されたエンドポイントは存在しません"`；`v2/illust/comments` 为 `{}`。本库未选择这些原生包装，但不把匿名样本外推为所有身份与参数下都不存在。应用信息与表情定义两条路由匿名 `200`，故不能说所有 app 路由都要 token |
 
 两条行为规则，与上面哪些路由返回错误无关：
 
-* **HTTP `200` 不代表“没有错误”，也不代表页码有效**：web 搜索 `p=10000` 仍回 `200`，返回的是第 1 页样式的内容（`body.illustManga.lastPage` 只有 `10`），不是异常也不是空数组。本库**不**把正文里的 `error: true` 翻成本地异常：某条路由若 `200` 且正文 `error: true`，你拿到的就是那个字典，`AnybooruHTTPError` 不会抛，也不会被换成 `AnybooruAPIError`。只有共享传输判定非 2xx 时才抛 `AnybooruHTTPError`，正文照实留在 `.data` / `.body`。
+* **HTTP `200` 不代表“没有错误”，也不代表页码有效**：web 搜索 `p=10000` 仍回 `200`，返回的条目与 `p=10`（`lastPage`）的前 3 个 ID 相同，即深页落到末页样式，不是异常也不是空数组；另一条 `ajax/illusts/comments/replies` 更是 `200` 加 `error: true`。本库**不**把正文里的 `error: true` 翻成本地异常：这类响应你拿到的就是那个字典，`AnybooruHTTPError` 不会抛，也不会被换成 `AnybooruAPIError`。只有共享传输判定非 2xx 时才抛 `AnybooruHTTPError`，正文照实留在 `.data` / `.body`。
 * 状态码与正文原样保留，不翻译、不归一：`last_call` 在抛异常前就写好了那次请求的 URL、状态码与响应头，出错时也能读。
 
 ```python
@@ -366,7 +367,7 @@ with Pixiv('pixiv', cookie='', csrf_token='', access_token='') as client:   # �
         print(error.http_code)                            # 400
         print(error.data['error']['message'])             # Error occurred at the OAuth process. …
 
-    # 200 不等于页码有效：这条路由回 200，内容仍是第 1 页样式
+    # 200 不等于页码有效：p=10000 回 200，但其前 3 个 ID 与 p=10 相同，即落到末页
     page = client.web_search_artworks('cat', order='date_d', mode='all',
                                       s_mode='s_tag', type='all', p=10000)
     print(page['body']['illustManga']['lastPage'])        # 10
@@ -392,7 +393,7 @@ Cosine 的错误路径同样只跑了有界样本：本轮两次匿名串行探�
 nhentai 的错误路径同样是有界样本：61 次匿名 GET 里出现的非 2xx 只有 `400` / `401` / `403` / `404` 四类，其中 `403` 只出现在站点旧一代 `/api/...` 路径上（纯文本指向 v2 文档，不是原生方法会走的路径）；`429`、`503` 与任何带凭据的失败形态都没有样本，写方法的拒绝形态（收藏、黑名单、下载 URL）与 PoW / CAPTCHA 分支一律未实测。逐条见[验证记录](verification.md#nhentai匿名只读实测2026-09-20) 与 [nhentai 契约审计附注](nhentai-contract-notes.md)。
 ArtStation 的错误路径同样只跑了有界样本：两批匿名探测共 37 次请求，其中非 2xx 12 个（`400` 九个、`401` / `403` / `404` 各一）、其余 25 个是 `200`；另有一段独立的 `POST` 跟进（匿名 CSRF token 与表单式搜索各取到一次 `200`，失败分支没有样本）。`429`、`5xx` 与带账号凭据的路径都没有样本，`per_page` 只试过四条 GET 路由的几个取值，`POST` 侧只试过 `per_page=3`，未知路径回 `200` + HTML 也只试过两条路径，不能推广成全站行为。逐条见[验证记录](verification.md) 与 [ArtStation 契约审计附注](artstation-contract-notes.md)。
 Wallhaven 的错误路径同样只跑了有界样本：非 2xx 只有 `400`（越界页码）、`401`（匿名读设置）、`404`（不存在的壁纸 / 标签、匿名读自己的合集、不在官方 7 条路由里的 `/similar` 与 `/user` 取样路径、不存在的合集）、`500`（`page=0` 的 HTML 错误页）与 `403`（相似搜索的 Cloudflare 质询页）；`429` 从未触发，非法 key 与 NSFW 的 `401` 只有官方口径、本仓库没有 key 可测，上表不是全集。逐条见[验证记录](verification.md) 与 [Wallhaven 契约审计附注](wallhaven-contract-notes.md)。
-pixiv 的错误路径同样只跑了有界样本：web 面非 2xx 只有 `400`（`ajax/illust/0`、`ajax/discovery/artworks`、用户 bookmarks）与 `404`（不存在的 `ajax/illust/59580629`、越界 `ranking.php`），app 面只有匿名 `v1/illust/detail` 的 `400` 与两条已下线 `recommended-nologin` 的 `404`；`401`、`403`、`429`、`5xx` 与任何带凭据的失败形态都没有样本，`ranking.php` 的裸错误对象除越界外没有更多样本。上表不是全集。逐条见[验证记录](verification.md) 与 [pixiv 契约附注](pixiv-contract-notes.md)。
+pixiv 的错误样本包括 web `400`、资源/排行/特辑错误路径的 `404`，以及 `/showcase` 页面的 `302`（`Location: /showcase/`，未跟随）。App 面 8 条业务路由匿名 `400` OAuth 错误，4 条候选路由匿名 `404`。`401`、`403`、`429`、`5xx` 与带凭据的失败形态未测。插画评论回复还出现 HTTP `200` 而正文 `error:true`；搜索 `p=10000` 与 `p=10` 前 3 个作品 ID 相同。逐条 URL、字段与状态见[验证记录](verification.md)，来源冲突与排除见 [pixiv 契约附注](pixiv-contract-notes.md)。
 
 ## 相关文档
 
